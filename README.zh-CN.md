@@ -7,7 +7,7 @@
 <p align="center"><b>需求的全自动 Loop：从一张需求到一个可合并的 Pull Request。</b><br>编码 Agent 按团队 SOP 跑完全程，人在环上（Human on the Loop），而不是卡在环里。</p>
 
 <p align="center">
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
   <a href="https://github.com/Tencent/LoopForge/actions/workflows/platform.yml"><img alt="platform" src="https://img.shields.io/github/actions/workflow/status/Tencent/LoopForge/platform.yml?branch=main&label=platform&labelColor=16161A&style=flat-square"></a>
   <a href="https://github.com/Tencent/LoopForge/actions/workflows/validate.yml"><img alt="cli" src="https://img.shields.io/github/actions/workflow/status/Tencent/LoopForge/validate.yml?branch=main&label=cli&labelColor=16161A&style=flat-square"></a>
   <a href="https://www.npmjs.com/package/loopforge-cli"><img alt="npm loopforge-cli" src="https://img.shields.io/npm/v/loopforge-cli?label=npm&labelColor=16161A&color=FF5A1F&style=flat-square"></a>
@@ -97,12 +97,18 @@ LoopForge **不是**又一个编码 Agent，也不是通用自动化工具。它
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
-docker compose pull    # 预构建镜像（linux/amd64、linux/arm64）
-LOOPFORGE_DEMO_MODE=true docker compose up -d
-docker compose logs loopforge | grep "Created admin account"   # 一次性管理员密码
+./start.sh          # 默认演示模式；能拉 GHCR 就拉，否则从本仓库构建
 ```
 
-打开 <http://localhost:8080> 登录（端口被占用时设置 `LOOPFORGE_PORT=9090`）。演示模式会加入一个脚本执行器和「演示交付流程」SOP：分析 → 人工审批 → 实现 → 报告。在工作总览里新建需求、触发运行、通过审批，然后在「产物」里打开生成的 `delivery-report.md`。整个过程不调用模型。
+打开 <http://localhost:8080> 登录（端口被占用时设置 `LOOPFORGE_PORT=9090`）。管理员密码由 `./start.sh` 打印一次。演示模式带脚本执行器和「演示交付流程」。在工作总览对话框点 **一键演示**（或输入一句话需求），通过审批后在「产物」打开 `delivery-report.md`。整个过程不调用模型。
+
+等价 compose：
+
+```bash
+docker compose pull
+LOOPFORGE_DEMO_MODE=true docker compose up -d
+docker compose logs loopforge | grep "Created admin account"
+```
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="创建几张演示需求后的 LoopForge 工作总览" width="100%">
@@ -229,4 +235,4 @@ LoopForge 会让 Agent 在真实仓库上执行命令。`local` 沙箱只是便�
 
 ## 许可证
 
-Apache License 2.0。Copyright (C) 2026 Tencent。`cli/` 下的 CLI 仍采用 [MIT 许可证](cli/LICENSE)。随附的第三方软件见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+MIT。Copyright (C) 2026 Tencent。随附的第三方软件见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

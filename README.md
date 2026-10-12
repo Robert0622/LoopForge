@@ -7,7 +7,7 @@
 <p align="center"><b>A fully automated loop from requirement to pull request.</b><br>Coding agents run your team's SOP end to end. People stay on the loop, not in it.</p>
 
 <p align="center">
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
   <a href="https://github.com/Tencent/LoopForge/actions/workflows/platform.yml"><img alt="platform" src="https://img.shields.io/github/actions/workflow/status/Tencent/LoopForge/platform.yml?branch=main&label=platform&labelColor=16161A&style=flat-square"></a>
   <a href="https://github.com/Tencent/LoopForge/actions/workflows/validate.yml"><img alt="cli" src="https://img.shields.io/github/actions/workflow/status/Tencent/LoopForge/validate.yml?branch=main&label=cli&labelColor=16161A&style=flat-square"></a>
   <a href="https://www.npmjs.com/package/loopforge-cli"><img alt="npm loopforge-cli" src="https://img.shields.io/npm/v/loopforge-cli?label=npm&labelColor=16161A&color=FF5A1F&style=flat-square"></a>
@@ -97,12 +97,18 @@ These tools compose well: use an agent board for one-off tasks, and LoopForge on
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
-docker compose pull    # prebuilt image (linux/amd64, linux/arm64)
-LOOPFORGE_DEMO_MODE=true docker compose up -d
-docker compose logs loopforge | grep "Created admin account"   # one-time admin password
+./start.sh          # demo mode on; pulls GHCR or builds from this checkout
 ```
 
-Open <http://localhost:8080> and sign in (port taken? set `LOOPFORGE_PORT=9090`). Demo mode adds a scripted executor and a "演示交付流程" (demo delivery) SOP: analyze → human approval → implement → report. On the dashboard, create a requirement, trigger it, approve the gate, and open the generated `delivery-report.md` under **产物** (artifacts). No model is called.
+Open <http://localhost:8080> and sign in (port taken? set `LOOPFORGE_PORT=9090`). The admin password is printed once by `./start.sh`. Demo mode adds a scripted executor and a "演示交付流程" SOP. On the dashboard chat, click **一键演示** (or type a requirement), approve the gate, and open `delivery-report.md` under **产物**. No model is called.
+
+Equivalent compose:
+
+```bash
+docker compose pull
+LOOPFORGE_DEMO_MODE=true docker compose up -d
+docker compose logs loopforge | grep "Created admin account"
+```
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="The LoopForge dashboard after a few demo requirements" width="100%">
@@ -229,4 +235,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [A
 
 ## License
 
-Apache License 2.0. Copyright (C) 2026 Tencent. The CLI under `cli/` stays under the [MIT License](cli/LICENSE). See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled third-party software.
+MIT. Copyright (C) 2026 Tencent. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled third-party software.

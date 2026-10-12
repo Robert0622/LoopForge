@@ -63,8 +63,7 @@ top-level code may only call functions from files loaded before it.
 4. CI also runs `scripts/check-internal-refs.sh` and a secret scan; keep
    hostnames, IPs and credentials of your own environment out of the tree.
 5. By submitting a contribution you agree that it is licensed under the
-   [Apache License 2.0](LICENSE), or the [MIT License](cli/LICENSE) for
-   changes under `cli/`.
+   [MIT License](LICENSE).
 
 Maintainers review PRs as time allows. Thank you for helping make LoopForge
 better!

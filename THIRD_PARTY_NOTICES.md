@@ -1,7 +1,6 @@
 # Third-Party Notices
 
-LoopForge is licensed under the Apache License 2.0 (see [LICENSE](LICENSE)); the
-CLI under `cli/` is licensed under the MIT License (see [cli/LICENSE](cli/LICENSE)).
+LoopForge is licensed under the MIT License (see [LICENSE](LICENSE)).
 The components below keep their original licenses.
 
 ## Bundled in this repository
