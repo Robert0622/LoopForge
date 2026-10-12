@@ -141,6 +141,11 @@ func StageChanges(workspace string) error {
 	}
 	args := append([]string{"-C", workspace, "add", "-u", "--", "."}, ExcludePathspecs...)
 	if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+		// Git 2.5x rejects `add -u` pathspecs when the index tracks nothing yet;
+		// there is nothing to update in that case.
+		if tracked, lsErr := exec.Command("git", "-C", workspace, "ls-files").Output(); lsErr == nil && len(strings.TrimSpace(string(tracked))) == 0 {
+			return nil
+		}
 		return fmt.Errorf("stage work branch changes: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
