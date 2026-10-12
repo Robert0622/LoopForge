@@ -508,7 +508,7 @@ async function importIssueFromURL(e){
       toast(`已导入 GitHub Issue：${issue.title||issue.id}`,'ok');
       if(issue.id)openIssueDetail(issue.id);
     }
-  }catch(err){toast(err.message)}
+  }catch(err){toast(err.message,'err')}
   finally{if(button){button.disabled=false;button.textContent='导入'}}
 }
 function canonicalIssue(id){

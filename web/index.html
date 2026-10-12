@@ -770,7 +770,7 @@
     </div>
   </div>
 
-  <div id="importIssueModal" class="modal"><form id="importIssueForm" class="modal-card"><button type="button" class="modal-close import-issue-close">×</button><p class="eyebrow">GITHUB</p><h2>导入一条 GitHub Issue</h2><p class="modal-hint">粘贴 Issue 链接，平台会用项目 Owner 的 GitHub Token（或服务端配置的 Token）拉取标题和描述，作为需求写入当前项目并按澄清策略打分。</p><label>Issue 链接</label><input id="importIssueURL" class="input" required placeholder="https://github.com/owner/repo/issues/42"><label>SOP 流程</label><select id="importIssueWorkflow" class="select"></select><label>代码仓库（可多选）</label><div id="importIssueRepository" class="repo-picker"></div><p class="modal-hint">从下拉框添加仓库，点击标签可移除。导入前必须至少选择一个仓库。</p><div class="modal-actions"><button type="button" class="button ghost import-issue-close">取消</button><button id="confirmImportIssue" type="submit" class="button primary">导入</button></div></form></div>
+  <div id="importIssueModal" class="modal"><form id="importIssueForm" class="modal-card"><button type="button" class="modal-close import-issue-close">×</button><p class="eyebrow">GITHUB</p><h2>导入一条 GitHub Issue</h2><p class="modal-hint">粘贴 Issue 链接，平台拉取标题和描述，作为需求写入当前项目并按澄清策略打分。公开仓库不配 Token 也能导入；私有仓库用项目 Owner 的 GitHub Token（或服务端配置的 Token）。</p><label>Issue 链接</label><input id="importIssueURL" class="input" required placeholder="https://github.com/owner/repo/issues/42"><label>SOP 流程</label><select id="importIssueWorkflow" class="select"></select><label>代码仓库（可多选）</label><div id="importIssueRepository" class="repo-picker"></div><p class="modal-hint">从下拉框添加仓库，点击标签可移除。导入前必须至少选择一个仓库。</p><div class="modal-actions"><button type="button" class="button ghost import-issue-close">取消</button><button id="confirmImportIssue" type="submit" class="button primary">导入</button></div></form></div>
 
   <div id="runModal" class="modal"><div class="modal-card"><button class="modal-close">×</button><p class="eyebrow">手动运行</p><h2>发起流程运行</h2><p>选择 SOP 并提供任务输入，内容会注入使用 <code>{{input}}</code> 的 Agent 节点。</p><label class="modal-label" for="runWorkflowChoice">SOP 流程</label><select id="runWorkflowChoice" class="select"></select><label class="modal-label" for="runInput">任务输入</label><textarea id="runInput" placeholder="例如：实现用户登录接口，并补充单元测试"></textarea><div class="modal-actions"><button class="button ghost modal-close">取消</button><button id="confirmRun" class="button primary">开始运行</button></div></div></div>
 
@@ -988,7 +988,7 @@
   <script src="/app/projects.js"></script>
   <script src="/app/business-domains.js"></script>
   <script src="/app/composer.js?v=20261013r1"></script>
-  <script src="/app/issues.js?v=20261013r3"></script>
+  <script src="/app/issues.js?v=20261013r4"></script>
   <script src="/app/sync-schedule.js"></script>
   <script src="/app/flows.js?v=20261013r1"></script>
   <script src="/app/agents.js"></script>

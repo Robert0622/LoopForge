@@ -302,3 +302,22 @@ func TestPruneDuplicateExternalIssuesKeepsWorkedCopy(t *testing.T) {
 		t.Fatal("the copy with task history must be kept")
 	}
 }
+
+func TestImportIssueURLReadsPublicIssueWithoutToken(t *testing.T) {
+	store := newMemStore()
+	store.users[1] = domain.User{ID: 1, LoginName: "owner"}
+	fp := &fakeProvider{issues: map[int]RemoteIssue{
+		9: {ID: 90, Number: 9, Title: "Add SSO", Body: "We need SSO", State: "opened"},
+	}}
+	s := newTestService(store, fp)
+	issue, err := s.ImportIssueURL(store, "p1", "https://github.com/acme/api/issues/9", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fp.token != "" || issue.Title != "Add SSO" {
+		t.Fatalf("public import must read anonymously: token=%q issue=%+v", fp.token, issue)
+	}
+	if err := s.PullAll(store); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("bulk pull still needs a token, got %v", err)
+	}
+}

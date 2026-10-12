@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -588,6 +589,11 @@ func (s *Service) ResyncIssue(store IssueStoreAdapter, issue domain.Issue) (doma
 
 func (s *Service) refreshIssue(store IssueStoreAdapter, repo domain.Repository, number int, kind string, fallbackUserID int64, imported bool) (domain.Issue, error) {
 	provider, err := s.providerForProject(repo.ProjectID)
+	anonymous := false
+	if errors.Is(err, ErrNotConfigured) && imported && s.newProvider != nil {
+		// Public issues can be read without a token.
+		provider, err, anonymous = s.newProvider(""), nil, true
+	}
 	if err != nil {
 		return domain.Issue{}, err
 	}
@@ -595,6 +601,9 @@ func (s *Service) refreshIssue(store IssueStoreAdapter, repo domain.Repository, 
 	defer cancel()
 	ri, err := provider.GetIssue(ctx, repo.RepoPath, number)
 	if err != nil {
+		if anonymous {
+			return domain.Issue{}, fmt.Errorf("没有配置 GitHub Token 时只能导入公开仓库的 Issue，这条没拉到（%v）。请在「个人设置」配置 GitHub Token 后重试", err)
+		}
 		return domain.Issue{}, err
 	}
 	issue := remoteToIssue(repo, ri, kind)

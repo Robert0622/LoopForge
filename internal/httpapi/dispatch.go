@@ -307,7 +307,7 @@ func requireGitTokenForPush(d *deps, userID int64, workflowID string, repositori
 			if name == "" {
 				name = rc.RepositoryID
 			}
-			return HTTPError{http.StatusBadRequest, fmt.Sprintf("需求绑定了仓库「%s」，但责任人还没有配置 GitHub Token：Agent 改完代码后要用它推送工作分支。请先在「个人设置」里配置 GitHub Token，或建单时不选仓库。", name)}
+			return HTTPError{http.StatusBadRequest, fmt.Sprintf("需求绑定了仓库「%s」，但责任人还没有配置 GitHub Token：Agent 改完代码后要用它推送工作分支。请先在「个人设置」里配置对该仓库有读写权限的 GitHub Token，再重新启动。", name)}
 		}
 	}
 	return nil

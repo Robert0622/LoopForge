@@ -140,7 +140,7 @@ func (h *doctorHandlers) build(ctx context.Context, user domain.User) doctorRepo
 	if strings.TrimSpace(user.GitToken) != "" {
 		add(doctorCheck{ID: "git-token", Label: "Git 凭据", Status: "ok", Detail: "已配置，交付节点可以推分支、开 PR。"})
 	} else {
-		add(doctorCheck{ID: "git-token", Label: "Git 凭据", Status: "info", Detail: "未配置：可以先跑不需要推代码的 SOP；要自动开 PR 时再到「账号与凭据」填写。", Action: "git-token"})
+		add(doctorCheck{ID: "git-token", Label: "Git 凭据", Status: "info", Detail: "未配置：不绑仓库的 SOP 照常能跑；需求绑定 GitHub 仓库时，Agent 要用它推送工作分支和开 PR，请到「个人设置」填写。", Action: "git-token"})
 	}
 
 	if sandbox != "generic-docker" {
