@@ -119,6 +119,9 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 		}
 		repositories = append(repositories, rc)
 	}
+	if err := requireGitTokenForPush(d, runUserID, workflowID, repositories); err != nil {
+		return domain.Task{}, err
+	}
 	input := issue.Title + "\n\n" + issue.Description
 	if title := strings.TrimSpace(strings.TrimSuffix(issue.Title, "…")); title != "" && strings.HasPrefix(strings.TrimSpace(issue.Description), title) {
 		input = strings.TrimSpace(issue.Description)
@@ -278,4 +281,43 @@ func appendSOPHandoff(issue domain.Issue, project domain.Project, workflowID, in
 	}
 	input += "\nContinue from those deliverables; do not redo the previous SOP."
 	return input
+}
+
+// requireGitTokenForPush stops a cloud run before it spends model tokens when
+// the platform will not be able to push the work branch afterwards. A default
+// execution machine may push with its own git login, so it is not checked.
+func requireGitTokenForPush(d *deps, userID int64, workflowID string, repositories []domain.RepositoryContext) error {
+	if len(repositories) == 0 || d.repo.DefaultRunner(userID) != "" {
+		return nil
+	}
+	if wf, ok := d.repo.Workflow(workflowID); ok && !workflowHasAgentNode(wf) {
+		return nil
+	}
+	user, ok := d.repo.User(userID)
+	if !ok || strings.TrimSpace(user.GitToken) != "" {
+		return nil
+	}
+	for _, rc := range repositories {
+		if strings.TrimSpace(rc.LocalPath) != "" {
+			continue
+		}
+		remote := strings.ToLower(rc.Provider + " " + rc.CloneURL + " " + rc.WebURL)
+		if strings.Contains(remote, "github") {
+			name := strings.TrimSpace(rc.Name)
+			if name == "" {
+				name = rc.RepositoryID
+			}
+			return HTTPError{http.StatusBadRequest, fmt.Sprintf("需求绑定了仓库「%s」，但责任人还没有配置 GitHub Token：Agent 改完代码后要用它推送工作分支。请先在「个人设置」里配置 GitHub Token，或建单时不选仓库。", name)}
+		}
+	}
+	return nil
+}
+
+func workflowHasAgentNode(wf domain.WorkflowDefinition) bool {
+	for _, node := range wf.Nodes {
+		if node.Type == "" || node.Type == "agent" {
+			return true
+		}
+	}
+	return false
 }

@@ -304,6 +304,14 @@ function renderClarifyPanel(aiResult, err){
 // 确保 analyzed=false 时用户明确知道结论未基于真实代码，不被误导。
 function clarifyRepoNoticeHTML(repo){
   if(!repo||repo.analyzed) return '';
+  if(!repo.name&&!repo.id&&/未绑定/.test(String(repo.reason||''))){
+    return `<div class="req-alert req-alert-info" role="note">`+
+      `<span class="req-alert-icon">ℹ️</span>`+
+      `<div class="req-alert-body">`+
+        `<div class="req-alert-title">还没有绑定代码仓库</div>`+
+        `<div class="req-alert-desc">以下澄清只基于你的描述。要让 Agent 改你的代码，先在「项目配置」里添加仓库；不绑也能跑，改动只留在本次运行的工作区和产物里。</div>`+
+      `</div></div>`;
+  }
   const name=repo.name||repo.id||'目标仓库';
   const reason=repo.reason||'未能拉取代码仓库';
   return `<div class="req-alert req-alert-warn" role="alert">`+

@@ -134,6 +134,8 @@ function bindHomeChat() {
   $('#homeChatStop') && ($('#homeChatStop').onclick = () => homeChatStop());
   $('#homeChatDispatch') && ($('#homeChatDispatch').onclick = () => homeChatCreateAndDispatch());
   $$('[data-home-goto]').forEach(b => b.onclick = () => switchView(b.dataset.homeGoto));
+  $$('#homeChatThread [data-goto-settings]').forEach(b => b.onclick = () => switchView('settings'));
+  $$('#homeChatThread [data-open-created]').forEach(b => b.onclick = () => openIssueDetail(b.dataset.openCreated, 'sop'));
   $$('[data-home-run]').forEach(b => b.onclick = () => {
     if (b.dataset.homeIssue) openIssueDetail(b.dataset.homeIssue, 'sop');
     else if (b.dataset.homeRun && typeof openRunFromId === 'function') openRunFromId(b.dataset.homeRun);
@@ -351,7 +353,25 @@ async function homeChatCreateAndDispatch() {
       }),
     });
     rememberIssue(issue);
-    const task = await api(`/api/issues/${issue.id}/dispatch`, { method: 'POST', body: JSON.stringify({ workflowId }) });
+    let task;
+    try {
+      task = await api(`/api/issues/${issue.id}/dispatch`, { method: 'POST', body: JSON.stringify({ workflowId }) });
+    } catch (err) {
+      chat.messages = chat.messages.filter(m => m.role !== 'status');
+      const credential = /Token|API Key|个人设置/.test(err.message);
+      homeChatPush('assistant', '需求已创建，但没能开跑：' + err.message, {
+        html: `${escapeHTML('需求已创建，但没能开跑：' + err.message)}`,
+        actions: `<div class="home-chat-cta">${credential ? '<button type="button" class="button primary small" data-goto-settings>去个人设置</button>' : ''}<button type="button" class="button ghost small" data-open-created="${escapeHTML(issue.id)}">打开需求</button></div>`,
+      });
+      chat.result = null;
+      chat.sessionId = '';
+      homeChatSetBusy(false);
+      renderHomeChat();
+      const open = document.querySelector(`[data-open-created="${issue.id}"]`);
+      if (open) open.onclick = () => openIssueDetail(issue.id, 'sop');
+      try { await refreshIssues(); } catch (e) {}
+      return;
+    }
     issue = { ...issue, latestTaskId: task.id, status: 'in_progress' };
     rememberIssue(issue);
     (state.data.tasks || (state.data.tasks = [])).unshift(task);

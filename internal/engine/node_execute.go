@@ -568,6 +568,7 @@ func (e *Engine) executeNode(ctx context.Context, runID string, wf domain.Workfl
 			if alt, swapped := fallbackExecutor(ex, userProviderKeys(e.repo, run.ExecutionContext.ResponsibleUserID)); swapped {
 				msg := fmt.Sprintf("责任人没有配置 %s 的 Key，本节点改用已配置的 %s 执行", ex.Name, alt.Name)
 				e.updateRun(runID, func(current *domain.Run) { e.event(current, node.ID, "executor_fallback", msg) })
+			e.observe(runID, node.ID, domain.TelemetryEvent{Category: "orchestration", Name: "executor.fallback", Phase: "progress", Level: "warn", Message: msg, Attributes: map[string]any{"from": ex.ID, "to": alt.ID}})
 				ex = alt
 			}
 		}

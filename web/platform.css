@@ -1449,6 +1449,9 @@ html[data-theme="light"] .credential-card-logo.monochrome img{filter:none}
 .req-alert-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.42)}
 .req-alert-warn .req-alert-title{color:#b45309}
 .req-alert-warn .req-alert-desc{color:var(--text)}
+.req-alert-info{background:rgba(56,103,244,.08);border:1px solid rgba(56,103,244,.32)}
+.req-alert-info .req-alert-title{color:#3867f4}
+.req-alert-info .req-alert-desc{color:var(--text)}
 .req-thinking-stream .think-warn .think-text{color:#b45309;font-weight:600}
 .req-clarify-panel .chat-turns{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
 .req-clarify-panel .chat-turn{display:flex;flex-direction:column;gap:4px;padding:9px 12px;border-radius:10px;background:var(--bg-soft);border:1px solid var(--line)}

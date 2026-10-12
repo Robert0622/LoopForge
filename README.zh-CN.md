@@ -246,7 +246,7 @@ LoopForge 会让 Agent 在真实仓库上执行命令。`local` 沙箱只是便�
 目前的已知限制：
 
 - Studio 界面目前是中文。
-- SOP 运行之外的 AI 功能（需求澄清、内置助手、运行评测）使用 CodeBuddy，需要在「个人设置」里配置 CodeBuddy API Key。没有 Key 时，新建需求请选「跳过分析并建单」。
+- SOP 运行之外的 AI 功能（需求澄清、内置助手、运行评测）使用 CodeBuddy，需要在「个人设置」里配置 CodeBuddy API Key。没有 Key 时，新建需求请选「直接创建」。
 - 同一个数据库只应有一个实例执行运行（只读副本设置 `LOOPFORGE_EXECUTE_RUNS=false`）。
 - 执行器支持 Claude Code、Codex、CodeBuddy；需求系统支持 GitHub；产物存在数据库里。
 

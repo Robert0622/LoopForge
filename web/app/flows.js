@@ -224,7 +224,7 @@ function flowDiagnostics(){
 function setFlowView(mode){$$('.canvas-view-toggle button').forEach(b=>b.classList.toggle('active',b.dataset.flowView===mode));$('#canvas').hidden=mode!=='canvas';$('#flowCheckPanel').hidden=mode!=='check';if(mode==='check')$('#flowCheckPanel').innerHTML=`<div class="page-heading" style="margin-bottom:14px"><div><h1 style="font-size:17px">配置检查</h1><p>运行前检查入口、CLI、产物契约和返工路径。</p></div></div><div class="flow-check-grid">${flowDiagnostics().map(x=>`<div class="flow-check-item ${x.level}"><b>${escapeHTML(x.title)}</b><p>${escapeHTML(x.detail)}</p></div>`).join('')}</div>`}
 function renderThemeToggle(){const light=document.documentElement.dataset.theme==='light',button=$('#themeToggle');if(!button)return;button.querySelector('span').textContent=light?'☾':'☀';button.querySelector('b').textContent=light?'深色':'亮色';button.title=light?'切换到深色主题':'切换到亮色主题'}
 function toggleTheme(){const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;localStorage.setItem('loopforge.theme.v3',theme);renderThemeToggle();toast(theme==='light'?'已切换亮色主题':'已切换深色主题')}
-function statusText(s){return ({pending:'待执行',running:'运行中',succeeded:'已完成',failed:'失败',waiting_approval:'待审批',cancelled:'已取消'}[s]||'')}
+function statusText(s){return ({pending:'待执行',running:'运行中',succeeded:'已完成',failed:'失败',waiting_approval:'待审批',waiting:'待确认',paused:'已暂停',cancelled:'已取消'}[s]||'')}
 function canvasPoint(e){
   const canvas=$('#canvas');if(!canvas)return {x:0,y:0};
   const rect=canvas.getBoundingClientRect();

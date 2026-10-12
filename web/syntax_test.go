@@ -1036,7 +1036,7 @@ func TestRequirementDirectCreateUI(t *testing.T) {
 	if !strings.Contains(page, `nav-label">项目配置`) {
 		t.Fatal("sidebar must label the projects page 项目配置")
 	}
-	if !strings.Contains(page, `<script src="/app/composer.js"></script>`) {
+	if !strings.Contains(page, `<script src="/app/composer.js`) {
 		t.Fatal("index.html must load the requirement composer script")
 	}
 	if !strings.Contains(page, `data-add="sop"`) {

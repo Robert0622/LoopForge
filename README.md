@@ -246,7 +246,7 @@ Planned next: the closed self-feedback loop, a chat-first entry point (state wha
 Known limitations today:
 
 - The Studio UI is in Chinese.
-- AI features outside SOP runs (requirement clarification, the built-in assistant, run evaluation) use CodeBuddy and need a CodeBuddy API key in **个人设置**. Without one, create requirements with "跳过分析并建单" (skip analysis).
+- AI features outside SOP runs (requirement clarification, the built-in assistant, run evaluation) use CodeBuddy and need a CodeBuddy API key in **个人设置**. Without one, create requirements with "直接创建" (skip analysis).
 - Only one instance per database should execute runs (`LOOPFORGE_EXECUTE_RUNS=false` on read-only replicas).
 - Executors: Claude Code, Codex and CodeBuddy. Trackers: GitHub. Artifacts are stored in the database.
 
