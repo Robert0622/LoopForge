@@ -1,14 +1,24 @@
-// 第一次登录沿侧栏逐项说明怎么用。看完或跳过之后不再自动出现，可从个人菜单和接入指南重开。
-// 最后一步点「去填写」后打开个人设置。
+// 第一次登录先指向工作总览的快速开始清单，再沿侧栏逐项说明。看完或跳过之后不再自动出现，
+// 可从接入指南重开。演示模式最后回到清单去「一键开跑」，否则打开个人设置去配凭据。
 const ONBOARDING_KEY = 'loopforge.onboarding.v3';
 
-function onboardingSteps() {
+function onboardingSteps(demo) {
+  const start = demo
+    ? '演示模式已开启，什么都不用配：点「一键开跑」，平台会用演示 SOP 跑一张需求，停在审批节点等你批准，批准后出交付报告。想跑真实需求，照着右边「正式使用」一项项做，每项都有直达按钮。'
+    : '照着这张清单一步步来：先配模型 API Key 和 GitHub Token，再给项目绑定仓库，然后新建需求并派发。每项都有直达按钮，做完会自动打勾。';
   return [
+    { target: '#dashQuickstart', title: '从这张清单开始', body: start },
     { target: '.nav[data-view="issues"]', title: '需求从这里进', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
     { target: '.nav[data-view="approvals"]', title: '要你拍板时来这里', body: '运行停下来等你决定，会出现在「待我确认」。先看清问题，再同意或退回。没有待办时，这里是空的。' },
     { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },
-    { target: '.nav[data-view="settings"]', title: '先把凭据配齐', body: '没配齐就派不出去。先填 GitHub Token，要能读写目标仓库（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。再配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）和个人 MCP 令牌，后者可以与 GitHub Token 共用。', view: 'settings', finish: true },
+    demo
+      ? { target: '.nav[data-view="settings"]', title: '跑真实需求前配凭据', body: '演示不需要凭据。跑真实需求前，在个人设置里填 GitHub Token（要能读写目标仓库）和一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）。现在先回到清单，点「一键开跑」看一遍完整流程。', view: 'dashboard', finish: true, next: '开始体验' }
+      : { target: '.nav[data-view="settings"]', title: '先把凭据配齐', body: '没配齐就派不出去。先填 GitHub Token，要能读写目标仓库（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。再配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）和个人 MCP 令牌，后者可以与 GitHub Token 共用。', view: 'settings', finish: true, next: '去填写' },
   ];
+}
+
+function onboardingDemo() {
+  return typeof quickstartDemoAvailable === 'function' && typeof state !== 'undefined' && quickstartDemoAvailable();
 }
 
 // 卡片贴在侧栏项右侧，竖向对准这一项；右侧放不下才改到左边。
@@ -21,6 +31,17 @@ function onboardingPlace(rect, card, viewport) {
   if (left + card.width > viewport.width - margin) {
     left = rect.left - gap - card.width;
     placement = 'left';
+  }
+  // 目标太宽、左右都放不下时（比如工作总览的清单），改放到目标下方；
+  // 只有上方完整放得下才放上方，免得盖住目标的标题。
+  if (left < margin) {
+    left = rect.left + 24;
+    top = rect.bottom + gap;
+    placement = 'below';
+    if (top + card.height > viewport.height - margin && rect.top - gap - card.height >= margin) {
+      top = rect.top - gap - card.height;
+      placement = 'above';
+    }
   }
   top = Math.max(margin, Math.min(top, viewport.height - card.height - margin));
   left = Math.max(margin, Math.min(left, viewport.width - card.width - margin));
@@ -55,6 +76,9 @@ function onboardingRoot() {
 
 function startOnboarding() {
   onboardingIndex = 0;
+  if (typeof setQuickstartHidden === 'function') setQuickstartHidden(false);
+  if (typeof switchView === 'function') switchView('dashboard');
+  if (typeof renderQuickstart === 'function') renderQuickstart();
   const root = onboardingRoot();
   root.hidden = false;
   document.body.classList.add('onboarding-open');
@@ -72,13 +96,13 @@ function maybeStartOnboarding() {
 }
 
 function moveOnboarding(delta) {
-  const steps = onboardingSteps();
+  const steps = onboardingSteps(onboardingDemo());
   onboardingIndex = Math.max(0, Math.min(steps.length - 1, onboardingIndex + delta));
   showOnboardingStep();
 }
 
 function onboardingAdvance() {
-  const step = onboardingSteps()[onboardingIndex];
+  const step = onboardingSteps(onboardingDemo())[onboardingIndex];
   if (step && step.finish) {
     finishOnboarding(step.view || 'settings');
     return;
@@ -103,9 +127,9 @@ function closeOnboarding() {
 }
 
 function showOnboardingStep() {
-  const steps = onboardingSteps();
+  const steps = onboardingSteps(onboardingDemo());
   const step = steps[onboardingIndex];
-  if (!step) return finishOnboarding('settings');
+  if (!step) return finishOnboarding(steps[steps.length - 1].view);
   const root = onboardingRoot();
   root.hidden = false;
   document.body.classList.add('onboarding-open');
@@ -115,12 +139,13 @@ function showOnboardingStep() {
   const back = root.querySelector('#onboardingBack');
   const next = root.querySelector('#onboardingNext');
   back.hidden = onboardingIndex === 0;
-  next.textContent = step.finish ? '去填写' : '下一步';
+  next.textContent = step.finish ? (step.next || '完成') : '下一步';
   if (onboardingTarget) onboardingTarget.classList.remove('onboarding-target');
   onboardingTarget = step.target ? document.querySelector(step.target) : null;
+  if (onboardingTarget && (onboardingTarget.hidden || !onboardingTarget.getClientRects().length)) onboardingTarget = null;
   if (step.target && !onboardingTarget) {
     onboardingIndex += 1;
-    if (onboardingIndex >= steps.length) return finishOnboarding('settings');
+    if (onboardingIndex >= steps.length) return finishOnboarding(steps[steps.length - 1].view);
     showOnboardingStep();
     return;
   }
@@ -148,9 +173,13 @@ function placeOnboarding() {
   const placed = onboardingPlace(rect, { width: card.offsetWidth || 320, height: card.offsetHeight || 148 }, { width: window.innerWidth, height: window.innerHeight });
   card.style.top = placed.top + 'px';
   card.style.left = placed.left + 'px';
-  card.classList.remove('is-right', 'is-left');
+  card.classList.remove('is-right', 'is-left', 'is-below', 'is-above');
   card.classList.add('is-' + placed.placement);
   if (!arrow) return;
+  if (placed.placement === 'below' || placed.placement === 'above') {
+    arrow.style.top = '';
+    return;
+  }
   const cardRect = card.getBoundingClientRect();
   const y = rect.top + rect.height / 2 - cardRect.top - 7;
   arrow.style.top = Math.max(18, Math.min(y, cardRect.height - 32)) + 'px';

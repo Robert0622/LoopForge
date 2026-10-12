@@ -23,33 +23,78 @@ async function useProject(page, id, name) {
   await switcher.selectOption(id);
 }
 
-test('first login walks through the onboarding tour and ends in settings', async ({ page }) => {
+test('first login points at the quick-start checklist and ends back on it in demo mode', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page, { ...ADMIN, onboarding: true });
   const card = page.locator('#onboarding .onboarding-card');
   await expect(card).toBeVisible();
-  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 4');
-  await expect(page.locator('#onboardingBody')).toContainText('GitHub');
+  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 5');
+  await expect(page.locator('#dashQuickstart')).toHaveClass(/onboarding-target/);
+  await expect(page.locator('#onboardingBody')).toContainText('一键开跑');
+  await page.locator('#onboardingNext').click();
   await expect(page.locator('.nav[data-view="issues"]')).toHaveClass(/onboarding-target/);
   await page.locator('#onboardingNext').click();
   await page.locator('#onboardingNext').click();
   await page.locator('#onboardingNext').click();
-  await expect(page.locator('#onboardingNext')).toHaveText('去填写');
+  await expect(page.locator('#onboardingNext')).toHaveText('开始体验');
   await expect(page.locator('#onboardingBody')).toContainText('GitHub Token');
   await page.locator('#onboardingNext').click();
   await expect(page.locator('#onboarding')).toBeHidden();
-  await expect(page.locator('#pageTitle')).toHaveText('个人设置');
+  await expect(page.locator('#pageTitle')).toHaveText('工作总览');
+  await expect(page.locator('#dashQuickstart')).toBeVisible();
 
   await page.reload();
   await expect(page.locator('#userName')).toBeVisible();
   await page.waitForTimeout(1200);
   await expect(page.locator('#onboarding')).toBeHidden();
 
+  await page.locator('#dashQuickstart [data-qs-close]').click();
+  await expect(page.locator('#dashQuickstart')).toBeHidden();
   await page.locator('.nav[data-view="guide"]').click();
   await page.locator('#replayOnboarding').click();
-  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 4');
+  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 5');
+  await expect(page.locator('#dashQuickstart')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#onboarding')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('the quick-start demo button runs the demo SOP end to end', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  const quickstart = page.locator('#dashQuickstart');
+  await expect(quickstart).toBeVisible();
+  await expect(quickstart).toContainText('先体验一遍');
+  await quickstart.locator('[data-qs-step="demo-run"]').click();
+
+  const drawer = page.locator('#issueDetailDrawer');
+  await expect(drawer).toContainText('演示：需求列表支持导出 CSV');
+  await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
+  await visibleButton(page, '确认通过，继续下游').click();
+  await expect(drawer).toContainText('已完成', { timeout: 30_000 });
+  await closeDrawer(page);
+
+  await page.locator('#refreshDashboard').click();
+  await expect(quickstart.locator('.qs-demo .qs-step.is-done')).toHaveCount(2, { timeout: 15_000 });
+  expect(errors).toEqual([]);
+});
+
+test('personal settings keep the save bar in view and flag unsaved edits', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.locator('.nav[data-view="settings"]').click();
+  const bar = page.locator('#userCredentialForm .credential-savebar');
+  await expect(bar).toBeInViewport();
+  await expect(bar).not.toHaveClass(/is-dirty/);
+  await page.locator('#userCredentialForm [name=codexBaseUrl]').fill('https://example.invalid/v1');
+  await expect(bar).toHaveClass(/is-dirty/);
+  await expect(bar).toContainText('有未保存的修改');
+  await expect(bar).toBeInViewport();
+  await bar.locator('button[type=submit]').click();
+  await expect(page.locator('#userCredentialForm .credential-savebar')).not.toHaveClass(/is-dirty/);
+  await page.locator('#userCredentialForm [name=codexBaseUrl]').fill('');
+  await page.locator('#userCredentialForm .credential-savebar button[type=submit]').click();
+  await expect(page.locator('#userCredentialForm .credential-savebar')).not.toHaveClass(/is-dirty/);
   expect(errors).toEqual([]);
 });
 

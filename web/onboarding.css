@@ -7,6 +7,8 @@ body.onboarding-open{overflow:hidden}
 .onboarding-arrow{position:absolute;width:0;height:0;border-style:solid}
 .onboarding-card.is-right .onboarding-arrow{left:-8px;border-width:7px 8px 7px 0;border-color:transparent var(--panel) transparent transparent}
 .onboarding-card.is-left .onboarding-arrow{right:-8px;border-width:7px 0 7px 8px;border-color:transparent transparent transparent var(--panel)}
+.onboarding-card.is-below .onboarding-arrow{top:-8px;left:28px;border-width:0 7px 8px 7px;border-color:transparent transparent var(--panel) transparent}
+.onboarding-card.is-above .onboarding-arrow{top:auto;bottom:-8px;left:28px;border-width:8px 7px 0 7px;border-color:var(--panel) transparent transparent transparent}
 .onboarding-kicker{margin:0 0 6px;color:var(--muted);font-size:12px}
 .onboarding-card h2{margin:0 0 6px;font-size:15px;font-weight:650;line-height:1.35;color:var(--text-strong)}
 .onboarding-card p{margin:0;font-size:13px;line-height:1.6;color:var(--text)}
@@ -15,3 +17,40 @@ body.onboarding-open{overflow:hidden}
 .onboarding-card .button{white-space:nowrap}
 .onboarding-actions .button[hidden]{display:none}
 .nav.onboarding-target{color:var(--text);background:var(--panel)}
+
+/* 工作总览的快速开始清单 */
+.quickstart-card{margin:0 0 18px;padding:18px 20px;background:var(--panel);border:1px solid color-mix(in srgb,var(--blue) 35%,var(--line));border-radius:16px;box-shadow:0 8px 28px color-mix(in srgb,var(--blue) 8%,transparent)}
+.quickstart-card[hidden]{display:none}
+.qs-head{display:flex;align-items:flex-start;gap:18px}
+.qs-head>div:first-child{flex:1;min-width:0}
+.qs-eyebrow{color:var(--blue);font-size:12px;font-weight:650;letter-spacing:.04em}
+.qs-head h2{margin:4px 0 4px;font-size:17px;color:var(--text-strong)}
+.qs-head p{margin:0;color:var(--muted);font-size:12.5px}
+.qs-progress{display:grid;justify-items:end;gap:2px;white-space:nowrap}
+.qs-progress b{font-size:18px;color:var(--text-strong)}
+.qs-progress span{color:var(--muted);font-size:11px}
+.qs-close{border:0;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;padding:4px 6px;border-radius:6px}
+.qs-close:hover{color:var(--text);background:var(--bg-soft)}
+.qs-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:14px}
+.qs-section{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg-soft) 45%,var(--panel))}
+.qs-section.qs-demo{border-color:color-mix(in srgb,var(--green) 45%,var(--line));background:color-mix(in srgb,var(--green) 7%,var(--panel))}
+.qs-section header{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.qs-section header b{font-size:13.5px;color:var(--text-strong)}
+.qs-section header span{color:var(--muted);font-size:11.5px}
+.qs-section ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.qs-step{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px dashed var(--line)}
+.qs-step:first-child{border-top:0}
+.qs-check{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line-strong);color:var(--muted);font-size:12px;font-weight:650}
+.qs-step.is-done .qs-check{border-color:var(--green);background:var(--green);color:#fff}
+.qs-text{flex:1;min-width:0;display:grid;gap:2px}
+.qs-text b{font-size:13px;color:var(--text-strong)}
+.qs-step.is-done .qs-text b{color:var(--muted);text-decoration:line-through}
+.qs-text small{color:var(--muted);font-size:11.5px;line-height:1.5}
+.qs-step .button{flex:none;white-space:nowrap}
+
+/* 个人凭证的保存栏吸在视口底部，改了没保存时高亮提醒 */
+.credential-settings-card{overflow:clip}
+.credential-savebar{position:sticky;bottom:0;z-index:5;box-shadow:0 -8px 20px color-mix(in srgb,var(--text) 6%,transparent);transition:background .2s,border-color .2s}
+.credential-savebar.is-dirty{border-top:2px solid var(--amber);background:color-mix(in srgb,var(--amber) 14%,var(--panel))}
+.credential-savebar.is-dirty b{color:var(--text-strong)}
+.credential-savebar.is-dirty .button{box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 30%,transparent)}

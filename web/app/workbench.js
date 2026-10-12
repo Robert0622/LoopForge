@@ -32,6 +32,21 @@ function bindCredentialClearButtons(form){
     };
   });
 }
+// 表单很长，保存栏吸底；一旦有改动就高亮，并在关闭或刷新页面前提醒。
+function bindCredentialDirtyState(form){
+  state.credentialsDirty=false;
+  const bar=form.querySelector('.credential-savebar');
+  const markDirty=()=>{
+    if(state.credentialsDirty)return;
+    state.credentialsDirty=true;
+    bar.classList.add('is-dirty');
+    bar.querySelector('b').textContent='有未保存的修改';
+    bar.querySelector('span').textContent='点右边的按钮保存，保存后对下一次任务生效。';
+  };
+  form.addEventListener('input',markDirty);
+  form.querySelectorAll('[data-clear-credential]').forEach(button=>button.addEventListener('click',markDirty));
+}
+if(typeof window!=='undefined'&&typeof window.addEventListener==='function')window.addEventListener('beforeunload',e=>{if(state.credentialsDirty){e.preventDefault();e.returnValue=''}});
 function credentialClearPending(form,name){return form.querySelector(`[data-clear-credential="${name}"]`).dataset.pendingClear==='true'}
 function credentialBadge(configured){return `<span class="credential-badge ${configured?'is-ready':'is-empty'}">${configured?'已配置':'未配置'}</span>`}
 async function renderPersonalSettings(){
@@ -95,6 +110,7 @@ async function renderPersonalSettings(){
     }catch(err){toast(err.message,'err')}
   };
   bindCredentialClearButtons(host.querySelector('#userCredentialForm'));
+  bindCredentialDirtyState(host.querySelector('#userCredentialForm'));
   const verifyBtn=host.querySelector('#verifyGitToken');
   // 状态文案节点每次重渲染后都会重建，统一现查现用，避免写入游离 DOM。
   const setStatus=text=>{const el=$('#gitTokenVerifyStatus');if(el)el.textContent=text};
@@ -619,6 +635,7 @@ function renderDashboard(){
   const active=projectIssues.filter(i=>issueRunHealth(i)==='active'&&issueCurrentStage(i).key!=='waiting');
   const closed=projectIssues.filter(i=>issueRunHealth(i)==='closed');
   updateApprovalBadge();
+  renderQuickstart();
   const needMe=[...waiting,...confirm,...attention.filter(i=>!waiting.includes(i)&&!confirm.includes(i))];
   const statCards=[
     {label:'需要介入',value:attention.length,foot:'澄清未达标、失败或已中断',color:'#c63c4b',filter:'attention'},
