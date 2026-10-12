@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tencent/LoopForge/internal/domain"
 	"github.com/gin-gonic/gin"
 )
 
@@ -133,12 +134,12 @@ func (h *runsHandlers) shareGatePage(c *gin.Context) {
 	token := strings.TrimSpace(c.Query("token"))
 	p, err := parseShareGate(shareGateSecret(h.deps), token)
 	if err != nil {
-		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(shareGateHTML("链接无效或已过期", "", "", "", false, err.Error())))
+		c.Data(http.StatusBadRequest, "text/html; charset=utf-8", []byte(shareGateHTML(shareGateView{Title: "链接无效或已过期", Message: err.Error()})))
 		return
 	}
 	run, ok := h.repo.Run(p.RunID)
 	if !ok {
-		c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(shareGateHTML("运行不存在", "", "", "", false, "run not found")))
+		c.Data(http.StatusNotFound, "text/html; charset=utf-8", []byte(shareGateHTML(shareGateView{Title: "运行不存在", Message: "run not found"})))
 		return
 	}
 	node := run.Nodes[p.NodeID]
@@ -149,16 +150,69 @@ func (h *runsHandlers) shareGatePage(c *gin.Context) {
 			break
 		}
 	}
-	title := run.WorkflowSnapshot.Name
-	if title == "" {
-		title = run.WorkflowID
+	view := shareGateView{Title: run.WorkflowSnapshot.Name, NodeName: nodeName, RunID: p.RunID}
+	if view.Title == "" {
+		view.Title = run.WorkflowID
 	}
-	waiting := node != nil && node.Status == "waiting_approval" && run.Status == "waiting"
-	msg := "请确认后批准。批准后流程继续；驳回需登录平台指定返工目标。"
-	if !waiting {
-		msg = "此门禁已处理或运行已结束，链接只读。"
+	if issue, ok := h.repo.Issue(run.ExecutionContext.IssueID); ok && strings.TrimSpace(issue.Title) != "" {
+		view.Workflow = view.Title
+		view.Title = issue.Title
 	}
-	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(shareGateHTML(title, nodeName, p.RunID, token, waiting, msg)))
+	view.Waiting = node != nil && node.Status == "waiting_approval" && run.Status == "waiting"
+	if view.Waiting {
+		view.Token = token
+		view.Message = "请确认后批准。批准后流程继续；驳回需登录平台指定返工目标。"
+		view.Upstream = shareGateUpstream(run, p.NodeID)
+	} else {
+		view.Message = "此门禁已处理或运行已结束，链接只读。"
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(shareGateHTML(view)))
+}
+
+type shareGateView struct {
+	Title, Workflow, NodeName, RunID, Token, Message string
+	Waiting                                          bool
+	Upstream                                         []shareGateExcerpt
+}
+
+type shareGateExcerpt struct{ Name, Text string }
+
+// shareGateUpstream gives an external reviewer what the gate is about: the
+// results of the nodes that feed it.
+func shareGateUpstream(run domain.Run, nodeID string) []shareGateExcerpt {
+	names := map[string]string{}
+	for _, n := range run.WorkflowSnapshot.Nodes {
+		names[n.ID] = n.Name
+	}
+	var out []shareGateExcerpt
+	for _, edge := range run.WorkflowSnapshot.Edges {
+		if edge.Target != nodeID {
+			continue
+		}
+		nr := run.Nodes[edge.Source]
+		if nr == nil {
+			continue
+		}
+		text := ""
+		if nr.GateResult != nil {
+			text = strings.TrimSpace(nr.GateResult.Summary)
+		}
+		if text == "" {
+			text = strings.TrimSpace(nr.Output)
+		}
+		if text == "" {
+			continue
+		}
+		if r := []rune(text); len(r) > 1500 {
+			text = string(r[:1500]) + "…"
+		}
+		name := names[edge.Source]
+		if name == "" {
+			name = edge.Source
+		}
+		out = append(out, shareGateExcerpt{Name: name, Text: text})
+	}
+	return out
 }
 
 func (h *runsHandlers) shareGateDecide(c *gin.Context) {
@@ -195,9 +249,10 @@ func (h *runsHandlers) shareGateDecide(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]string{"status": "approved"})
 }
 
-func shareGateHTML(title, nodeName, runID, token string, waiting bool, msg string) string {
+func shareGateHTML(v shareGateView) string {
+	title, nodeName, runID, token, msg := v.Title, v.NodeName, v.RunID, v.Token, v.Message
 	actions := ""
-	if waiting && token != "" {
+	if v.Waiting && token != "" {
 		actions = `<form id="f" class="actions">
   <label>你的姓名<input name="name" required placeholder="张三" maxlength="40"></label>
   <label>意见（可选）<textarea name="comment" rows="3" maxlength="500" placeholder="确认方案可行"></textarea></label>
@@ -226,14 +281,40 @@ label{display:grid;gap:6px;margin:12px 0;font-size:13px;color:#cbd5e1}
 input,textarea{padding:10px 12px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font:inherit}
 button.primary{margin-top:8px;width:100%;padding:12px;border:0;border-radius:10px;background:#3867f4;color:#fff;font-weight:650;cursor:pointer}
 .meta{font-size:12px;color:#64748b;margin-top:16px}
+details{margin:12px 0;border:1px solid #334155;border-radius:10px;padding:10px 12px;background:#0f172a}
+summary{cursor:pointer;font-size:13px;color:#cbd5e1}
+pre{white-space:pre-wrap;word-break:break-word;margin:8px 0 0;font:13px/1.55 ui-monospace,monospace;color:#cbd5e1;max-height:320px;overflow:auto}
 </style></head><body><main class="card">
 <p class="kicker">外部一次决策</p>
 <h1>` + htmlEsc(title) + `</h1>
-<p>节点：<b>` + htmlEsc(nodeName) + `</b></p>
+<p>` + shareGateWhere(v.Workflow, nodeName) + `</p>
 <p>` + htmlEsc(msg) + `</p>
-` + actions + `
+` + shareGateUpstreamHTML(v.Upstream) + actions + `
 <p class="meta">Run ` + htmlEsc(runID) + ` · 链接 24 小时内有效</p>
 </main></body></html>`
+}
+
+func shareGateWhere(workflow, nodeName string) string {
+	where := ""
+	if workflow != "" {
+		where = "流程：<b>" + htmlEsc(workflow) + "</b> · "
+	}
+	if nodeName == "" {
+		return where
+	}
+	return where + "节点：<b>" + htmlEsc(nodeName) + "</b>"
+}
+
+func shareGateUpstreamHTML(items []shareGateExcerpt) string {
+	var b strings.Builder
+	for i, item := range items {
+		open := ""
+		if i == 0 {
+			open = " open"
+		}
+		b.WriteString("<details" + open + "><summary>上游「" + htmlEsc(item.Name) + "」的结果</summary><pre>" + htmlEsc(item.Text) + "</pre></details>")
+	}
+	return b.String()
 }
 
 func htmlEsc(s string) string {

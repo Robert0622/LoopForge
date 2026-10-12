@@ -2359,6 +2359,8 @@ assert.match(callout, /等待人工确认/);
 const bare = humanDecisionPanelHTML('run-1','summary',{status:'waiting_approval'},node,[node]);
 assert.match(bare, /判断依据/);
 assert.match(bare, /门禁未通过。请看产物和日志后决定。/);
+const planned = humanDecisionPanelHTML('run-1','approve',{status:'waiting_approval'},{id:'approve',type:'approval'},[]);
+assert.match(planned, /预设的人工审批节点/);
 `
 	out, err := exec.Command(node, "-e", script).CombinedOutput()
 	if err != nil {

@@ -71,6 +71,11 @@ func protectedAccessPath(path string) bool {
 	if isRunnerAgentPath(path) {
 		return false
 	}
+	// The OTLP collector rejects non-loopback peers itself; local agent CLIs
+	// export traces without a browser session.
+	if strings.HasPrefix(path, "/api/otel/") {
+		return false
+	}
 	switch path {
 	case "/api/health", "/api/auth/current", "/api/auth/login", "/api/auth/logout", "/api/auth/password",
 		"/api/share/gate/decide":

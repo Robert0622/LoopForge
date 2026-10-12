@@ -25,7 +25,7 @@ function waitingActionButtons(runId,nodeId,nr,node,nodes){
   const rework=target?`<button class="button ghost small" data-reject="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}" data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`:'';
   return `<button class="button primary small" data-approve="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">确认通过，继续下游</button><button class="button ghost small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">补充信息，重跑当前节点</button>${rework}`;
 }
-function humanGateSectionsHTML(nr){
+function humanGateSectionsHTML(nr,node){
   if(turnsExhausted(nr)){
     return `<div class="callout-section"><strong class="callout-label">说明</strong><p class="callout-text">${escapeHTML(nr?.error||'请确认是否重试本节点。不重试则本节点失败。')}</p></div>`;
   }
@@ -47,14 +47,14 @@ function humanGateSectionsHTML(nr){
     }
   }
   if(!sections.length){
-    const err=nr?.error||nr?.feedback||'门禁未通过。请看产物和日志后决定。';
+    const err=nr?.error||nr?.feedback||(node?.type==='approval'?'这是流程里预设的人工审批节点。看过上游产物后，确认通过即继续下游；不满意可补充信息重跑。':'门禁未通过。请看产物和日志后决定。');
     sections.push(`<div class="callout-section"><strong class="callout-label">判断依据</strong><p class="callout-text">${escapeHTML(err)}</p></div>`);
   }
   return sections.join('');
 }
 function humanDecisionPanelHTML(runId,nodeId,nr,node,nodes){
   const field=isScriptWorkflowNode(node)?'':humanContextFieldHTML();
-  return `<div class="human-decision" data-human-context-root><div class="human-gate-brief">${humanGateSectionsHTML(nr)}</div>${field}<div class="ap-buttons">${waitingActionButtons(runId,nodeId,nr,node,nodes)}</div></div>`;
+  return `<div class="human-decision" data-human-context-root><div class="human-gate-brief">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="ap-buttons">${waitingActionButtons(runId,nodeId,nr,node,nodes)}</div></div>`;
 }
 function failedNodeId(run){
   const nodes=run?.workflowSnapshot?.nodes||[];
@@ -203,7 +203,7 @@ function approvalCalloutHTML(node,nr,nodes){
     ? `<button class="button primary" data-retry-node="${node.id}">重试本节点</button><button class="button ghost" data-decline-retry="${node.id}">不重试</button>`
     : `<button class="button primary" data-approve="${node.id}">确认通过，继续下游</button><button class="button ghost" data-retry-node="${node.id}">补充信息，重跑当前节点</button>${rework}`;
   const title=turnsExhausted(nr)?'对话轮次已用尽':(gate?.decision==='human'?'等待人工确认':'需要人工判断');
-  return `<div class="approval-callout human" data-human-context-root><div class="callout-head"><div class="callout-title-row"><span class="callout-badge human">待确认</span><b class="callout-title">${title}</b><span class="callout-node-name">步骤：<b>${nodeTitle}</b></span></div></div><div class="callout-content">${humanGateSectionsHTML(nr)}</div>${field}<div class="ap-buttons">${buttons}</div></div>`;
+  return `<div class="approval-callout human" data-human-context-root><div class="callout-head"><div class="callout-title-row"><span class="callout-badge human">待确认</span><b class="callout-title">${title}</b><span class="callout-node-name">步骤：<b>${nodeTitle}</b></span></div></div><div class="callout-content">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="ap-buttons">${buttons}</div></div>`;
 }
 async function retryWaitingNode(runId,nodeId,fromEl){
   const issue=(state.data.issues||[]).find(i=>i.id===issueIdForRun(runId))||state.issueDetailData?.issue;
@@ -311,7 +311,7 @@ async function renderApprovals(background=false){
   if(!background){try{const [runs,tasks,issues]=await Promise.all([api('/api/runs'),api('/api/tasks'),api('/api/issues')]);state.data.runs=runs;state.data.tasks=tasks;state.data.issues=issues}catch(e){toast(e.message,'err')}}
   const items=(await Promise.all(approvalItems().map(async summary=>{
     const cached=cachedRun(summary.id);
-    if(cached?.workflowSnapshot?.id)return {...cached,...summary,workflowSnapshot:cached.workflowSnapshot};
+    if(cached?.workflowSnapshot?.nodes?.length)return {...cached,...summary,workflowSnapshot:cached.workflowSnapshot};
     try{
       const full=await api(`/api/runs/${encodeURIComponent(summary.id)}`,{silent:true});
       if(full?.id){

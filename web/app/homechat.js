@@ -63,10 +63,12 @@ function renderHomeChat() {
     return `<div class="home-chat-bubble is-bot"><b>LoopForge</b><div class="home-chat-md">${m.html || escapeHTML(m.content)}</div>${m.actions || ''}</div>`;
   }).join('');
   const runCards = runs.length ? runs.map(r => {
-    const issue = (state.data.issues || []).find(i => i.id === r.issueId);
-    const title = issue?.title || r.workflowName || r.workflowId || r.id;
+    const issueId = homeRunIssueId(r);
+    const issue = (state.data.issues || []).find(i => i.id === issueId);
+    const sop = r.workflowSnapshot?.name || r.workflowName || r.workflowId || '';
+    const title = issue?.title || sop || r.id;
     const waiting = r.status === 'waiting';
-    return `<button type="button" class="home-run-card ${waiting ? 'is-waiting' : ''}" data-home-run="${escapeHTML(r.id)}" data-home-issue="${escapeHTML(r.issueId || '')}"><span class="home-run-status">${waiting ? '待确认' : '运行中'}</span><b>${escapeHTML(title)}</b><small>${escapeHTML(r.workflowId || '')} · ${escapeHTML(statusText(r.status) || r.status)}</small></button>`;
+    return `<button type="button" class="home-run-card ${waiting ? 'is-waiting' : ''}" data-home-run="${escapeHTML(r.id)}" data-home-issue="${escapeHTML(issueId)}"><span class="home-run-status">${waiting ? '待确认' : '运行中'}</span><b>${escapeHTML(title)}</b><small>${escapeHTML(sop)} · ${escapeHTML(statusText(r.status) || r.status)}</small></button>`;
   }).join('') : `<p class="home-runs-empty">还没有进行中的运行。发一条需求，或点快速开始里的「一键开跑」。</p>`;
 
   host.innerHTML = `
@@ -107,9 +109,14 @@ function renderHomeChatApprovals() {
   const items = (typeof approvalItems === 'function' ? approvalItems() : []).slice(0, 6);
   if (!items.length) return `<p class="home-runs-empty">没有等待你拍板的运行。</p>`;
   return items.map(run => {
-    const issue = (state.data.issues || []).find(i => i.id === run.issueId);
-    return `<button type="button" class="home-run-card is-waiting" data-home-run="${escapeHTML(run.id || '')}" data-home-issue="${escapeHTML(run.issueId || '')}"><span class="home-run-status">待确认</span><b>${escapeHTML(issue?.title || run.workflowId || run.id)}</b><small>批准后继续下游</small></button>`;
+    const issueId = homeRunIssueId(run);
+    const issue = (state.data.issues || []).find(i => i.id === issueId);
+    return `<button type="button" class="home-run-card is-waiting" data-home-run="${escapeHTML(run.id || '')}" data-home-issue="${escapeHTML(issueId)}"><span class="home-run-status">待确认</span><b>${escapeHTML(issue?.title || run.workflowSnapshot?.name || run.workflowId || run.id)}</b><small>批准后继续下游</small></button>`;
   }).join('');
+}
+
+function homeRunIssueId(run) {
+  return run?.issueId || run?.executionContext?.issueId || '';
 }
 
 function bindHomeChat() {
@@ -227,7 +234,12 @@ async function homeChatSend() {
     if (data.error) throw new Error(data.error);
     if (!data.summary && !data.message && !data.reply && !(data.questions || []).length && !data.assessment) throw new Error('这一轮没有拿到澄清结论，请再试一次');
     const summary = data.summary || data.message || data.reply || '澄清完成';
-    const questions = (data.questions || []).map((q, i) => `<li><b>Q${i + 1}.</b> ${escapeHTML(typeof q === 'string' ? q : (q.question || q.text || JSON.stringify(q)))}</li>`).join('');
+    const questionText = q => typeof q === 'string' ? q : (q.question || q.text || JSON.stringify(q));
+    const questions = (data.questions || []).map((q, i) => {
+      const options = Array.isArray(q?.options) && q.options.length ? `<ul class="home-chat-options">${q.options.map(o => `<li>${escapeHTML(String(o))}</li>`).join('')}</ul>` : '';
+      return `<li><b>Q${i + 1}.</b> ${escapeHTML(questionText(q))}${options}</li>`;
+    }).join('');
+    const raw = [summary, ...(data.questions || []).map((q, i) => `Q${i + 1}. ${questionText(q)}`)].join('\n');
     const score = data.assessment?.score ?? data.score;
     const ready = !!(data.passed || data.ready || (score != null && score >= 80) || data.status === 'ready');
     chat.result = { ready, data, title: data.suggestedTitle || history.find(h => h.role === 'user')?.content?.slice(0, 80) || msg.slice(0, 80) };
@@ -235,7 +247,7 @@ async function homeChatSend() {
       ? `<div class="home-chat-cta"><button type="button" class="button primary small" id="homeChatDispatchInline">建单并开跑</button><span>澄清已达标${score != null ? `（${score} 分）` : ''}</span></div>`
       : `<div class="home-chat-cta"><span>再回答上面的问题，或改需求后继续澄清${score != null ? `（当前 ${score} 分）` : ''}</span></div>`;
     homeChatPush('assistant', summary, {
-      raw: summary,
+      raw,
       html: `<p>${escapeHTML(summary)}</p>${questions ? `<ol class="home-chat-questions">${questions}</ol>` : ''}`,
       actions,
     });
@@ -281,7 +293,10 @@ async function homeChatReadSSE(resp) {
       try {
         const payload = JSON.parse(data);
         if (event === 'error') last.error = payload.error || payload.message || '澄清失败';
-        else if (event === 'result' || event === 'done' || payload.summary || payload.questions) last = { ...last, ...payload };
+        else if (event === 'result' || event === 'done' || payload.summary || payload.questions) {
+          last = { ...last, ...payload };
+          if (payload.parsed && typeof payload.parsed === 'object') last = { ...last, ...payload.parsed };
+        }
         if (payload.sessionId) last.sessionId = payload.sessionId;
         if (payload.message && event === 'status') {
           const chat = ensureHomeChatState();
