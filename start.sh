@@ -484,7 +484,7 @@ print_ready() {
 
 EOF
   if [[ "${LOOPFORGE_PREWARM_SANDBOX:-true}" == "true" ]]; then
-    log "The default sandbox image builds in the background now; the first real run will not wait for it."
+    log "If the default sandbox image is not built yet, it builds in the background now (status: 接入指南 → 环境自检)."
   fi
   if [[ "$HAD_DATA" == "1" ]]; then
     log "Note: reusing the existing data volume, so accounts and passwords are the ones set before (./start.sh reset starts fresh)."
