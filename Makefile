@@ -3,12 +3,18 @@
 GOCACHE ?= /tmp/loopforge-gocache
 # Use the local toolchain; go.mod requires go >= 1.25.
 
-run:
+# Point go-run at the prebuilt helpers so Agent/demo gates work even when
+# the temporary go-run binary lives outside the checkout.
+export LOOPFORGE_GATE_MCP_BINARY ?= $(CURDIR)/bin/loopforge-gate-mcp-{os}-{arch}
+export LOOPFORGE_RUNNER_BINARY ?= $(CURDIR)/bin/loopforge-runner
+export LOOPFORGE_SOURCE_ROOT ?= $(CURDIR)
+
+run: build-gate-mcp
 	GOCACHE=$(GOCACHE) go run ./cmd/loopforge
 
 # demo runs with the demo executor so the full SOP flow works without any
 # model API key.
-demo:
+demo: build-gate-mcp
 	LOOPFORGE_DEMO_MODE=true GOCACHE=$(GOCACHE) go run ./cmd/loopforge
 
 test:
