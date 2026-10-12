@@ -39,7 +39,9 @@ function quickstartContext() {
   const stored = userById(user.id) || {};
   const projectId = state.projectFilter || '';
   const inProject = item => !projectId || item.projectId === projectId;
-  const issues = (state.data.issues || []).filter(inProject);
+  // `loopforge --self-test` titles its demo requirement "自检：…"; it must not tick any of the user's steps.
+  const selfTest = issue => issue.workflowId === QUICKSTART_DEMO_WORKFLOW && String(issue.title || '').startsWith('自检：');
+  const issues = (state.data.issues || []).filter(issue => inProject(issue) && !selfTest(issue));
   const isDemo = issue => issue.workflowId === QUICKSTART_DEMO_WORKFLOW;
   const demoIssues = issues.filter(isDemo);
   const realIssues = issues.filter(issue => !isDemo(issue));
