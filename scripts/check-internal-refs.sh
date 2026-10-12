@@ -36,14 +36,30 @@ fi
 args=()
 for p in "${patterns[@]}"; do args+=(-e "$p"); done
 
+# Exact lines that may mention a matched name on purpose (public adoption note).
+allowed=(
+  'README.md:LoopForge grew out of the R&D SOPs of Tencent teams and is used by multiple project teams inside Tencent, including SkillHub and teams with demanding quality requirements.'
+  'README.zh-CN.md:LoopForge 源自腾讯团队的研发 SOP，腾讯内部已有多个项目团队在使用，包括 SkillHub，以及一些对质量要求很高的项目团队。'
+)
+
 # Vendored bundles and binary-like assets can match by accident. cli/ is
 # checked by its own scripts/validate.sh.
-if git grep --untracked -nIiE "${args[@]}" -- . \
+matches=$(git grep --untracked -nIiE "${args[@]}" -- . \
   ':!scripts/check-internal-refs.sh' \
   ':(exclude)cli' \
   ':!web/monaco/**' \
   ':!**/*.svg' \
-  ':!e2e/package-lock.json'; then
+  ':!e2e/package-lock.json' || true)
+filtered=""
+while IFS= read -r m; do
+  [[ -z "$m" ]] && continue
+  key="${m%%:*}:${m#*:*:}"
+  for a in "${allowed[@]}"; do [[ "$key" == "$a" ]] && continue 2; done
+  filtered+="$m"$'\n'
+done <<<"$matches"
+matches="${filtered%$'\n'}"
+if [[ -n "$matches" ]]; then
+  echo "$matches"
   echo >&2
   echo "Internal references found; remove them or see CONTRIBUTING.md." >&2
   exit 1

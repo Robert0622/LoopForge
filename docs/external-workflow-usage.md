@@ -93,7 +93,7 @@ export LOOPFORGE_URL='https://your-loopforge.example.com'
 python3 scripts/report-workflow-usage.py usage.json
 ```
 
-仓库入口委托给 Skill 内的同一份脚本，避免两份实现漂移。脚本读取 `LOOPFORGE_INSIGHT_TOKEN`，对网络错误、429、5xx 有界重试，拒绝重定向；不会删除 JSON 文件。凭据只放在 Authorization 头。生产使用 HTTPS，网关须允许该路径通过到服务本身，最终由数据源凭据鉴权。
+仓库入口委托给 Skill 内的同一份脚本，避免两份实现漂移。脚本读取 `LOOPFORGE_INSIGHT_TOKEN`，对网络错误、429、5xx 有界重试，拒绝重定向；不会删除 JSON 文件。凭据只放在 Authorization 头。正式部署请使用 HTTPS，网关须允许该路径通过到服务本身，最终由数据源凭据鉴权。
 
 也可直接调用 `POST /api/insights/v1/ingest`，携带 `Authorization: Bearer <数据源Token>`：
 
@@ -111,4 +111,4 @@ python3 scripts/report-workflow-usage.py usage.json
 
 外部数据缺少平台需求关联，因此不计需求数、PR 交付数、需求来源及需求分类。选择需求来源筛选会排除外部记录。人工干预、自动完成率、一次通过率只使用平台执行事件；外部汇总不推断这些质量指标。外部追溯行链接原系统，不跳到不存在的平台 Run。
 
-新增领域写入归 `InsightsRepo` / `insightsHandlers`，分析读取归 `AnalyticsRepo`。SQL 基线为 `migrations/002_external_workflow_usage.sql`，由运维手动执行；生产增量 DDL 可补建缺失表/索引，不自动迁移数据或 seed。
+新增领域写入归 `InsightsRepo` / `insightsHandlers`，分析读取归 `AnalyticsRepo`。启动时会自动补建缺失的表和索引；`migrations/002_external_workflow_usage.sql` 是可选的 MySQL 基线，便于审阅，不迁移数据也不写入种子数据。

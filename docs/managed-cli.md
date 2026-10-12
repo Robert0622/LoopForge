@@ -1,6 +1,6 @@
-# Worker 托管 Agent CLI 运维
+# 托管 Agent CLI 自动更新
 
-托管更新只管理平台内置 runner 使用的 Codex、CodeBuddy、Claude Code，三者默认自动更新，没有更新策略配置。个人 [bind-cli 安装器](<bind-cli.sh>)、用户机器和 Docker 任务不参与更新；CLI 可运行不等于模型账号已授权。
+托管更新只管理平台内置 runner 使用的 Codex、CodeBuddy、Claude Code，三者默认自动更新，没有更新策略配置。个人 [bind-cli 安装器](../deploy/bind-cli.sh)、用户机器和 Docker 任务不参与更新；CLI 可运行不等于模型账号已授权。
 
 ## 启用条件
 

@@ -4,7 +4,7 @@
 
 <h1 align="center">LoopForge</h1>
 
-<p align="center">面向编码 Agent 的 SOP 交付流水线，腾讯开源。</p>
+<p align="center"><b>需求的全自动 Loop：从一张需求到一个可合并的 Pull Request。</b><br>编码 Agent 按团队 SOP 跑完全程，人在环上（Human on the Loop），而不是卡在环里。</p>
 
 <p align="center">
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
@@ -18,7 +18,50 @@
   <a href="./README.md">English</a> · <b>简体中文</b>
 </p>
 
-**用 SOP 驱动编码 Agent 交付。** 发布一次流程，之后每张需求都按同样的角色、关卡和交接走完，最后交出一个可以评审的 Pull Request。
+把一张需求交给 LoopForge，编码 Agent 会按团队的 SOP 把它走完：澄清、设计、实现、评审、测试、提 Pull Request，最后交回一个可以合并的结果。每一步是否真的通过由关卡判定，没通过就带着原因打回到对应步骤重做。哪里必须有人签字由你决定，其余环节自动跑下去，这就是 **Human on the Loop**。
+
+LoopForge 源自腾讯团队的研发 SOP，腾讯内部已有多个项目团队在使用，包括 SkillHub，以及一些对质量要求很高的项目团队。
+
+<p align="center">
+  <img src="docs/images/run.png" alt="LoopForge 的一次运行：SOP 各步骤均已完成，附带产物、遥测和评测" width="100%">
+</p>
+
+## 三个核心亮点
+
+### 1. 需求的全自动 Loop
+
+- **需求自己进来**：GitHub Issue 定时同步，每张新需求按项目的澄清标准打分，不达标的退回澄清，不会直接交给编码 Agent。
+- **派发不需要人**：定时触发任务扫描所有就绪需求并启动 SOP；集成分支冲突由对齐 Agent 解决；同一张需求不会被重复运行。
+- **“做完”要验证，不靠自称**：每一步都以明确结论结束（通过、返工、失败、需要人工）；测试、Lint、脚本等命令门禁必须通过；打回会回到指定步骤，重置下游，并把原因带进下一次尝试。
+- **交付自动闭环**：产出落到集成分支并提交 Pull Request，PR 合并后需求自动关闭。
+- **人只在你需要的地方出现**：人工审批是 SOP 里的可选节点，可以只在方案设计处签字，也可以全程无人值守。
+
+### 2. 可观测、可评测，面向自进化
+
+- **每次运行实时可见**：模型活动、工具调用、Token 与成本、门禁结果和产物实时推送；遥测与执行器无关，并支持 OTLP 导出。
+- **度量流程，而不只是 Token**：闭环率、一次通过率、返工率、各阶段耗时和每个节点的稳定性，告诉你该修的是哪一步。
+- **每次运行都有评测**：评测给运行打分，并提出具体修改建议，比如调整某个 SOP 节点、增删门禁、收紧某个角色的指令；每条建议都可以一键应用。
+- **规划中：自反馈闭环**：评测结果自动回流到角色和 SOP，让流水线从自己的运行中持续改进，见[规划](docs/roadmap.zh-CN.md)。
+
+### 3. 上下文共享，专家经验沉淀为 SOP
+
+- **SOP 承载专家的做法**：内置的后端、前端、产品交付 SOP 把设计、开发、评审、测试、产品之间怎么交接固化下来；发布你自己的 SOP，之后每张需求都按它走。
+- **角色写一次，到处复用**：角色打包了指令、规则、技能、MCP 工具、自检循环和自己的完成标准；评审标准改一处，所有用到它的 SOP 都跟着变；不同步骤可以用不同的 CLI 和模型。
+- **上下文共享，不用反复交代**：每一步交出声明过的产物（设计文档、补丁、测试报告），按内容哈希存储并保留全部尝试历史，下一个角色从真实交付物开始，而不是从聊天记录开始。
+- **知识持续沉淀**：角色可以通过 MCP 检索团队知识库并引用；新发现先进入审核，再写回知识库。
+
+### 其他能力
+
+- **在你的机器上、用你的登录态执行**：一条命令绑定笔记本或云主机，直接用你已经登录的 CLI；任务结束后清理注入的密钥和 Git 令牌。沙箱支持 Docker、Linux bubblewrap、macOS Seatbelt。
+- **从你自己的工具里驱动**：所有能力都提供 REST（OpenAPI 3.1）接口，也是一个 MCP Server，可接入 Cursor、Claude Code、Codex、CodeBuddy；内置 AI 助手可以通过对话起草角色和 SOP。
+- **预览**：前端运行会发布构建后站点的在线预览，API 请求可转发到任意后端。
+- **SOP 版本固定**：每次运行冻结在启动时的 SOP 版本上，修改画布不会改变正在进行的工作。
+
+```
+GitHub Issue ──► 澄清 ──► 设计 ──► 实现 ──► 评审 ──► 测试 ──► 提 PR ──► 总结
+                           ▲         │        │        │
+                           └──── 带原因打回 ──┴────────┘   （重置下游，重试）
+```
 
 ## LoopForge 的两种用法
 
@@ -29,39 +72,11 @@
 | 适合 | 希望每张需求都按同一条发布过的流程走，并且需要审批、效能指标和 PR 交付的团队 | 想在自己的 Agent 里走「澄清 → 设计 → 实现 → 评审 → 测试」的个人开发者 |
 | 开始 | `docker compose up -d`（见[快速开始](#快速开始)） | `npx -y loopforge-cli@latest install claude`（见 [cli/README.zh-CN.md](cli/README.zh-CN.md)） |
 
-两者理念一致：先确认需求，再分角色推进，每个阶段都留下可检查的证据。两者相互独立，可以只用其中一个。本页后文介绍平台。
-
-Claude Code、Codex、CodeBuddy 这类编码 Agent 做单个任务已经很好用。但团队里总有人在当**调度员**：开一个会话做分析，再开一个写代码，把结果贴到第三个会话里评审，最后还得自己确认测试是不是真过了、PR 有没有提。
-
-LoopForge 平台把这套日常做法变成一条**发布过的 SOP**：由角色组成的 DAG，每一步声明要交出什么、哪些检查必须通过、没过打回到哪一步。你派发一张需求，流程在你自己的机器上、用你自己的 CLI 跑完；你只在选定的关口批准，最后评审 PR。
-
-```
-GitHub Issue ──► 需求定型 ──► 方案设计 ──► 实现 ──► 独立评审 ──► 测试 ──► 发起 PR ──► 交付汇总
-                                  ▲          │         │          │
-                                  └──── 带原因打回 ────┴──────────┘   （下游重置、重试）
-```
-
-## 亮点
-
-**1. 派一次，流程自己往下走。** 依赖、并行、失败重试和打回目标都写在 SOP 里，不靠人记。每次运行锁定发布时的 SOP 快照，别人改画布不会让在途的单中途改道。
-
-**2. 下一位拿到的是交付物，不是聊天记录。** 每个角色事先声明要交出的文件（方案、补丁、测试报告）。通过后按内容哈希（SHA-256）留存并保留全部历史尝试，下游在自己的输入目录里直接读到。打回重做不会覆盖上一轮证据。
-
-**3. 没做完就是没做完。** Agent 结束时必须给出明确结论（通过 / 返工 / 失败 / 需要人处理）和原因。测试、检查脚本等命令门禁先跑，人才能批准。打回会回到指定步骤、清掉下游进度，并把原因带进下一轮。
-
-**4. 需求和结果留在团队原来的地方。** GitHub Issue 双向同步（拉取、推送、定时自动同步），交付走集成分支和 Pull Request，PR 合入后自动闭环。前端项目还能在平台上打开构建出的**预览页面**，查看时把接口指向任意后端。
-
-**5. 角色写一次，多条流程共用。** 角色上放着职责、规则、技能、MCP 工具、自检循环和本角色的完成标准；SOP 只选择哪一步用哪个角色。评审标准改一处，所有引用它的流程一起生效；不同步骤可以用不同的 CLI 和模型。
-
-**6. 在自己的机器上跑，用自己的登录。** 一条命令绑定笔记本或云主机，你负责的运行都在那台机器上执行，可以用本机已登录的 CLI，也可以用你自己保存的 Key。任务结束清除注入的密钥和 Git 令牌。沙箱支持 Docker、Linux bubblewrap、macOS Seatbelt。
-
-**7. 在原来的工具里派发和放行。** 所有能力同时提供 REST（OpenAPI 3.1）和 **MCP Server**，Cursor、Claude Code、Codex、CodeBuddy 可以直接建项目、写角色、发布 SOP、派发需求、审批运行。内置助手能按对话起草角色和流程，保存前请人确认。
-
-**8. 看得懂流程健不健康，而不只是 Token 用量。** 单次运行能看模型在做什么、调用了哪些工具、Token 与成本、门禁结果和产物（与模型厂商无关的 SSE 遥测，支持 OTLP 导出）。汇总能看闭环率、一次通过率、返工率、各阶段耗时和每个节点的可靠度：该改的是哪一步，而不是再写一段更长的提示词。
+两者理念相同：先确认需求、分离角色、每个阶段都留下可评审的证据。它们互相独立，可以单独使用。本页后面介绍的是平台。
 
 ## 和其他项目的区别
 
-LoopForge 平台**不是**又一个编码 Agent，也不是通用自动化工具。它在 Agent 之上一层，让团队的交付流程可重复。
+LoopForge **不是**又一个编码 Agent，也不是通用自动化工具。它在 Agent 之上一层，让团队的交付流程可重复。
 
 | | LoopForge 平台 | Agent 同事看板（如 [Multica](https://github.com/multica-ai/multica)） | 编码 Agent 控制台（如 [OpenHands](https://github.com/OpenHands/OpenHands)） | LLM 应用 / 自动化平台（如 [Dify](https://github.com/langgenius/dify)、[Langflow](https://github.com/langflow-ai/langflow)、[n8n](https://github.com/n8n-io/n8n)） | 多 Agent 框架（如 [CrewAI](https://github.com/crewAIInc/crewAI)、[AutoGen](https://github.com/microsoft/autogen)、[MetaGPT](https://github.com/FoundationAgents/MetaGPT)） |
 | --- | --- | --- | --- | --- | --- |
@@ -73,64 +88,69 @@ LoopForge 平台**不是**又一个编码 Agent，也不是通用自动化工具
 | 在哪里执行 | 你的机器和 CLI，带沙箱 | 你的机器 | 托管或自托管运行时 | 服务端 | 你运行 Python 的地方 |
 | 适合的单子 | 可重复的路径：修 bug、功能交付、评审、发布 | 临时、事先不知道该派给谁的任务 | 一次性的编码会话 | 业务自动化、RAG 应用 | 研究与自定义 Agent 程序 |
 
-它们可以叠在一起用：零散任务交给 Agent 看板，路径已经说得清的交付交给 LoopForge 平台。平台刻意**不**自研编码 Agent、知识库或连接器市场：执行用你已有的 CLI，对接其他系统走 MCP。
+它们可以叠在一起用：零散任务交给 Agent 看板，路径已经说得清的交付交给 LoopForge。LoopForge 刻意**不**自研编码 Agent 或连接器市场：执行用你已有的 CLI，对接其他系统走 MCP。
 
 ## 快速开始
 
-### Docker
+### 五分钟体验，不需要 API Key
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
 docker compose pull    # 预构建镜像（linux/amd64、linux/arm64）
-docker compose up -d
-docker compose logs loopforge | grep "Created admin account"   # 首次启动打印的管理员密码
+LOOPFORGE_DEMO_MODE=true docker compose up -d
+docker compose logs loopforge | grep "Created admin account"   # 一次性管理员密码
 ```
 
-打开 <http://localhost:8080> 登录（端口被占用时：`LOOPFORGE_PORT=9090 docker compose up -d`）。镜像内置 Claude Code、Codex、CodeBuddy CLI，在「个人设置」里填上你的 API Key 即可。
+打开 <http://localhost:8080> 登录（端口被占用时设置 `LOOPFORGE_PORT=9090`）。演示模式会加入一个脚本执行器和「演示交付流程」SOP：分析 → 人工审批 → 实现 → 报告。在工作总览里新建需求、触发运行、通过审批，然后在「产物」里打开生成的 `delivery-report.md`。整个过程不调用模型。
 
-不执行 `docker compose pull`、或者镜像拉不下来时，`up` 会改为从源码构建，需要几分钟。`docker compose up -d --build` 总是从源码构建；`LOOPFORGE_VERSION=0.1.0` 可以固定版本。
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="创建几张演示需求后的 LoopForge 工作总览" width="100%">
+</p>
 
-### 没有 API Key 也能先体验
+### 跑真实需求
 
-```bash
-LOOPFORGE_DEMO_MODE=true docker compose up -d    # 或者：make demo
-```
+去掉 `LOOPFORGE_DEMO_MODE` 启动，然后：
 
-演示模式会写入一个脚本化执行器和「演示交付流程」SOP（分析 → 人工审批 → 实现 → 报告），并设为默认项目 SOP。在工作总览新建需求、触发、审批通过，然后在「产物」里打开生成的 `delivery-report.md`。全程不调用任何模型。内置模板依然可用，但需要真实的 API Key。
+1. 在「个人设置」里添加 Claude Code、Codex 或 CodeBuddy 的 API Key（镜像里三个 CLI 都已安装），以及 GitHub 令牌：经典令牌勾选 `repo`，或细粒度令牌授予 *Contents*、*Issues*、*Pull requests* 读写权限。
+2. 粘贴仓库地址，把仓库绑定到项目。
+3. 通过链接导入 Issue 或打开自动同步，再派发到内置 SOP：
 
-### 从源码运行
-
-需要 Go 1.25+ 和 Git。
-
-```bash
-make run        # SQLite 存在 ~/.loopforge，监听 :8080
-```
-
-首次启动会创建 `admin` 账号（密码只在日志里打印一次，也可以用 `LOOPFORGE_ADMIN_PASSWORD` 指定）、一个默认项目、Claude Code / Codex / CodeBuddy 执行器、local / bubblewrap / Seatbelt / Docker 沙箱，以及三套内置 SOP 模板。模板使用主机上可用的最强沙箱（依次尝试 Docker、bubblewrap、Seatbelt、本地进程；启动日志会打印选择结果，可用 `LOOPFORGE_TEMPLATE_SANDBOX` 覆盖）：
-
-| 模板 | 步骤 |
+| SOP | 步骤 |
 | --- | --- |
-| 通用后端交付 | 需求定型 → 方案设计 → 实现与自测 → 独立评审 → 测试验证 → 发起 PR → 交付汇总 |
-| 通用前端交付 | 需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总 |
-| 通用产品交付 | 产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总 |
+| 后端交付 | 需求定型 → 方案设计 → 实现与自测 → 独立评审 → 测试验证 → 发起 PR → 交付汇总 |
+| 前端交付 | 需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总 |
+| 产品交付 | 产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总 |
 
-### 接入 GitHub
-
-1. 在「个人设置」里填 GitHub Token（classic 需 `repo` 权限；fine-grained 需 *Contents*、*Issues*、*Pull requests* 读写），使用 GitHub MCP 工具还需要填个人 MCP 令牌。
-2. 在项目里绑定仓库（粘贴仓库地址即可）。
-3. 按 URL 导入 Issue 或开启自动同步，然后派发到 SOP。
+一张后端需求从头到尾一般需要 30 到 75 分钟，大部分时间是 Agent 在七个会话里干活。小修小改可以发布一条更短的 SOP，比如 实现 → 测试 → 提 PR。
 
 GitHub Enterprise Server：设置 `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` 和 `LOOPFORGE_GITHUB_HOST=<host>`。
+
+### 其他启动方式
+
+- `docker compose up -d --build` 总是从源码构建镜像；没有先 `docker compose pull` 时，`up` 也会自动构建，需要几分钟。`LOOPFORGE_VERSION=0.1.0` 可固定版本。
+- 从源码运行（需要 Go 1.25+ 和 Git）：`make run` 把 SQLite 放在 `~/.loopforge` 并监听 `:8080`；`make demo` 启动演示模式。
+
+## 运行在哪里执行
+
+每次运行有自己独立的工作区，同一次运行的各个步骤共用它。运行之间隔离到什么程度，取决于在哪里执行：
+
+| 部署方式 | 隔离 |
+| --- | --- |
+| 装有 Docker 的主机（直接在主机上运行二进制，或绑定一台装有 Docker 的执行机器） | **每次运行一个容器**，运行结束后删除 |
+| 装有 bubblewrap 的 Linux 主机，或 macOS | 每次运行一个 bubblewrap 或 Seatbelt 沙箱 |
+| 上面的 `docker compose` 部署 | 运行是 LoopForge 容器里的进程，各自有独立的工作区目录。边界是这个容器，运行之间不互相隔离。 |
+
+沙箱在启动时自动选择（依次尝试 Docker、bubblewrap 或 Seatbelt、local）并写入日志；可以在「流程设置」里按 SOP 修改，或用 `LOOPFORGE_TEMPLATE_SANDBOX` 全局指定。团队无人值守使用时，建议绑定一台装有 Docker 的执行机器，见[执行机器](#执行机器在自己的电脑上跑)。
 
 ## 核心概念
 
 | 概念 | 说明 |
 | --- | --- |
 | **项目** | 需求、仓库、成员和默认 SOP 的边界。 |
-| **需求 / Issue** | 本地创建或从 GitHub 同步；新建和导入的需求会按项目澄清策略打分后再派发。 |
+| **需求 / Issue** | 本地创建或从 GitHub 同步；派发前按项目澄清标准打分。 |
 | **SOP（流程）** | 由 Agent、脚本、人工审批节点组成的版本化 DAG，带门禁、重试和打回目标。 |
 | **角色** | 与执行器无关的定义：指令、规则、技能、MCP、Hook、自检循环、产物和门禁。 |
-| **运行** | 一次冻结 SOP 快照的执行，共享一个沙箱/工作区，带遥测和产物。 |
+| **运行** | 一次冻结 SOP 快照的执行，共享一个沙箱/工作区，带遥测、产物和评测。 |
 | **执行机器** | 绑定的机器，执行其主人负责的运行。 |
 
 ## 架构
@@ -144,13 +164,14 @@ cmd/loopforge-mcp      连接 REST API 的 stdio MCP 桥
 cmd/loopforge-gate-mcp 注入 Agent 会话的门禁结果工具
 internal/engine        DAG 调度、门禁、打回、交付、集成分支
 internal/runtime       执行器、沙箱、MCP 物化、遥测适配
+internal/runeval       运行评测及其建议的应用
 internal/tracker       GitHub Issue / Pull Request 适配
 internal/httpapi       REST、认证、MCP 网关
 internal/repo          存储（SQLite / MySQL）、内置模板
 web/                   内嵌的 Studio 界面
 ```
 
-更多文档：[架构](docs/architecture.md) · [REST API](docs/api/README.md) · [OpenAPI](docs/api/openapi.yaml) · [MCP Server](docs/mcp.md) · [可观测性](docs/observability.md) · [AI 助手](docs/assistant.md)。
+更多文档：[架构](docs/architecture.md) · [REST API](docs/api/README.md) · [OpenAPI](docs/api/openapi.yaml) · [MCP Server](docs/mcp.md) · [可观测性](docs/observability.md) · [AI 助手](docs/assistant.md) · [扩展](docs/extending.md) · [规划](docs/roadmap.zh-CN.md)。
 
 ## 配置
 
@@ -164,9 +185,11 @@ web/                   内嵌的 Studio 界面
 | `LOOPFORGE_GITHUB_TOKEN` | 服务端兜底令牌，用于 Issue 同步和 PR 交付。 |
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | 信任反向代理（oauth2-proxy、Authelia 等）注入的 `X-Forwarded-User`。 |
 | `LOOPFORGE_ROLE` | `all`（默认）、`api` 或 `worker`，用于拆分部署。 |
-| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP（见「没有 API Key 也能先体验」）。 |
-| `LOOPFORGE_TEMPLATE_SANDBOX` | 内置模板使用的沙箱：`generic-docker`、`linux-bwrap`、`macos-seatbelt` 或 `local`。不设置时自动检测。 |
+| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP。 |
+| `LOOPFORGE_TEMPLATE_SANDBOX` | 内置 SOP 使用的沙箱：`generic-docker`、`linux-bwrap`、`macos-seatbelt` 或 `local`。不设置时自动检测。 |
 | `LOOPFORGE_MCP_MARKET` / `LOOPFORGE_TEMPLATES` / `LOOPFORGE_WEB_PLUGINS` | 从文件、目录或 URL 加载自己的 MCP 市场条目、SOP 模板和界面扩展页面，见 [docs/extending.md](docs/extending.md)。 |
+
+**MySQL**：启动时会自动建表、补列。另外请执行一次 [`migrations/001_run_obs_generated_columns.sql`](migrations/001_run_obs_generated_columns.sql)，MySQL 上的遥测筛选和分析统计依赖它添加的生成列；`002` 可选。SQLite 不需要任何操作。
 
 默认使用本地账号（bcrypt）登录；需要 SSO 时放在身份感知的反向代理后面。REST 和 MCP 客户端使用在「接入指南 → 我的 Token」申请的个人令牌（`Authorization: Bearer afp_...`）。
 
@@ -183,23 +206,22 @@ curl -fsSL https://loopforge.example.com/runners/install.sh | bash -s -- \
 
 ## 安全
 
-平台会让 Agent 在真实仓库上执行命令。`local` 沙箱只是开发便利，不是隔离边界；Seatbelt、bubblewrap 和 Docker 适合在可信主机上无人值守运行，但不是对抗性的多租户隔离。部署建议和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
+LoopForge 会让 Agent 在真实仓库上执行命令。`local` 沙箱只是便利，不是隔离边界；Seatbelt、bubblewrap 和 Docker 适合在可信主机上无人值守运行，但不是对抗性的多租户隔离。部署建议和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
 
-## 现状与规划
+## 规划与已知限制
 
-已知限制：
+接下来的重点：自反馈闭环、对话式入口（一句话说清需求，结果以回复的形式返回）、更精简的 Studio 导航、英文界面。完整列表见 [docs/roadmap.zh-CN.md](docs/roadmap.zh-CN.md)。
 
-- Studio 界面目前是中文，英文界面在规划中。
-- SOP 运行之外的 AI 功能（需求澄清、内置助手、运行评估）使用 CodeBuddy，需要在「个人设置」里配置 CodeBuddy API Key。没有 Key 时，新建需求请选「跳过分析并建单」。
-- 在 Docker 镜像内，模板会回退到 `local` 沙箱（容器里没有嵌套 Docker，也无法创建 user namespace）。需要隔离时，绑定一台装有 Docker 或 bubblewrap 的执行机器并在「流程设置」里切换沙箱，或者直接在这样的主机上运行二进制。
+目前的已知限制：
+
+- Studio 界面目前是中文。
+- SOP 运行之外的 AI 功能（需求澄清、内置助手、运行评测）使用 CodeBuddy，需要在「个人设置」里配置 CodeBuddy API Key。没有 Key 时，新建需求请选「跳过分析并建单」。
 - 同一个数据库只应有一个实例执行运行（只读副本设置 `LOOPFORGE_EXECUTE_RUNS=false`）。
-- 执行器目前支持 Claude Code、Codex、CodeBuddy；更多 CLI（包括 ACP 兼容 Agent）在规划中。
-- 产物存在数据库里；对象存储后端在规划中。
-- 需求系统目前是 GitHub；GitLab、Gitea、Jira 需要在本仓库内实现 Provider（见 [docs/extending.md](docs/extending.md#issue-trackers)），欢迎贡献。
+- 执行器支持 Claude Code、Codex、CodeBuddy；需求系统支持 GitHub；产物存在数据库里。
 
 ## 参与贡献
 
-欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [AGENTS.md](AGENTS.md)（代码分层约定），并遵守 [行为准则](CODE_OF_CONDUCT.md)。修改 CLI 及其工作流请遵循 [cli/CONTRIBUTING.zh-CN.md](cli/CONTRIBUTING.zh-CN.md) 和 [cli/AGENTS.md](cli/AGENTS.md)。
+欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [AGENTS.md](AGENTS.md)（代码分层约定），并遵守 [行为准则](CODE_OF_CONDUCT.md)。修改 CLI 及其工作流请遵循 [cli/CONTRIBUTING.zh-CN.md](cli/CONTRIBUTING.zh-CN.md) 和 [cli/AGENTS.md](cli/AGENTS.md)。问题和想法欢迎提到 [GitHub Issues](https://github.com/Tencent/LoopForge/issues)。
 
 ## 许可证
 

@@ -2,8 +2,8 @@ package repo
 
 import "time"
 
-// gorm row models. These describe the physical tables shared by MySQL
-// (mysql_schema.sql) and the sqlite test database (AutoMigrate). Domain
+// gorm row models. These describe the physical tables shared by MySQL and
+// SQLite; startup creates missing tables, columns and indexes. Domain
 // entities live in a JSON payload column; only filterable/locking fields are
 // real columns.
 //

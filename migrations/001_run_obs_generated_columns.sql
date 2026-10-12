@@ -1,18 +1,18 @@
--- 001: run 观测表的 MySQL 生成列基线
+-- 001: generated columns for run observability (MySQL only)
 --
--- 背景：run_telemetry / run_logs 的事件体整体存 JSON payload，但运行详情的
--- 遥测筛选（internal/repo/runs.go adapterSQLFilter）与分析 coverage 聚合
--- （internal/repo/analytics.go queryAnalyticsCoverage）在 MySQL 上直接引用
--- 生成列 adapter / level。历史上由启动时自动执行的 migrations/schema.sql
--- 创建；2026-09 整改（迁移移出启动路径）后基线需手动执行，故落成此脚本。
+-- run_telemetry and run_logs store each event as a JSON payload. On MySQL, the
+-- telemetry filter in run details (internal/repo/runs.go adapterSQLFilter) and
+-- the analytics coverage query (internal/repo/analytics.go
+-- queryAnalyticsCoverage) read the generated columns adapter and level added
+-- here. Tables are created automatically on startup; apply this script once
+-- afterwards. SQLite needs nothing: it parses the JSON in code.
 --
--- 说明：
--- - 仅 MySQL 需要；sqlite/内存测试走代码内 JSON 解析兜底（isMySQL() 分支）。
--- - STORED 生成列在大表上新增会触发表重建，请由运维选择窗口执行。
--- - MySQL 8.0 不支持 ADD COLUMN IF NOT EXISTS，本脚本不可重复执行；
---   可先查 information_schema.columns 确认列不存在再执行。
--- - gorm AutoMigrate 不感知本脚本：已建库后再执行本脚本即可，AutoMigrate
---   不会删除已存在的生成列。
+-- Notes:
+-- - Adding a STORED generated column rebuilds the table; on large tables, run
+--   it in a maintenance window.
+-- - MySQL 8.0 has no ADD COLUMN IF NOT EXISTS, so the script is not
+--   re-runnable. Check information_schema.columns first if unsure.
+-- - Startup migrations never drop these columns.
 
 ALTER TABLE run_telemetry
   ADD COLUMN adapter VARCHAR(255)

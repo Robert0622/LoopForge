@@ -1,5 +1,5 @@
--- External workflow usage. Optional baseline, manually applied by operators.
--- Production Open only adds missing schema objects; no data migration or seed.
+-- 002: external workflow usage tables (optional, MySQL).
+-- Startup creates missing tables and indexes as well; this is a reviewable baseline.
 CREATE TABLE IF NOT EXISTS insight_sources (
   id VARCHAR(64) NOT NULL PRIMARY KEY,
   project_id VARCHAR(128),

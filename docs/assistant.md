@@ -53,7 +53,7 @@
 
 ## 根据代码回答问题与拦截写操作
 
-部署时把与运行版本一致的源码快照（例如 `git archive HEAD` 导出的 `cmd/internal/web/docs/migrations`、README 与 Go 模块文件）放到只读目录，保证问答源码对应构建版本。快照不应包含 `.git`、线上 `.env`、部署凭据或 TLS 私钥。
+部署时把与运行版本一致的源码快照（例如 `git archive HEAD` 导出的 `cmd/internal/web/docs/migrations`、README 与 Go 模块文件）放到只读目录，保证问答源码对应构建版本。快照不应包含 `.git`、生产环境的 `.env`、部署凭据或 TLS 私钥。
 
 通过 `LOOPFORGE_ASSISTANT_SOURCE_DIR` 指定源码位置。平台与外部 MCP 查询走 Session MCP 的 `tools/call`。返回 `sources` 包含实际检索的文件、行号和片段，侧栏可展开查看。服务端使用 `os.Root` 限定根目录，拒绝绝对路径、路径穿越、隐藏文件、符号链接、非文本扩展、非常规文件和超大文件；限制结果大小与总上下文。
 
