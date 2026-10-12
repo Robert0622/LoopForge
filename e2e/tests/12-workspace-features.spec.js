@@ -23,14 +23,17 @@ async function useProject(page, id, name) {
   await switcher.selectOption(id);
 }
 
-test('first login points at the quick-start checklist and ends back on it in demo mode', async ({ page }) => {
+test('first login points at the home chat and ends back on the checklist in demo mode', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page, { ...ADMIN, onboarding: true });
   const card = page.locator('#onboarding .onboarding-card');
   await expect(card).toBeVisible();
-  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 5');
+  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
+  await expect(page.locator('#homeChat')).toHaveClass(/onboarding-target/);
+  await expect(page.locator('#homeChat')).toBeVisible();
+  await page.locator('#onboardingNext').click();
   await expect(page.locator('#dashQuickstart')).toHaveClass(/onboarding-target/);
-  await expect(page.locator('#onboardingBody')).toContainText('一键开跑');
+  await expect(page.locator('#onboardingBody')).toContainText(/一键开跑|一键演示/);
   await page.locator('#onboardingNext').click();
   await expect(page.locator('.nav[data-view="issues"]')).toHaveClass(/onboarding-target/);
   await page.locator('#onboardingNext').click();
@@ -41,6 +44,7 @@ test('first login points at the quick-start checklist and ends back on it in dem
   await page.locator('#onboardingNext').click();
   await expect(page.locator('#onboarding')).toBeHidden();
   await expect(page.locator('#pageTitle')).toHaveText('工作总览');
+  await expect(page.locator('#homeChat')).toBeVisible();
   await expect(page.locator('#dashQuickstart')).toBeVisible();
 
   await page.reload();
@@ -52,10 +56,26 @@ test('first login points at the quick-start checklist and ends back on it in dem
   await expect(page.locator('#dashQuickstart')).toBeHidden();
   await page.locator('.nav[data-view="guide"]').click();
   await page.locator('#replayOnboarding').click();
-  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 5');
-  await expect(page.locator('#dashQuickstart')).toBeVisible();
+  await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
+  await expect(page.locator('#homeChat')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#onboarding')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('home chat one-click demo launches a run visible in the live strip', async ({ page }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  const home = page.locator('#homeChat');
+  await expect(home).toBeVisible();
+  await expect(home.locator('#homeChatDemo')).toBeVisible();
+  await home.locator('#homeChatDemo').click();
+  const drawer = page.locator('#issueDetailDrawer');
+  await expect(drawer).toContainText('演示：需求列表支持导出 CSV');
+  await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
+  await closeDrawer(page);
+  await page.locator('#refreshDashboard').click();
+  await expect(home.locator('#homeChatRuns .home-run-card, #homeChatApprovals .home-run-card').first()).toBeVisible({ timeout: 15_000 });
   expect(errors).toEqual([]);
 });
 

@@ -1,0 +1,11 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('path');
+const source = fs.readFileSync(path.join(__dirname, 'app/homechat.js'), 'utf8');
+assert.match(source, /function renderHomeChat/);
+assert.match(source, /\/api\/chat-clarify/);
+assert.match(source, /homeChatActiveRuns/);
+assert.match(source, /一键演示|HOME_CHAT_DEMO/);
+assert.match(source, /建单并开跑/);
+console.log('homechat ok');

@@ -23,7 +23,7 @@ Evaluation already proposes concrete changes to SOP nodes, gates and role instru
 
 ### Chat-first entry
 
-Describe what you need in one sentence, from the web UI or a chat tool, and get the result back as a reply. LoopForge turns the sentence into a requirement, picks the SOP, runs it, and answers with the pull request, preview or report. The full studio stays available for setting up SOPs and roles.
+The dashboard already has a chat entry: clarify in one sentence, create and dispatch, and watch running or waiting workflows in the same view. Next: more chat tools, and results returned as replies (pull request, preview or report). The full studio stays available for setting up SOPs and roles.
 
 ### Faster first run
 

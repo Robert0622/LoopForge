@@ -4,10 +4,11 @@ const ONBOARDING_KEY = 'loopforge.onboarding.v3';
 
 function onboardingSteps(demo) {
   const start = demo
-    ? '演示模式已开启，什么都不用配：点「一键开跑」，平台会用演示 SOP 跑一张需求，停在审批节点等你批准，批准后出交付报告。想跑真实需求，照着右边「正式使用」一项项做，每项都有直达按钮。'
-    : '照着这张清单一步步来：先配模型 API Key 和 GitHub Token，再给项目绑定仓库，然后新建需求并派发。每项都有直达按钮，做完会自动打勾。';
+    ? '演示模式已开启，什么都不用配：上面的对话框可以直接「一键演示」，或点清单里的「一键开跑」。跑起来后右侧能看到运行进度，停在审批节点时去批准，就能看到交付报告。'
+    : '先看上面的对话框：用一句话说清需求，平台会澄清、建单并开跑。也可以照着清单配模型 Key、GitHub Token 和仓库，每项都有直达按钮。';
   return [
-    { target: '#dashQuickstart', title: '从这张清单开始', body: start },
+    { target: '#homeChat', title: '从对话开始', body: '在工作总览用对话描述需求。澄清完成后可以建单开跑；右侧能看到正在运行和待确认的工作流。' },
+    { target: '#dashQuickstart', title: '或照着清单一步步来', body: start },
     { target: '.nav[data-view="issues"]', title: '需求从这里进', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
     { target: '.nav[data-view="approvals"]', title: '要你拍板时来这里', body: '运行停下来等你决定，会出现在「待我确认」。先看清问题，再同意或退回。没有待办时，这里是空的。' },
     { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },

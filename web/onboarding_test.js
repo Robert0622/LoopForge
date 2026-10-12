@@ -15,17 +15,19 @@ vm.createContext(context);
 vm.runInContext(source, context);
 
 const steps = context.onboardingSteps(false);
-assert.equal(steps.length, 5);
-assert.equal(steps[0].target, '#dashQuickstart');
-assert.ok(steps.slice(1).every(step => step.target.startsWith('.nav[data-view=')));
+assert.equal(steps.length, 6);
+assert.equal(steps[0].target, '#homeChat');
+assert.equal(steps[1].target, '#dashQuickstart');
+assert.ok(steps.slice(2).every(step => step.target.startsWith('.nav[data-view=')));
 assert.equal(steps.at(-1).finish, true);
 assert.equal(steps.at(-1).view, 'settings');
 assert.equal(steps.at(-1).next, '去填写');
 assert.equal(steps.at(-1).target, '.nav[data-view="settings"]');
 
 const demoSteps = context.onboardingSteps(true);
-assert.equal(demoSteps.length, 5);
-assert.match(demoSteps[0].body, /一键开跑/);
+assert.equal(demoSteps.length, 6);
+assert.match(demoSteps[0].body, /对话/);
+assert.match(demoSteps[1].body, /一键开跑|一键演示/);
 assert.equal(demoSteps.at(-1).view, 'dashboard');
 assert.equal(demoSteps.at(-1).next, '开始体验');
 
