@@ -72,7 +72,8 @@ func protectedAccessPath(path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/health", "/api/auth/current", "/api/auth/login", "/api/auth/logout", "/api/auth/password":
+	case "/api/health", "/api/auth/current", "/api/auth/login", "/api/auth/logout", "/api/auth/password",
+		"/api/share/gate/decide":
 		return false
 	default:
 		return path != "/api/auth/tokens" && !strings.HasPrefix(path, "/api/auth/tokens/")

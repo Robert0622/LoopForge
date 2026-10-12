@@ -61,7 +61,10 @@ type Engine struct {
 	// runControlNotify wakes the owning worker after pause/cancel flags are
 	// written. Nil means this process looks up engine_instances (and optional
 	// fallbackWorkerURL) and POSTs the interrupt itself.
-	runControlNotify  func(runID string)
+	runControlNotify func(runID string)
+	// humanWaitHook / runFailedHook are optional outbound alerts (WeCom webhook).
+	humanWaitHook     HumanWaitHook
+	runFailedHook     RunFailedHook
 	controlRole       string
 	controlURL        string
 	controlToken      string

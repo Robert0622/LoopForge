@@ -860,13 +860,20 @@ async function boot(){
   switchView(view);
   restoreRequirementComposer();
   if(typeof maybeStartOnboarding==='function')maybeStartOnboarding();
+  setTimeout(()=>{if(typeof maybeStartSetupWizard==='function')maybeStartSetupWizard()},900);
 }
 const savedTheme=localStorage.getItem('loopforge.theme.v3')||'light';document.documentElement.dataset.theme=savedTheme;
 
 function bind(){
 	prepareMCPFormHints();
   $$('.nav[data-view]').forEach(btn=>btn.onclick=()=>switchView(btn.dataset.view));
-  document.addEventListener('click',e=>{if(!e.target.closest('[data-goto-settings]'))return;e.stopPropagation();closeIssueDrawer();switchView('settings')});
+  document.addEventListener('click',e=>{
+    const wizard=e.target.closest('[data-open-setup-wizard]');
+    if(wizard){e.stopPropagation();e.preventDefault();if(typeof reopenSetupWizardFromGuide==='function')reopenSetupWizardFromGuide();return}
+    const jump=e.target.closest('[data-view]:not(.nav)');
+    if(jump&&jump.dataset.view&&!jump.closest('.platform-sidebar')){e.stopPropagation();closeIssueDrawer();switchView(jump.dataset.view);return}
+    if(!e.target.closest('[data-goto-settings]'))return;e.stopPropagation();closeIssueDrawer();switchView('settings');
+  });
   const capabilityToggle=$('#capabilityNavToggle');if(capabilityToggle)capabilityToggle.onclick=()=>setCapabilityNavExpanded(capabilityToggle.getAttribute('aria-expanded')!=='true');
   setCapabilityNavExpanded(localStorage.getItem('loopforge.capabilityNavExpanded')==='true');
   const environmentToggle=$('#environmentNavToggle');if(environmentToggle)environmentToggle.onclick=()=>setEnvironmentNavExpanded(environmentToggle.getAttribute('aria-expanded')!=='true');

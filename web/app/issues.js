@@ -544,11 +544,33 @@ async function saveIssue(e){e.preventDefault();const button=e.currentTarget.quer
 async function dispatchIssue(){try{let issue=issueFromForm();const blocked=issueExecutionBlocked(issue);if(blocked)return toast(blocked);const current=latestIssueTask(issue),rerun=!!current;if(current&&!await afConfirm({title:'重新运行确认',message:['queued','dispatched','running'].includes(current.status)?'该需求已有进行中的任务，确定额外发起一次重新运行吗？':'该需求已经处理过，确定整条 SOP 重新运行吗？',confirmText:'确认重新运行'}))return;const button=$('#dispatchIssue');button.disabled=true;button.textContent='正在调度…';issue=await persistIssue(issue);const task=await api(`/api/issues/${issue.id}/dispatch`,{method:'POST',body:JSON.stringify({rerun,workflowId:issue.workflowId||''})});issue.latestTaskId=task.id;issue.status='in_progress';const idx=state.data.issues.findIndex(i=>i.id===issue.id);if(idx>=0)state.data.issues[idx]=issue;if(!state.data.tasks)state.data.tasks=[];const existingTaskIdx=state.data.tasks.findIndex(t=>t.id===task.id);if(existingTaskIdx>=0)state.data.tasks[existingTaskIdx]=task;else state.data.tasks.unshift(task);if(task.runId){startLiveRun(task.runId);try{const run=await api(`/api/runs/${encodeURIComponent(task.runId)}`,{silent:true});if(run?.id){if(!state.data.runs)state.data.runs=[];const rIdx=state.data.runs.findIndex(r=>r.id===run.id);if(rIdx>=0)state.data.runs[rIdx]={...state.data.runs[rIdx],...run};else state.data.runs=sortRunsDescending([run,...state.data.runs]);}}catch(e){}}$('#issueModal').classList.remove('open');renderIssues();await openIssueDetail(issue.id,'sop');toast(rerun?'已创建重新运行':'已创建执行任务并启动工作流','ok');Promise.all([refreshIssues(),refreshRuns(true)]).catch(()=>{});}catch(err){toast(err.message)}finally{const button=$('#dispatchIssue');button.disabled=false;button.textContent='启动 SOP'}}
 async function dispatchIssueById(issueId,rerun=false,workflowId=''){try{const issue=(state.data.issues||[]).find(i=>i.id===issueId),blocked=issueExecutionBlocked(issue);if(blocked)return toast(blocked);if(clarificationNeedsConfirm(issue)){openIssueDetail(issueId,'clarify');return toast('请先确认澄清结论后再触发 SOP')}
     if(requirementNeedsClarification(issue)){state.autoStartClarify=true;openIssueDetail(issueId,'clarify');return toast('需求澄清未达标，请先补充关键信息')}const task=await api(`/api/issues/${issueId}/dispatch`,{method:'POST',body:JSON.stringify({rerun,workflowId})});if(issue){issue.latestTaskId=task.id;issue.status='in_progress'}if(!state.data.tasks)state.data.tasks=[];const existingTaskIdx=state.data.tasks.findIndex(t=>t.id===task.id);if(existingTaskIdx>=0)state.data.tasks[existingTaskIdx]=task;else state.data.tasks.unshift(task);if(task.runId){startLiveRun(task.runId);try{const run=await api(`/api/runs/${encodeURIComponent(task.runId)}`,{silent:true});if(run?.id){if(!state.data.runs)state.data.runs=[];const rIdx=state.data.runs.findIndex(r=>r.id===run.id);if(rIdx>=0)state.data.runs[rIdx]={...state.data.runs[rIdx],...run};else state.data.runs=sortRunsDescending([run,...state.data.runs]);}}catch(e){}}renderIssues();await openIssueDetail(issueId,'sop');toast(rerun?'已创建重新运行':'已启动 SOP','ok');Promise.all([refreshIssues(),refreshRuns(true)]).catch(()=>{});setTimeout(()=>refreshIssues(),2000);setTimeout(()=>refreshIssues(),10000);}catch(err){if(/澄清/.test(err.message||'')){state.issueDetailTab='clarify';openIssueDetail(issueId,'clarify')}toast(err.message,'err')}}
+function humanizeRunError(error){
+  const text=String(error||'').trim();
+  if(!text)return null;
+  const lower=text.toLowerCase();
+  if(/api[_ ]?key|unauthorized|401|authentication|anthropic|openai|codebuddy|凭据|个人设置/i.test(text)){
+    return {title:'模型凭据不可用',hint:'到个人设置粘贴 Claude / Codex / CodeBuddy 的 API Key，或用首次配置向导。',actions:`<button type="button" class="button primary small" data-goto-settings>去个人设置</button><button type="button" class="button ghost small" data-open-setup-wizard>打开配 Key 向导</button>`};
+  }
+  if(/git.*(auth|credential|permission|403|401)|github.*token|仓库.*(鉴权|权限)|authentication failed/i.test(text)||/could not read Username/i.test(text)){
+    return {title:'代码仓库鉴权失败',hint:'在个人设置填写可读写目标仓库的 GitHub Token（classic 勾选 repo）。',actions:`<button type="button" class="button primary small" data-goto-settings>去个人设置</button>`};
+  }
+  if(/docker|image|sandbox|bwrap|seatbelt|容器|沙箱/i.test(text)){
+    return {title:'沙箱/容器环境异常',hint:'确认本机 Docker 可用，或把 SOP 沙箱改成 Local；首次会拉默认镜像，需等几分钟。',actions:`<button type="button" class="button ghost small" data-view="sandboxes">查看沙箱</button>`};
+  }
+  if(/clone|repository not found|could not resolve host|network|dial tcp|timeout/i.test(lower)){
+    return {title:'仓库拉取失败',hint:'检查项目是否绑定了正确仓库地址，以及网络能否访问 Git 主机。',actions:`<button type="button" class="button ghost small" data-view="projects">项目配置</button>`};
+  }
+  if(/max turns|轮次用尽/i.test(text)){
+    return {title:'对话轮次用尽',hint:'在「待我确认」重试本节点，或补充上下文后再跑。',actions:`<button type="button" class="button ghost small" data-view="approvals">待我确认</button>`};
+  }
+  return {title:'节点执行失败',hint:'先看节点日志和产物；可补充上下文后重试失败节点，不必整条 SOP 重跑。',actions:`<button type="button" class="button ghost small" data-view="runs">打开运行记录</button>`};
+}
 function nodeFailureHTML(run,node,depth){
   const error=node.status==='failed'?String(run?.nodes?.[node.nodeId]?.error||'').trim():'';
   if(!error)return '';
-  const settings=/个人设置|API Key|Token/i.test(error)?`<button type="button" class="button ghost small" data-goto-settings>去个人设置</button>`:'';
-  return `<div class="node-progress-error"${depth?` style="margin-left:${depth*20}px"`:''}><span>${escapeHTML(error)}</span>${settings}</div>`;
+  const tip=humanizeRunError(error);
+  const next=tip?`<div class="node-error-next"><b>${escapeHTML(tip.title)}</b><p>${escapeHTML(tip.hint)}</p><div class="ap-buttons">${tip.actions}</div></div>`:'';
+  return `<div class="node-progress-error"${depth?` style="margin-left:${depth*20}px"`:''}><span>${escapeHTML(error)}</span>${next}</div>`;
 }
 function defaultSOPForIssue(issue){
   const projectId=issue?.projectId||state.projectFilter;
@@ -571,6 +593,7 @@ function defaultSOPForIssue(issue){
   if(playbook?.bindings?.[0]&&(inRunnable(playbook.bindings[0].workflowId)||knownSOP(playbook.bindings[0].workflowId)))return playbook.bindings[0].workflowId;
   if(inRunnable(projectSOP))return projectSOP;
   if(projectSOP&&knownSOP(projectSOP))return projectSOP;
+  if(inRunnable('quick-fix')||knownSOP('quick-fix'))return 'quick-fix';
   return inRunnable('requirement-development-production')?'requirement-development-production':(runnable[0]?.id||'requirement-development-production');
 }
 function bindIssueTriggers(root=document){root.querySelectorAll('[data-trigger-issue]').forEach(button=>{button.onclick=e=>{e.stopPropagation();e.preventDefault();triggerIssue(button.dataset.triggerIssue)}})}

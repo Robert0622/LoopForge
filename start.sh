@@ -50,8 +50,12 @@ case "$cmd" in
     "${compose[@]}" up -d --build
     echo
     echo "LoopForge is up. Open http://localhost:${LOOPFORGE_PORT:-8080}"
-    echo "Admin password (first start only):"
-    "${compose[@]}" logs loopforge 2>/dev/null | grep -E 'Created admin account|admin password' | tail -3 || true
+    if [[ "${LOOPFORGE_DEMO_MODE}" == "true" && -z "${LOOPFORGE_ADMIN_PASSWORD:-}" ]]; then
+      echo "Demo login: admin / demo1234"
+    else
+      echo "Admin password (first start only):"
+      "${compose[@]}" logs loopforge 2>/dev/null | grep -E 'Created admin account|admin password' | tail -3 || true
+    fi
     ;;
   up)
     if ! "${compose[@]}" pull loopforge >/tmp/loopforge-pull.log 2>&1; then
@@ -66,8 +70,12 @@ case "$cmd" in
     fi
     echo
     echo "LoopForge is up. Open http://localhost:${LOOPFORGE_PORT:-8080}"
-    echo "Admin password (first start only):"
-    "${compose[@]}" logs loopforge 2>/dev/null | grep -E 'Created admin account|admin password' | tail -3 || true
+    if [[ "${LOOPFORGE_DEMO_MODE}" == "true" && -z "${LOOPFORGE_ADMIN_PASSWORD:-}" ]]; then
+      echo "Demo login: admin / demo1234"
+    else
+      echo "Admin password (first start only):"
+      "${compose[@]}" logs loopforge 2>/dev/null | grep -E 'Created admin account|admin password' | tail -3 || true
+    fi
     echo
     echo "Tip: use the chat box on 工作总览 to describe a requirement in one sentence."
     ;;

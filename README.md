@@ -100,35 +100,46 @@ git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
 ./start.sh          # demo mode on; pulls GHCR or builds from this checkout
 ```
 
-Open <http://localhost:8080> and sign in (port taken? set `LOOPFORGE_PORT=9090`). The admin password is printed once by `./start.sh`. Demo mode adds a scripted executor and a "演示交付流程" SOP. On the dashboard chat, click **一键演示** (or type a requirement), approve the gate, and open `delivery-report.md` under **产物**. No model is called.
+Open <http://localhost:8080> and sign in with the fixed demo account (port taken? set `LOOPFORGE_PORT=9090`):
+
+- user: `admin`
+- password: `demo1234`
+
+(Fixed only when `LOOPFORGE_DEMO_MODE=true` and `LOOPFORGE_ADMIN_PASSWORD` is unset — change it before any shared deploy.) Demo mode adds a scripted executor and a "演示交付流程" SOP. On the dashboard chat, click **一键演示** (or type a requirement), approve the gate, and open `delivery-report.md` under **产物**. No model is called.
 
 Equivalent compose:
 
 ```bash
 docker compose pull
 LOOPFORGE_DEMO_MODE=true docker compose up -d
-docker compose logs loopforge | grep "Created admin account"
+# sign in as admin / demo1234
 ```
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="The LoopForge dashboard after a few demo requirements" width="100%">
 </p>
 
-### Run real requirements
+### Run real requirements (four steps)
 
 Start without `LOOPFORGE_DEMO_MODE`, then:
 
-1. Under **个人设置** (Settings), add an API key for Claude Code, Codex or CodeBuddy (all three CLIs ship in the image) and a GitHub token: either a classic token with the `repo` scope, or a fine-grained token with *Contents*, *Issues* and *Pull requests* read/write.
-2. Bind a repository to your project by pasting its URL.
-3. Import an issue by URL or turn on auto-sync, then dispatch it to one of the built-in SOPs:
+1. **Keys**: follow the first-run wizard to paste a Claude / Codex / CodeBuddy API key (replay from 接入指南); optionally add a GitHub token.
+2. **Repo**: bind a repository URL on the project.
+3. **Dispatch**: describe a change in the dashboard chat, or import an issue; the default short SOP is **快速修复** (implement → approve → summary).
+4. **Approve**: open **待我确认**, or copy an external approval link for a colleague (no login, 24h TTL).
+
+Longer built-in SOPs:
 
 | SOP | Steps |
 | --- | --- |
+| Quick fix | implement → human approve → summary |
 | Backend delivery | requirement → design → implement & self-test → independent review → test → open PR → summary |
 | Frontend delivery | requirement → design → implement → review → verify → open PR → archive |
 | Product delivery | product definition → interactive demo → engineering hand-off → acceptance → issue write-back → summary |
 
-The first real run builds the default sandbox image (Node, the agent CLIs, Go, Git), which takes a few minutes once. A backend requirement typically takes 30 to 75 minutes end to end. Most of that time is the agents working through seven sessions. For small fixes, publish a shorter SOP such as implement → test → open PR.
+Optional: set `LOOPFORGE_NOTIFY_WEBHOOK` to a WeCom group-robot URL for waiting/failed alerts. Set `LOOPFORGE_PUBLIC_URL` for absolute links in notifications and share URLs.
+
+The first real run builds the default sandbox image (Node, the agent CLIs, Go, Git), which takes a few minutes once. A full backend requirement typically takes 30 to 75 minutes; small fixes via **快速修复** are much shorter.
 
 GitHub Enterprise Server: set `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` and `LOOPFORGE_GITHUB_HOST=<host>`.
 
@@ -195,7 +206,9 @@ Everything is optional; see [.env.example](.env.example) for the full list. The 
 | `LOOPFORGE_GITHUB_TOKEN` | Server-side fallback token for issue sync and PR delivery. |
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | Accept `X-Forwarded-User` from a trusted proxy (oauth2-proxy, Authelia, ...). |
 | `LOOPFORGE_ROLE` | `all` (default), `api`, or `worker` for split deployments. |
-| `LOOPFORGE_DEMO_MODE` | Seed the scripted demo executor and SOP. |
+| `LOOPFORGE_DEMO_MODE` | Seed the scripted demo executor and SOP; fixed `admin` / `demo1234` when admin password unset. |
+| `LOOPFORGE_NOTIFY_WEBHOOK` | WeCom (or compatible) webhook for waiting/failed alerts. |
+| `LOOPFORGE_PUBLIC_URL` | Public base URL for notify links and approval share links. |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | Sandbox for the built-in SOPs: `generic-docker`, `linux-bwrap`, `macos-seatbelt` or `local`. Auto-detected when unset. |
 | `LOOPFORGE_MCP_MARKET` / `LOOPFORGE_TEMPLATES` / `LOOPFORGE_WEB_PLUGINS` | Add your own MCP market entries, SOP templates and UI pages from files, directories or URLs. See [docs/extending.md](docs/extending.md). |
 

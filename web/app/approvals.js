@@ -117,6 +117,10 @@ function failedNodeRecoveryCalloutHTML(runId,node,nr){
   }else if(nr?.error){
     sections.push(`<div class="callout-section"><strong class="callout-label">失败信息</strong><pre class="callout-error-pre">${escapeHTML(nr.error)}</pre></div>`);
   }
+  const tip=typeof humanizeRunError==='function'?humanizeRunError(nr?.error||gate?.reason||''):null;
+  if(tip){
+    sections.push(`<div class="callout-section node-error-next"><strong class="callout-label">下一步</strong><p class="callout-text"><b>${escapeHTML(tip.title)}</b> — ${escapeHTML(tip.hint)}</p><div class="ap-buttons">${tip.actions}</div></div>`);
+  }
   const isScript=isScriptWorkflowNode(node);
   const hint=isScript
     ? '重试会重新执行本步骤。如果硬脚本会一直卡住，也可以手动通过并继续下游。'
@@ -332,11 +336,22 @@ async function renderApprovals(background=false){
     const key=alignRun?'定时任务基线':issue?`${(state.data.projects||[]).find(p=>p.id===issue.projectId)?.key||'ISS'}-${issue.number}`:'未关联需求';
     const sideButton=issue?`<button class="button ghost small" data-open-issue="${escapeHTML(issue.id)}">打开需求</button>`:`<button class="button ghost small" data-open-logs="${escapeHTML(r.id)}">${alignRun?'查看对齐详情':'排查日志'}</button>`;
     const decision=r.pauseRequested?pausedRunPanelHTML(r):humanDecisionPanelHTML(r.id,nodeId,r.nodes?.[nodeId],node,r.workflowSnapshot?.nodes||[]);
-    return `<div class="ap-card attention"><div class="ap-main"><div class="ap-head"><b>${escapeHTML(title)}</b><span class="status ${r.pauseRequested?'paused':'waiting'}">${r.pauseRequested?'已暂停':'待确认'}</span></div><div class="ap-meta">${escapeHTML(key)} ｜ ${r.pauseRequested?'暂停于':'卡在'}「${escapeHTML(node?.name||nodeId||'确认')}」｜ 已等待 ${relativeTime(r.createdAt)}</div></div><div class="ap-actions">${decision}${!r.pauseRequested?refreshRunSOPButtonHTML(r):''}${sideButton}<button class="button ghost small danger" data-cancel-run="${escapeHTML(r.id)}">取消流程</button></div></div>`;
+    const shareBtn=r.pauseRequested?'':`<button class="button ghost small" data-share-gate="${escapeHTML(r.id)}" data-node="${escapeHTML(nodeId||'')}">复制外部审批链接</button>`;
+    return `<article class="ap-card attention"><div class="ap-main"><div class="ap-head"><span class="run-kind gate">待确认</span><b>${escapeHTML(title)}</b><span class="status ${r.pauseRequested?'paused':'waiting'}">${r.pauseRequested?'已暂停':'待确认'}</span></div><div class="ap-meta">${escapeHTML(key)} ｜ ${r.pauseRequested?'暂停于':'卡在'}「${escapeHTML(node?.name||nodeId||'确认')}」｜ 已等待 ${relativeTime(r.createdAt)}</div></div><div class="ap-actions">${decision}${!r.pauseRequested?refreshRunSOPButtonHTML(r):''}${shareBtn}${sideButton}<button class="button ghost small danger" data-cancel-run="${escapeHTML(r.id)}">取消流程</button></div></article>`;
   }).join('')||'<div class="approval-empty"><div class="empty-box">没有需要你拍板的需求</div></div>';
   host.querySelectorAll('[data-open-issue]').forEach(b=>b.onclick=()=>openIssueDetail(b.dataset.openIssue,'sop'));
   host.querySelectorAll('[data-open-logs]').forEach(b=>b.onclick=()=>openRunFromId(b.dataset.openLogs,{forceRuns:true}));
   host.querySelectorAll('[data-cancel-run]').forEach(b=>b.onclick=()=>cancelRunFlow(b.dataset.cancelRun));
+  host.querySelectorAll('[data-share-gate]').forEach(b=>b.onclick=()=>shareApprovalGate(b.dataset.shareGate,b.dataset.node));
   bindWaitingActions(host);
+}
+async function shareApprovalGate(runId,nodeId){
+  try{
+    const res=await api(`/api/runs/${encodeURIComponent(runId)}/share-gate`,{method:'POST',body:JSON.stringify({nodeId:nodeId||''})});
+    const url=res?.url||'';
+    if(!url)return toast('未生成链接','err');
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);toast('已复制外部审批链接（24h 有效）','ok')}
+    else{await afPrompt({title:'外部审批链接',message:'复制发给评审人（无需登录，24 小时有效）：',defaultValue:url})}
+  }catch(e){toast(e.message,'err')}
 }
 

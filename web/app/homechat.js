@@ -1,6 +1,7 @@
 // Grasp-style home chatbot: one sentence on the dashboard → clarify → dispatch,
 // with a live strip of running / waiting workflows next to the conversation.
 const HOME_CHAT_DEMO = 'demo-delivery';
+const HOME_CHAT_QUICK = 'quick-fix';
 
 function homeChatHasModelKey() {
   const stored = userById(state.currentUser?.id) || {};
@@ -12,8 +13,10 @@ function homeChatWorkflows() {
   const all = state.data.workflows || [];
   const mine = all.filter(w => !catalogGeneric(w) && (!projectId || w.projectId === projectId) && w.status !== 'archived');
   const demo = all.find(w => w.id === HOME_CHAT_DEMO);
+  const quick = all.find(w => w.id === HOME_CHAT_QUICK);
   const list = [];
   if (demo) list.push(demo);
+  if (quick) list.push(quick);
   mine.forEach(w => { if (!list.some(x => x.id === w.id)) list.push(w); });
   return list;
 }
@@ -46,7 +49,10 @@ function renderHomeChat() {
   const chat = ensureHomeChatState();
   const workflows = homeChatWorkflows();
   if (!chat.workflowId || !workflows.some(w => w.id === chat.workflowId)) {
-    chat.workflowId = workflows[0]?.id || '';
+    // Prefer demo when present (no key); otherwise the short quick-fix SOP.
+    chat.workflowId = (workflows.find(w => w.id === HOME_CHAT_DEMO)
+      || workflows.find(w => w.id === HOME_CHAT_QUICK)
+      || workflows[0])?.id || '';
   }
   const demoReady = workflows.some(w => w.id === HOME_CHAT_DEMO);
   const needsKey = !homeChatHasModelKey() && chat.workflowId !== HOME_CHAT_DEMO;
@@ -74,7 +80,7 @@ function renderHomeChat() {
         <div class="home-chat-thread" id="homeChatThread">${thread || `<div class="home-chat-empty">试试：「给需求列表加导出 CSV」${demoReady ? '，或直接开跑演示 SOP' : ''}</div>`}</div>
         <form class="home-chat-composer" id="homeChatForm">
           <div class="home-chat-toolbar">
-            <label>SOP<select id="homeChatWorkflow" class="select">${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === chat.workflowId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}${w.id === HOME_CHAT_DEMO ? '（演示）' : ''}</option>`).join('')}</select></label>
+            <label>SOP<select id="homeChatWorkflow" class="select">${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === chat.workflowId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}${w.id === HOME_CHAT_DEMO ? '（演示）' : w.id === HOME_CHAT_QUICK ? '（短链路）' : ''}</option>`).join('')}</select></label>
             ${needsKey ? `<button type="button" class="button ghost small" id="homeChatGoSettings">先去配模型 Key</button>` : ''}
             ${demoReady ? `<button type="button" class="button ghost small" id="homeChatDemo" ${chat.busy ? 'disabled' : ''}>一键演示</button>` : ''}
           </div>
@@ -112,7 +118,10 @@ function bindHomeChat() {
   const input = $('#homeChatInput');
   const workflow = $('#homeChatWorkflow');
   if (workflow) workflow.onchange = () => { chat.workflowId = workflow.value; renderHomeChat(); };
-  $('#homeChatGoSettings') && ($('#homeChatGoSettings').onclick = () => switchView('settings'));
+  $('#homeChatGoSettings') && ($('#homeChatGoSettings').onclick = () => {
+    if (typeof reopenSetupWizardFromGuide === 'function') reopenSetupWizardFromGuide();
+    else switchView('settings');
+  });
   $('#homeChatDemo') && ($('#homeChatDemo').onclick = () => homeChatRunDemo());
   $('#homeChatRefreshRuns') && ($('#homeChatRefreshRuns').onclick = async () => { try { await refreshRuns(true); await refreshIssues(); } catch (e) {} renderHomeChat(); });
   $('#homeChatStop') && ($('#homeChatStop').onclick = () => homeChatStop());

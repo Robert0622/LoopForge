@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Tencent/LoopForge/internal/auth"
@@ -86,8 +87,15 @@ func ensureAdmin(s *repo.Store) (int64, error) {
 		}
 	}
 	generated := password == ""
+	demoMode, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_DEMO_MODE")))
 	if generated {
-		password = auth.RandomSecret()[:20]
+		if demoMode {
+			// Match Grasp's fixed local-demo login so README and teammates
+			// can sign in without scraping compose logs.
+			password = "demo1234"
+		} else {
+			password = auth.RandomSecret()[:20]
+		}
 	}
 	user, err := httpapi.EnsureLocalUser(s, login, "Administrator", password, true)
 	if err != nil {
@@ -96,7 +104,11 @@ func ensureAdmin(s *repo.Store) (int64, error) {
 	if generated {
 		log.Printf("============================================================")
 		log.Printf(" Created admin account  login: %s  password: %s", login, password)
-		log.Printf(" Change it after signing in (Settings -> Password).")
+		if demoMode {
+			log.Printf(" Demo mode: this password is fixed. Change it before any shared deploy.")
+		} else {
+			log.Printf(" Change it after signing in (Settings -> Password).")
+		}
 		log.Printf("============================================================")
 	} else {
 		log.Printf("admin account %q is ready", login)

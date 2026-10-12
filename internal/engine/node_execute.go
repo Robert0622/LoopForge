@@ -109,6 +109,7 @@ func (e *Engine) execute(ctx context.Context, runID string) {
 					continue
 				}
 				e.updateRun(runID, func(current *domain.Run) { current.Status = "waiting" })
+				e.fireHumanWait(runID)
 				return
 			}
 			if hasFailed(wf, r) {

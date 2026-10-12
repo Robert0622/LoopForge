@@ -24,6 +24,7 @@ import (
 	"github.com/Tencent/LoopForge/internal/engine"
 	"github.com/Tencent/LoopForge/internal/knowledge"
 	"github.com/Tencent/LoopForge/internal/mcpserver"
+	"github.com/Tencent/LoopForge/internal/notify"
 	"github.com/Tencent/LoopForge/internal/observability"
 	"github.com/Tencent/LoopForge/internal/repo"
 	"github.com/Tencent/LoopForge/internal/runtime"
@@ -131,6 +132,48 @@ func New(s *repo.Store, e *engine.Engine, syncSvc *tracker.Service, basicUser, b
 	e.SetRunnerDispatchNotify(func(provider string) { api.runners.runnerWaiters.notify([]string{provider}) })
 	// Push durable task controls (cancel) to connected runners over WebSocket.
 	e.SetRunnerControlNotify(api.runners.runnerControls.sendControl)
+	e.SetHumanWaitHook(func(run domain.Run, nodeID, nodeName string) {
+		title := run.WorkflowSnapshot.Name
+		if issueID := strings.TrimSpace(run.ExecutionContext.IssueID); issueID != "" {
+			if issue, ok := s.Issue(issueID); ok && strings.TrimSpace(issue.Title) != "" {
+				title = issue.Title
+			}
+		}
+		base := strings.TrimRight(strings.TrimSpace(os.Getenv("LOOPFORGE_PUBLIC_URL")), "/")
+		openURL := base
+		if openURL == "" {
+			openURL = "/#approvals"
+		} else {
+			openURL += "/#approvals"
+		}
+		notify.HumanWait(run.ID, nodeName, title, openURL)
+	})
+	e.SetRunFailedHook(func(run domain.Run, message string) {
+		nodeName := ""
+		for id, nr := range run.Nodes {
+			if nr != nil && nr.Status == "failed" {
+				nodeName = id
+				for _, n := range run.WorkflowSnapshot.Nodes {
+					if n.ID == id {
+						nodeName = n.Name
+						break
+					}
+				}
+				if message == "" {
+					message = nr.Error
+				}
+				break
+			}
+		}
+		base := strings.TrimRight(strings.TrimSpace(os.Getenv("LOOPFORGE_PUBLIC_URL")), "/")
+		openURL := base
+		if openURL == "" {
+			openURL = "/#runs"
+		} else {
+			openURL += "/#runs"
+		}
+		notify.RunFailed(run.ID, nodeName, message, openURL)
+	})
 	sched := schedule.New(s, syncSvc, api.schedule.dispatchScheduled)
 	sched.SetBaselineGuard(api.schedule.guardScheduledBaseline)
 	// deps 由所有领域共享，schedule 服务就绪后回填一次即全局可见。
@@ -348,6 +391,9 @@ func New(s *repo.Store, e *engine.Engine, syncSvc *tracker.Service, basicUser, b
 	g.POST("/api/runs/:id/signals", api.runs.run)
 	g.GET("/api/runs/:id/artifacts/:name", api.runs.run)
 	g.POST("/api/runs/:id/approve", api.runs.run)
+	g.POST("/api/runs/:id/share-gate", api.runs.createShareGateLink)
+	g.GET("/share/gate", api.runs.shareGatePage)
+	g.POST("/api/share/gate/decide", api.runs.shareGateDecide)
 	g.POST("/api/runs/:id/reject", api.runs.run)
 	g.POST("/api/runs/:id/retry", api.runs.run)
 	g.POST("/api/runs/:id/decline-retry", api.runs.run)

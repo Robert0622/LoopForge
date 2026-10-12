@@ -100,35 +100,46 @@ git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
 ./start.sh          # 默认演示模式；能拉 GHCR 就拉，否则从本仓库构建
 ```
 
-打开 <http://localhost:8080> 登录（端口被占用时设置 `LOOPFORGE_PORT=9090`）。管理员密码由 `./start.sh` 打印一次。演示模式带脚本执行器和「演示交付流程」。在工作总览对话框点 **一键演示**（或输入一句话需求），通过审批后在「产物」打开 `delivery-report.md`。整个过程不调用模型。
+打开 <http://localhost:8080>，用固定演示账号登录：
+
+- 用户名：`admin`
+- 密码：`demo1234`
+
+（仅当 `LOOPFORGE_DEMO_MODE=true` 且未设置 `LOOPFORGE_ADMIN_PASSWORD` 时固定；生产环境请改掉。）演示模式带脚本执行器和「演示交付流程」。在工作总览对话框点 **一键演示**（或输入一句话需求），通过审批后在「产物」打开 `delivery-report.md`。整个过程不调用模型。
 
 等价 compose：
 
 ```bash
 docker compose pull
 LOOPFORGE_DEMO_MODE=true docker compose up -d
-docker compose logs loopforge | grep "Created admin account"
+# 登录 admin / demo1234
 ```
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="创建几张演示需求后的 LoopForge 工作总览" width="100%">
 </p>
 
-### 跑真实需求
+### 跑真实需求（四步）
 
 去掉 `LOOPFORGE_DEMO_MODE` 启动，然后：
 
-1. 在「个人设置」里添加 Claude Code、Codex 或 CodeBuddy 的 API Key（镜像里三个 CLI 都已安装），以及 GitHub 令牌：经典令牌勾选 `repo`，或细粒度令牌授予 *Contents*、*Issues*、*Pull requests* 读写权限。
-2. 粘贴仓库地址，把仓库绑定到项目。
-3. 通过链接导入 Issue 或打开自动同步，再派发到内置 SOP：
+1. **配 Key**：登录后按向导选 Claude / Codex / CodeBuddy，粘贴 API Key（也可在「个人设置」或「接入指南」重开向导）；可选填 GitHub Token。
+2. **绑仓库**：在项目配置粘贴仓库地址。
+3. **建单开跑**：工作总览对话框说一句话，或导入 Issue；默认短链路 SOP「快速修复」（实现 → 确认 → 小结）。
+4. **待确认**：停在审批时去「待我确认」，或点「复制外部审批链接」发给同事（无需登录，24h 有效）。
+
+更长的内置 SOP：
 
 | SOP | 步骤 |
 | --- | --- |
+| 快速修复 | 实现改动 → 人工确认 → 交付小结 |
 | 后端交付 | 需求定型 → 方案设计 → 实现与自测 → 独立评审 → 测试验证 → 发起 PR → 交付汇总 |
 | 前端交付 | 需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总 |
 | 产品交付 | 产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总 |
 
-第一次跑真实需求时会构建默认的沙箱镜像（Node、Agent CLI、Go、Git），只需构建一次，耗时几分钟。一张后端需求从头到尾一般需要 30 到 75 分钟，大部分时间是 Agent 在七个会话里干活。小修小改可以发布一条更短的 SOP，比如 实现 → 测试 → 提 PR。
+可选：设置 `LOOPFORGE_NOTIFY_WEBHOOK` 为企业微信群机器人 URL，待确认/失败时推送文本通知。`LOOPFORGE_PUBLIC_URL` 用于通知与分享链接中的绝对地址。
+
+第一次跑真实需求时会构建默认的沙箱镜像（Node、Agent CLI、Go、Git），只需构建一次，耗时几分钟。一张完整后端需求从头到尾一般需要 30 到 75 分钟；小修小改用「快速修复」会短很多。
 
 GitHub Enterprise Server：设置 `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` 和 `LOOPFORGE_GITHUB_HOST=<host>`。
 
@@ -195,7 +206,9 @@ web/                   内嵌的 Studio 界面
 | `LOOPFORGE_GITHUB_TOKEN` | 服务端兜底令牌，用于 Issue 同步和 PR 交付。 |
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | 信任反向代理（oauth2-proxy、Authelia 等）注入的 `X-Forwarded-User`。 |
 | `LOOPFORGE_ROLE` | `all`（默认）、`api` 或 `worker`，用于拆分部署。 |
-| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP。 |
+| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP；未设管理员密码时固定为 `admin` / `demo1234`。 |
+| `LOOPFORGE_NOTIFY_WEBHOOK` | 企微群机器人等 Webhook；待确认/失败时推送文本。 |
+| `LOOPFORGE_PUBLIC_URL` | 对外访问根 URL，用于通知与审批分享链接。 |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | 内置 SOP 使用的沙箱：`generic-docker`、`linux-bwrap`、`macos-seatbelt` 或 `local`。不设置时自动检测。 |
 | `LOOPFORGE_MCP_MARKET` / `LOOPFORGE_TEMPLATES` / `LOOPFORGE_WEB_PLUGINS` | 从文件、目录或 URL 加载自己的 MCP 市场条目、SOP 模板和界面扩展页面，见 [docs/extending.md](docs/extending.md)。 |
 

@@ -376,6 +376,9 @@ func (e *Engine) finishAt(id string, generation int, status, msg string) {
 	if delivered != nil {
 		_ = e.repo.MarkIssueDeliveredFromSOPMRs(delivered.ExecutionContext.IssueID, e.deliveryMRsFromRun(*delivered), deliveredAt)
 	}
+	if status == "failed" {
+		e.fireRunFailed(id, msg)
+	}
 	// Failed runs can be retried in the same workspace. Successful and
 	// cancelled runs release their workspace immediately to keep control-plane
 	// and low-capacity Runner disks bounded.

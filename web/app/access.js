@@ -130,7 +130,7 @@ function renderGuideSetupBody(body,user,isGuest){
   const subItem=(name,label,ready,applyUrl,hint)=>`<div class="setup-sub ${ready?'is-ready':''}"><div class="setup-sub-info"><b>${label}</b>${hint?`<small>${hint}</small>`:''}</div>${ready?'':`<a class="setup-mini" href="${applyUrl}" target="_blank" rel="noopener noreferrer">申请 ↗</a>`}<button type="button" class="setup-mini" data-setup-cred="${name}">${ready?'查看':'去填写'} →</button></div>`;
   // 第 1 步：三张个人凭据一次性配齐
   const credCard=`<div class="setup-card ${credReady?'is-ready':''}"><div class="setup-card-head"><b>① 配个人凭据</b><small>个人设置 · 一次配齐</small>${badge(credReady)}</div>
-    <p>三项都在<b>个人设置</b>里填写并保存；平台只存哈希，任务运行时按需注入。</p>
+    <p>三项都在<b>个人设置</b>里填写并保存；平台只存哈希，任务运行时按需注入。也可<button type="button" class="button ghost small" data-open-setup-wizard>打开配 Key 向导</button>逐步完成。</p>
     <div class="setup-steps">
       ${subItem('claudeCodeApiKey','模型 API Key',cbReady,'https://console.anthropic.com/settings/keys','Claude Code、Codex 或 CodeBuddy 任选其一，Agent 用它调模型执行任务')}
       ${subItem('gitToken','GitHub Git Token',gfReady,'https://github.com/settings/tokens','用于克隆与推送工作分支；Fine-grained token 需勾选 <b>Contents</b>、<b>Pull requests</b>、<b>Issues</b> 读写')}

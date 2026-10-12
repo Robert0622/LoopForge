@@ -115,6 +115,9 @@ function finishOnboarding(view) {
   onboardingMarkDone();
   closeOnboarding();
   if (view && typeof switchView === 'function') switchView(view);
+  setTimeout(() => {
+    if (typeof maybeStartSetupWizard === 'function') maybeStartSetupWizard();
+  }, 400);
 }
 
 function closeOnboarding() {

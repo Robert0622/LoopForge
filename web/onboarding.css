@@ -96,3 +96,25 @@ body.onboarding-open{overflow:hidden}
 .home-run-card b{font-size:13px;color:var(--text-strong)}
 .home-run-card small{color:var(--muted);font-size:11.5px}
 .home-runs-empty{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+
+/* Setup wizard + humanized errors */
+.setup-wizard{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:24px}
+.setup-wizard[hidden]{display:none!important}
+.setup-wizard-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px)}
+.setup-wizard-card{position:relative;width:min(520px,100%);padding:26px 26px 20px;border-radius:18px;background:var(--panel);border:1px solid var(--line);box-shadow:0 24px 60px rgba(15,23,42,.28);display:grid;gap:12px}
+.setup-wizard-kicker{margin:0;color:var(--blue);font-size:12px;font-weight:650;letter-spacing:.04em}
+.setup-wizard-card h2{margin:0;font-size:20px;color:var(--text-strong)}
+.setup-wizard-card>p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55}
+.setup-wizard-card label{display:grid;gap:6px;font-size:12.5px;color:var(--muted)}
+.setup-wizard-card input{padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg-soft);color:var(--text);font:inherit}
+.setup-wizard-cli{display:grid;gap:8px}
+.setup-cli-card{display:grid;gap:4px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg-soft) 50%,var(--panel));cursor:pointer;color:inherit}
+.setup-cli-card.is-active{border-color:color-mix(in srgb,var(--blue) 55%,var(--line));background:color-mix(in srgb,var(--blue) 8%,var(--panel))}
+.setup-cli-card b{font-size:13.5px}.setup-cli-card small{color:var(--muted);font-size:12px;line-height:1.45}
+.setup-wizard-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:4px}
+.setup-wizard-error{margin:0;color:#b91c1c;font-size:13px}
+.node-error-next{margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--amber,#fbbf24) 35%,var(--line));background:color-mix(in srgb,var(--amber,#fbbf24) 8%,var(--panel))}
+.node-error-next b{display:block;margin-bottom:4px;font-size:12.5px;color:var(--text-strong)}
+.node-error-next p{margin:0 0 8px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.node-progress-error{display:grid;gap:6px}
+.ap-card.attention{box-shadow:0 10px 28px color-mix(in srgb,var(--amber,#fbbf24) 12%,transparent)}

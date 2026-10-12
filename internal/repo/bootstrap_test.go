@@ -22,8 +22,11 @@ func TestBootstrapSeedsARunnableCatalogOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	project, ok := s.Project(PlatformProjectID)
-	if !ok || project.OwnerID != 1 || project.WorkflowID != GenericBackendDeliveryWorkflowID {
+	if !ok || project.OwnerID != 1 || project.WorkflowID != QuickFixWorkflowID {
 		t.Fatalf("default project = %+v ok=%v", project, ok)
+	}
+	if _, ok := s.Workflow(QuickFixWorkflowID); !ok {
+		t.Fatal("quick-fix SOP must be seeded for first real runs")
 	}
 	for _, id := range []string{GenericBackendDeliveryWorkflowID, "generic-frontend-delivery", "generic-product-delivery"} {
 		if _, ok := s.GenericTemplateByWorkflow(id); !ok {

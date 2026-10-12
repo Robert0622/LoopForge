@@ -76,7 +76,7 @@
 
 ## 本地运行与验证
 
-- 体验（不需要 API Key）：`LOOPFORGE_DEMO_MODE=true docker compose up -d --build`，管理员密码见 `docker compose logs loopforge | grep "Created admin account"`，打开 <http://localhost:8080>。镜像发布后也可以先 `docker compose pull` 跳过本地构建。
+- 体验（不需要 API Key）：`./start.sh` 或 `LOOPFORGE_DEMO_MODE=true docker compose up -d --build`，登录 `admin` / `demo1234`，打开 <http://localhost:8080>。镜像发布后也可以先 `docker compose pull` 跳过本地构建。
 - 默认的 `docker-compose.yml` 挂载宿主机 Docker socket，每次运行一个容器；这等同于宿主机 root 权限，只在专用或个人机器上使用。不需要时删掉 `user: root` 和 `docker.sock` 两行。
 - 从源码运行：`make run`（数据在 `~/.loopforge`，监听 `:8080`），`make demo` 为演示模式。
 - 提交前：`make fmt`、`make vet`、`make test`；改动 Web 或 API 时再跑 `make e2e`。
