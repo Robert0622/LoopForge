@@ -16,6 +16,10 @@ permissions:
   id-token: write
   packages: write
 
+defaults:
+  run:
+    working-directory: cli
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -97,7 +101,7 @@ jobs:
       - name: Build and push tcmcp image
         uses: docker/build-push-action@v6
         with:
-          context: tools/tcmcp
+          context: cli/tools/tcmcp
           push: true
           tags: ${{ steps.package.outputs.image_tags }}
 

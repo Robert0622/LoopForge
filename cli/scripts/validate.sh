@@ -165,7 +165,6 @@ python3 "$ROOT_DIR/skills/devflow/scripts/validate_config.py"
 echo "[6/6] Checking public structure"
 for path in README.md LICENSE SECURITY.md CONTRIBUTING.md THIRD_PARTY_NOTICES.md \
   AGENTS.md CLAUDE.md EDITIONS.md pyproject.toml package.json bin/loopforge.mjs install.sh \
-  .github/workflows/validate.yml .github/workflows/release.yml \
   .codebuddy/README.md .codebuddy/settings.json .codebuddy/settings.local.json \
   .codex/README.md .cursor/README.md .claude/README.md \
   .codex/skills/devflow-codex/SKILL.md skills/README.md skills/devflow/SKILL.md \
@@ -177,6 +176,11 @@ for path in README.md LICENSE SECURITY.md CONTRIBUTING.md THIRD_PARTY_NOTICES.md
   tools/tcmcp/README.md tools/tcmcp/README.zh-CN.md \
   tools/tcmcp/pyproject.toml tools/tcmcp/app/main.py tools/tcmcp/Dockerfile; do
   test -f "$ROOT_DIR/$path"
+done
+
+# GitHub only reads workflows from the repository root, one level above cli/.
+for path in .github/workflows/validate.yml .github/workflows/release.yml; do
+  test -f "$ROOT_DIR/../$path"
 done
 
 for path in .agents/skills/devflow-codex .agents/skills/knowledge-distillation \

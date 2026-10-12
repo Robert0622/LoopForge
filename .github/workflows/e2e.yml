@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: cli
+
 concurrency:
   group: e2e-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -72,6 +76,10 @@ jobs:
     if: always()
     needs: [e2e, e2e-browser]
     runs-on: ubuntu-latest
+    # No checkout here, so cli/ does not exist.
+    defaults:
+      run:
+        working-directory: .
     steps:
       - name: Require every E2E job to pass
         run: |

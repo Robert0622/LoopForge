@@ -198,7 +198,7 @@ Installation state is stored in `.devflow/install-state.json`. An update stops i
 If you have cloned this repository, install the LoopForge CLI from the current source tree by running this in the repository root:
 
 ```bash
-pipx install .
+pipx install ./cli
 ```
 
 ## Optional tools
@@ -206,7 +206,7 @@ pipx install .
 `tools/tcmcp` is a Tencent Cloud read-only MCP Initializr (Redis, CDB, TDSQL-C, TKE, CLS, COS). It is not part of `loopforge install` or the npm CLI package. From a clone:
 
 ```bash
-cd tools/tcmcp
+cd cli/tools/tcmcp
 ```
 
 Then follow [`tools/tcmcp/README.md`](tools/tcmcp/README.md). Cloud API keys are not written into generated zips or the container image; they stay on the machine that lists resources or installs the MCP client. LoopForge `vX.Y.Z` releases publish `ghcr.io/tencent/loopforge-tcmcp:<version>`.

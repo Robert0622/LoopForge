@@ -17,9 +17,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Tencent/LoopForge"
+Homepage = "https://github.com/Tencent/LoopForge/tree/main/cli"
 Issues = "https://github.com/Tencent/LoopForge/issues"
-Changelog = "https://github.com/Tencent/LoopForge/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/Tencent/LoopForge/blob/main/cli/CHANGELOG.md"
 
 [project.scripts]
 loopforge = "devflow_cli.cli:main"

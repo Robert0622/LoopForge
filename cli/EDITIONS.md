@@ -13,6 +13,9 @@ DevFlow 有两套独立维护的实现。为避免同一宿主同时加载两套
 Agent Skills 的标准目录。如果移动到 `editions/classic/` 和
 `editions/portable/`，直接打开仓库时宿主将无法按原生约定发现它们。
 
+在 Tencent/LoopForge 仓库中，CLI 与工作流整体位于 `cli/` 下（仓库根目录是
+LoopForge 平台）。开发工作流本身时，以 `cli/` 作为项目根目录打开即可。
+
 ## 安装前确认
 
 ```bash

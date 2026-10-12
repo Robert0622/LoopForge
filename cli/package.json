@@ -13,12 +13,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Tencent/LoopForge.git"
+    "url": "git+https://github.com/Tencent/LoopForge.git",
+    "directory": "cli"
   },
   "bugs": {
     "url": "https://github.com/Tencent/LoopForge/issues"
   },
-  "homepage": "https://github.com/Tencent/LoopForge#readme",
+  "homepage": "https://github.com/Tencent/LoopForge/tree/main/cli#readme",
   "license": "MIT",
   "type": "module",
   "bin": {

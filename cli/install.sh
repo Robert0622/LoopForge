@@ -140,7 +140,7 @@ if [ -z "$RELEASE_BASE_URL" ]; then
     RELEASE_BASE_URL="${GITHUB_URL%/}/$REPOSITORY/releases/download/v$VERSION"
   else
     RELEASES_JSON="$TMP_DIR/releases.json"
-    download "${GITHUB_API_URL%/}/repos/$REPOSITORY/releases?per_page=1" "$RELEASES_JSON"
+    download "${GITHUB_API_URL%/}/repos/$REPOSITORY/releases?per_page=30" "$RELEASES_JSON"
     RELEASE_TAG=$(python3 - "$RELEASES_JSON" <<'PY'
 import json
 import sys
@@ -149,10 +149,13 @@ with open(sys.argv[1], encoding="utf-8") as file:
     releases = json.load(file)
 if not isinstance(releases, list) or not releases:
     raise SystemExit("no published GitHub Release was found")
-tag = releases[0].get("tag_name")
-if not isinstance(tag, str) or not tag:
-    raise SystemExit("latest GitHub Release has no tag")
-print(tag)
+# The repository also hosts the platform (tagged platform-v*); only CLI
+# releases are tagged v<version>.
+tags = [r.get("tag_name") for r in releases if isinstance(r, dict) and not r.get("draft")]
+tags = [t for t in tags if isinstance(t, str) and t[:1] == "v" and t[1:2].isdigit()]
+if not tags:
+    raise SystemExit("no published LoopForge CLI release was found")
+print(tags[0])
 PY
     ) || fail "could not resolve the latest GitHub Release"
     printf '%s' "$RELEASE_TAG" | grep -Eq '^v?[A-Za-z0-9][A-Za-z0-9._-]*$' \
