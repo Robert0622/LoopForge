@@ -2,6 +2,11 @@
 
 English | [简体中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+- Moved the CLI into the `cli/` directory of the repository; the self-hosted LoopForge platform now lives at the repository root.
+- Removed the optional remote trace mirror from Agent Observability. Local metrics and the dashboard are unchanged, and `run_hook.sh` now always runs with the system `python3`.
+
 ## 0.2.2
 
 - Keep executable bits when installing Classic host files so `run_hook.sh` can run after `npx loopforge-cli install`, restoring Agent Observability collection.

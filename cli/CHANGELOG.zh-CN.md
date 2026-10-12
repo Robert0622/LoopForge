@@ -2,6 +2,11 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## 未发布
+
+- CLI 移到仓库的 `cli/` 目录；仓库根目录现在是自托管的 LoopForge 平台。
+- Agent Observability 移除了可选的远端 trace 镜像上报。本地指标和看板不受影响，`run_hook.sh` 固定使用系统 `python3`。
+
 ## 0.2.2
 
 - 安装 Classic 宿主文件时保留可执行权限，避免 `run_hook.sh` 装完无法执行，导致 Agent Observability 采不到数。

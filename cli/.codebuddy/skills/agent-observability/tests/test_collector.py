@@ -12,7 +12,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from core import agent_identity, agentlens, collector, emitter, runtime, state as st  # type: ignore
+from core import agent_identity, collector, emitter, runtime, state as st  # type: ignore
 
 
 class CollectorTests(unittest.TestCase):
@@ -550,24 +550,16 @@ class CollectorTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            emitted_calls: list[dict[str, object]] = []
-            original_emit_post_step = agentlens.emit_post_step
-            try:
-                agentlens.emit_post_step = lambda **kwargs: emitted_calls.append(kwargs)
-                runtime.flush_pending_tool_events(
-                    state_path=state_path,
-                    log_path=log_path,
-                    sid=sid,
-                )
-            finally:
-                agentlens.emit_post_step = original_emit_post_step
+            runtime.flush_pending_tool_events(
+                state_path=state_path,
+                log_path=log_path,
+                sid=sid,
+            )
 
             self.assertEqual(st.get_pending_tool_emits(state_path, sid), [])
             lines = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
             self.assertEqual(len(lines), 1)
             self.assertEqual(lines[0]["message_id"], "msg-later")
-            self.assertEqual(len(emitted_calls), 1)
-            self.assertEqual(emitted_calls[0]["tool_event"]["message_id"], "msg-later")
 
     def test_related_transcript_paths_include_subagents(self):
         with tempfile.TemporaryDirectory() as td:

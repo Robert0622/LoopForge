@@ -4,7 +4,7 @@
 - session 级 skill/rule 使用统计
 - 当前 agent、派发关系与历史
 - transcript offset、去重 claim、pending emits
-- AgentLens sidecar 状态
+- turn / span sidecar 状态
 """
 from __future__ import annotations
 
@@ -413,7 +413,7 @@ def upsert_subagent_span_atomic(
 
     `carrier_factory` 是一个无参可调用对象，用来生成 carrier 字典。
     只有在 span 还不存在时才会被调用，从而避免这样的 TOCTOU 竞争：
-    ``_generate_subagent_carrier`` 先产生了不可逆的 zhiyanllm ``invoke_agent`` span，
+    ``_generate_subagent_carrier`` 先产生了不可逆的 ``invoke_agent`` span，
     随后另一个 hook 进程已经写入同一角色，导致本次创建变成孤儿。
     """
     now = time.time()
@@ -722,7 +722,7 @@ def upsert_step_span_atomic(
 
     `carrier_factory` 是一个无参可调用对象，用来生成 carrier 字典。
     只有在 span 还不存在时才会被调用，从而避免这样的 TOCTOU 竞争：
-    ``_generate_step_carrier`` 已经先产生了不可逆的 zhiyanllm span，
+    ``_generate_step_carrier`` 已经先产生了不可逆的 span，
     但随后另一个 hook 进程已经写入同一 step，导致本次创建失去归属。
     """
     now = time.time()

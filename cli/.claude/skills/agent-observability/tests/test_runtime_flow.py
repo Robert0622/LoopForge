@@ -56,8 +56,7 @@ class RuntimeFlowTests(unittest.TestCase):
                  mock.patch.object(runtime.collector, "related_transcript_paths", return_value=["/tmp/demo.jsonl"]), \
                  mock.patch.object(runtime, "emit_transcript_events", return_value=[]), \
                  mock.patch.object(runtime.collector, "find_fallback_usage_event", return_value=None), \
-                 mock.patch.object(runtime.st, "append_pending_tool_emit"), \
-                 mock.patch.object(runtime.agentlens, "emit_post_step"):
+                 mock.patch.object(runtime.st, "append_pending_tool_emit"):
                 mock_paths.return_value = runtime.RuntimePaths(
                     base_dir=Path(td),
                     state_path=Path(td) / ".state.json",

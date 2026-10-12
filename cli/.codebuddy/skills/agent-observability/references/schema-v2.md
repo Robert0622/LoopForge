@@ -32,7 +32,7 @@ devflow 项目完全不受影响：
 | event | 实际顶层字段 | 说明 |
 |---|---|---|
 | `start` | `event`, `sid`, `agent`, `ts` | 会话开始 |
-| `user_prompt_submit` | `event`, `sid`, `agent`, `turn_id`, `prompt_len`, `ts` | 新 turn 边界；AgentLens 侧按 `1 Trace = 1 Turn` 生成 trace |
+| `user_prompt_submit` | `event`, `sid`, `agent`, `turn_id`, `prompt_len`, `ts` | 新 turn 边界 |
 | `tool` | `event`, `sid`, `agent`, `tool`, `ms`, `transcript_path`, `turn_id`, `ts`, `skill`, `rule`, `cwd`, `call_id`, `message_id`, `tool_details`, `task_slug`?, `stage`?, `pt_id`? | 工具调用与耗时 |
 | `usage` | `event`, `sid`, `agent`, `tool`, `tokens`, `model`, `transcript_path`, `source_offset`, `turn_id`, `message_id`, `ts`, `task_slug`?, `stage`? | transcript 增量 token / 模型 / 消息归属 |
 | `stop` | `event`, `sid`, `agent`, `tokens`, `model`, `transcript_path`, `source_offset`, `turn_id`, `message_id`, `ts`, `task_slug`?, `stage`? | 会话尾部 flush |
@@ -94,7 +94,7 @@ devflow 项目完全不受影响：
     "total": 31704
   },
   "model": "hy3-ioa",
-  "transcript_path": "/Users/rachel/.codebuddy/projects/Users-rachel-skillhub-tokentrack-mr/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
+  "transcript_path": "/Users/alice/.codebuddy/projects/Users-alice-demo-project/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
   "source_offset": 17423,
   "turn_id": "turn-1784015342075",
   "message_id": "d187771c6eef4520a530564dd2a73e38",
@@ -111,19 +111,19 @@ devflow 项目完全不受影响：
   "agent": "main",
   "tool": "Read",
   "ms": null,
-  "transcript_path": "/Users/rachel/.codebuddy/projects/Users-rachel-skillhub-tokentrack-mr/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
+  "transcript_path": "/Users/alice/.codebuddy/projects/Users-alice-demo-project/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
   "turn_id": "turn-1784015342075",
   "ts": 1784015355.412617,
   "skill": [],
   "rule": [
     "global"
   ],
-  "cwd": "/Users/rachel/skillhub-tokentrack-mr",
+  "cwd": "/Users/alice/demo-project",
   "call_id": "chatcmpl-tool-9e50f7ec1d7e4a27",
   "message_id": "d187771c6eef4520a530564dd2a73e38",
   "tool_details": {
     "call_id": "chatcmpl-tool-9e50f7ec1d7e4a27",
-    "arguments": "{\"file_path\": \"/Users/rachel/skillhub-tokentrack-mr/assets/devflow.defaults.yaml\"}",
+    "arguments": "{\"file_path\": \"/Users/alice/demo-project/assets/devflow.defaults.yaml\"}",
     "arguments_display_text": "assets/devflow.defaults.yaml"
   }
 }
@@ -138,19 +138,19 @@ devflow 项目完全不受影响：
   "agent": "main",
   "tool": "Bash",
   "ms": 759,
-  "transcript_path": "/Users/rachel/.codebuddy/projects/Users-rachel-skillhub-tokentrack-mr/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
+  "transcript_path": "/Users/alice/.codebuddy/projects/Users-alice-demo-project/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
   "turn_id": "turn-1784015342075",
   "ts": 1784015356.071573,
   "skill": [],
   "rule": [
     "global"
   ],
-  "cwd": "/Users/rachel/skillhub-tokentrack-mr",
+  "cwd": "/Users/alice/demo-project",
   "call_id": "chatcmpl-tool-898d45e0999b3e3c",
   "message_id": "93b617ceebaa49458169b89b4ecae17b",
   "tool_details": {
     "call_id": "chatcmpl-tool-898d45e0999b3e3c",
-    "result_content": "Command: cd /Users/rachel/skillhub-tokentrack-mr && ls -la .codebuddy/teams/ ...<truncated>",
+    "result_content": "Command: cd /Users/alice/demo-project && ls -la .codebuddy/teams/ ...<truncated>",
     "raw_response": {
       "exitCode": 1,
       "signal": null,
@@ -160,9 +160,9 @@ devflow 项目完全不受影响：
       "stdoutBytesTruncated": 0,
       "tool_error_code": "8002",
       "is_error": true,
-      "error": "Command: cd /Users/rachel/skillhub-tokentrack-mr && ls -la .codebuddy/teams/ ...<truncated>"
+      "error": "Command: cd /Users/alice/demo-project && ls -la .codebuddy/teams/ ...<truncated>"
     },
-    "output_text": "Command: cd /Users/rachel/skillhub-tokentrack-mr && ls -la .codebuddy/teams/ ...<truncated>",
+    "output_text": "Command: cd /Users/alice/demo-project && ls -la .codebuddy/teams/ ...<truncated>",
     "original_message_id": "d187771c6eef4520a530564dd2a73e38",
     "next_message_id": "93b617ceebaa49458169b89b4ecae17b",
     "message_id_reassigned": true
@@ -184,7 +184,7 @@ devflow 项目完全不受影响：
     "total": 128955
   },
   "model": "hy3-ioa",
-  "transcript_path": "/Users/rachel/.codebuddy/projects/Users-rachel-skillhub-tokentrack-mr/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
+  "transcript_path": "/Users/alice/.codebuddy/projects/Users-alice-demo-project/f6435d63-b4d5-44f2-b4d6-ae73d6c140fd.jsonl",
   "source_offset": 1157291,
   "turn_id": "turn-1784015342075",
   "message_id": "51e4fae9553d4d0995e7a599f3b2ef2d",
@@ -253,18 +253,6 @@ devflow 项目完全不受影响：
   "arguments_display_text": "path/to/file"
 }
 ```
-
-### AgentLens sidecar
-
-`.state.json[sid]._agentlens` 只作为内部状态使用，核心字段：
-
-- `enabled`: AgentLens 上报是否可用
-- `last_error`: 最近一次降级原因
-- `current_turn.carrier.traceparent`: 当前 turn 的 trace context
-- `current_turn.subagent_spans`: 同一 turn 下的子 agent span carrier
-- `current_turn.agent_spans`: 同一 turn 下按 agent 聚合的 span carrier 与累计统计
-- `current_turn.step_spans`: `(agent, message_id)` 级 step span registry
-- `turn_history`: 已结束 turn 的摘要
 
 ### Hook 接入
 
