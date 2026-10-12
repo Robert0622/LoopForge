@@ -3838,3 +3838,19 @@ func TestAlignOnlyApprovalDoesNotWait(t *testing.T) {
 		t.Fatalf("align-only confirm = %+v, want auto-succeeded", current.Nodes["confirm"])
 	}
 }
+
+func TestRenderPromptWithoutTaskBriefStillCarriesRequirement(t *testing.T) {
+	wf := domain.WorkflowDefinition{Edges: []domain.WorkflowEdge{{Source: "analyze", Target: "implement"}}}
+	node := domain.WorkflowNode{ID: "implement"}
+	run := domain.Run{Input: "新增 hello.py 并附单元测试", Nodes: map[string]*domain.NodeRun{"analyze": {Output: "方案：用 unittest"}}}
+	got := renderPrompt(wf, node, run)
+	for _, want := range []string{"## 任务输入", "新增 hello.py 并附单元测试", "## 上游节点结果", "方案：用 unittest"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("prompt misses %q:\n%s", want, got)
+		}
+	}
+	briefed := renderPromptSpec(wf, node, domain.TaskPromptSpec{Objective: "实现改动"}, run)
+	if !strings.Contains(briefed, "新增 hello.py 并附单元测试") || strings.Count(briefed, "新增 hello.py") != 1 {
+		t.Fatalf("a brief without {{input}} must get the requirement once:\n%s", briefed)
+	}
+}

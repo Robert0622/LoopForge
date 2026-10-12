@@ -120,6 +120,9 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 		repositories = append(repositories, rc)
 	}
 	input := issue.Title + "\n\n" + issue.Description
+	if title := strings.TrimSpace(strings.TrimSuffix(issue.Title, "…")); title != "" && strings.HasPrefix(strings.TrimSpace(issue.Description), title) {
+		input = strings.TrimSpace(issue.Description)
+	}
 	if block := issue.IdentityBlock(); block != "" {
 		input += "\n\n" + block
 	}

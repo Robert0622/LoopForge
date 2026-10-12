@@ -33,6 +33,18 @@ func applyPromptPlaceholders(st *repo.Store, wf domain.WorkflowDefinition, node 
 	if spec != nil {
 		prompt = compileTaskPrompt(node, *spec, gates)
 	}
+	if input := strings.TrimSpace(run.Input); input != "" && !strings.Contains(prompt, "{{input}}") {
+		// Agents without a task brief (or whose brief omits {{input}}) must still
+		// receive the requirement itself, not just its identity block.
+		if prompt == "" {
+			prompt = "## 任务输入\n\n{{input}}\n"
+			if hasUpstreamOutput(wf, node, run) {
+				prompt += "\n## 上游节点结果\n\n{{upstream}}\n"
+			}
+		} else {
+			prompt = "## 任务输入\n\n{{input}}\n\n" + prompt
+		}
+	}
 	prompt = strings.ReplaceAll(prompt, "{{input}}", run.Input)
 	repository := "未绑定代码仓库"
 	if run.Repository.RepositoryID != "" {
@@ -93,6 +105,17 @@ func applyPromptPlaceholders(st *repo.Store, wf domain.WorkflowDefinition, node 
 		prompt = strings.ReplaceAll(prompt, "{{artifact."+artifact.NodeID+"."+artifact.Name+"}}", artifactPromptBody(artifact))
 	}
 	return prompt
+}
+
+func hasUpstreamOutput(wf domain.WorkflowDefinition, node domain.WorkflowNode, run domain.Run) bool {
+	for _, edge := range wf.Edges {
+		if edge.Target == node.ID {
+			if source := run.Nodes[edge.Source]; source != nil && source.Output != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func existingMRBlurb(st *repo.Store, run domain.Run) string {
