@@ -91,8 +91,49 @@ func main() {
 	cliAction := flag.String("cli-action", "", "local managed CLI administration: status, update, or rollback; exits without starting services")
 	cliProvider := flag.String("cli-provider", "", "provider for CLI rollback: codex, codebuddy, or claude-code")
 	cliTimeout := flag.Duration("cli-timeout", 80*time.Minute, "total managed CLI operation timeout")
+	prewarmSandbox := flag.Bool("prewarm-sandbox", false, "build the default Docker sandbox image used by built-in SOPs, then exit")
+	selfTest := flag.Bool("self-test", false, "check a running instance end to end (health, login, doctor, demo run with share-link approval), then exit")
+	selfTestURL := flag.String("self-test-url", "", "instance URL for --self-test (default http://127.0.0.1:$LOOPFORGE_HTTP_PORT)")
+	selfTestUser := flag.String("self-test-user", "", "admin login for --self-test (default $LOOPFORGE_ADMIN_USER or admin)")
+	selfTestPassword := flag.String("self-test-password", "", "admin password for --self-test (default $LOOPFORGE_ADMIN_PASSWORD, or the demo password in demo mode)")
+	selfTestTimeout := flag.Duration("self-test-timeout", 3*time.Minute, "overall --self-test timeout")
 	flag.Parse()
 	loadDotEnv()
+	if *selfTest {
+		opts := selfTestOptions{baseURL: *selfTestURL, user: *selfTestUser, password: *selfTestPassword, timeout: *selfTestTimeout}
+		if opts.baseURL == "" {
+			opts.baseURL = defaultSelfTestURL()
+		}
+		if opts.user == "" {
+			opts.user = strings.TrimSpace(os.Getenv("LOOPFORGE_ADMIN_USER"))
+		}
+		if opts.user == "" {
+			opts.user = "admin"
+		}
+		if opts.password == "" {
+			opts.password = defaultSelfTestPassword()
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		err := runSelfTest(ctx, opts, os.Stdout)
+		stop()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "自检失败：%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("自检通过")
+		return
+	}
+	if *prewarmSandbox {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		log.Printf("building the default sandbox image; this can take several minutes")
+		image, err := runtime.PrewarmDockerImage(ctx, repo.GenericBackendDockerfile())
+		stop()
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("sandbox image ready: %s\n", image)
+		return
+	}
 	if *cliAction != "" || *cliProvider != "" {
 		if flag.NArg() != 0 {
 			log.Fatal("CLI administration does not accept positional arguments")
@@ -145,6 +186,16 @@ func main() {
 		}
 		if err := repo.Bootstrap(s, ownerID); err != nil {
 			log.Fatalf("bootstrap: %v", err)
+		}
+		if prewarm, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_PREWARM_SANDBOX"))); prewarm && sandbox == repo.GenericDockerSandboxID {
+			dockerfile, ok := s.Dockerfile(repo.GenericBackendDockerfileID)
+			if !ok || strings.TrimSpace(dockerfile.Content) == "" {
+				dockerfile = repo.GenericBackendDockerfile()
+			}
+			if !runtime.DockerImageCached(context.Background(), dockerfile) {
+				runtime.StartDockerPrewarm(dockerfile, 45*time.Minute)
+				log.Printf("building the default sandbox image in the background (LOOPFORGE_PREWARM_SANDBOX=true)")
+			}
 		}
 	}
 	e := engine.New(s, runtime.NewManagerWithLimit(root, *workerConcurrency))

@@ -95,7 +95,7 @@ These tools compose well: use an agent board for one-off tasks, and LoopForge on
 
 ### One command (recommended)
 
-On a networked Linux or macOS host, `./start.sh` detects what is missing (curl / git / Docker / Compose), installs it after confirmation, pulls the image, waits for health, and prints the login:
+On a networked Linux or macOS host, `./start.sh` detects what is missing (curl / git / Docker / Compose), installs it after confirmation, builds the checkout you cloned (release tags pull the published image), moves to the next free port if 8080 is taken, waits for health, and prints the login. The first build takes a few minutes; Go/npm mirrors are used automatically when the default registries are unreachable:
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
@@ -108,14 +108,20 @@ Or without cloning first:
 curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
 ```
 
-Then open <http://localhost:8080>:
+Then open the URL it prints (normally <http://localhost:8080>):
 
 - user: `admin`
 - password: `demo1234`
 
 (Fixed when demo mode is on and `LOOPFORGE_ADMIN_PASSWORD` is unset — change it before any shared deploy.) Click **一键演示** on the dashboard, approve the gate, and open `delivery-report.md` under **产物**. No model is called.
 
-Helpers: `./start.sh doctor` · `./start.sh logs` · `./start.sh down` · `./start.sh pull`
+Helpers:
+
+- `./start.sh doctor` checks the host, then runs an end-to-end self-test inside the container: login, environment check, one demo requirement through dispatch, approval via the public share link, and the delivery report.
+- `./start.sh warm` builds the default sandbox image now (it also builds in the background on first start).
+- `./start.sh logs` · `./start.sh down` (keeps data) · `./start.sh reset` (deletes data) · `./start.sh pull` (published image)
+
+The **接入指南 → 最小接入配置** page shows the same environment check in the UI, with a fix button for each missing item.
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="The LoopForge dashboard after a few demo requirements" width="100%">

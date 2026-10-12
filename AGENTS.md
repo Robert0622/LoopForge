@@ -76,7 +76,7 @@
 
 ## 本地运行与验证
 
-- 体验（不需要 API Key）：`./start.sh -y`（缺 Docker 等会自动装），登录 `admin` / `demo1234`，打开 <http://localhost:8080>。也可用 `curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y`。
+- 体验（不需要 API Key）：`./start.sh -y`（缺 Docker 等会自动装），登录 `admin` / `demo1234`，打开它打印的地址（默认 <http://localhost:8080>，被占用会自动换端口）；`./start.sh doctor` 做端到端自检。也可用 `curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y`。
 - 默认的 `docker-compose.yml` 挂载宿主机 Docker socket，每次运行一个容器；这等同于宿主机 root 权限，只在专用或个人机器上使用。不需要时删掉 `user: root` 和 `docker.sock` 两行。
 - 从源码运行：`make run`（数据在 `~/.loopforge`，监听 `:8080`），`make demo` 为演示模式。
 - 提交前：`make fmt`、`make vet`、`make test`；改动 Web 或 API 时再跑 `make e2e`。

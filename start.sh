@@ -1,36 +1,38 @@
 #!/usr/bin/env bash
-# One-command local start, Grasp-style:
-# detect missing deps → install what we can → pull GHCR (or build) → wait healthy → print login.
+# One-command local start: detect what is missing, install what we can, start
+# LoopForge with Docker Compose, wait until healthy, print the login.
 #
-# Usage:
-#   ./start.sh              # ensure deps, start demo stack (detached)
-#   ./start.sh -y           # same, auto-install without prompts
-#   ./start.sh doctor       # only check / install deps
-#   ./start.sh logs|down|pull|build|restart
+#   ./start.sh            start (builds this checkout; release tags pull the published image)
+#   ./start.sh -y         same, install missing dependencies without prompting
+#   ./start.sh doctor     check the host, then run the end-to-end self-test
+#   ./start.sh --help     all commands
 set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 cd "$root"
 
 YES="${LOOPFORGE_YES:-0}"
-PORT="${LOOPFORGE_PORT:-8080}"
-IMAGE="${LOOPFORGE_IMAGE:-ghcr.io/tencent/loopforge:${LOOPFORGE_VERSION:-latest}}"
-export LOOPFORGE_DEMO_MODE="${LOOPFORGE_DEMO_MODE:-true}"
-export LOOPFORGE_PORT="$PORT"
+SOURCE_IMAGE="loopforge:source"
+PUBLISHED_REPO="ghcr.io/tencent/loopforge"
 
 usage() {
   cat <<'EOF'
-Usage: ./start.sh [-y|--yes] [up|doctor|down|logs|pull|build|restart]
+Usage: ./start.sh [-y|--yes] [command]
 
-  -y, --yes   Auto-install missing deps without prompting
-  up          Detect deps, start LoopForge (default, detached)
-  doctor      Only check / install Docker and friends
-  down        Stop the stack
-  logs        Follow container logs
-  pull        Refresh the published image
-  build       Build from this checkout and start
-  restart     down + up
+  (none) | up   Install what is missing, start LoopForge, wait until healthy
+  doctor        Check the host; when LoopForge is running, also run the
+                end-to-end self-test (login, demo run, share-link approval)
+  warm          Build the default sandbox image now (first real run skips it)
+  logs          Follow LoopForge logs
+  down          Stop LoopForge (data is kept in the loopforge-data volume)
+  restart       down + up
+  reset         Stop LoopForge and DELETE its data volume (fresh start)
+  pull          Use the published image instead of building this checkout
+  build         Force a rebuild of this checkout
 
-Demo mode is on by default (LOOPFORGE_DEMO_MODE=true). Override in .env.
+  -y, --yes     Install missing dependencies without prompting
+
+Settings live in .env (created from .env.example on first run). Variables set
+on the command line win over .env, e.g. LOOPFORGE_PORT=9090 ./start.sh
 EOF
 }
 
@@ -72,21 +74,46 @@ os_family() {
   esac
 }
 
+# Loads .env without overriding variables already set in the environment.
 ensure_env_file() {
   if [[ ! -f .env && -f .env.example ]]; then
     cp .env.example .env
     log "created .env from .env.example"
   fi
   if [[ -f .env ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
+    local line key value
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line#"${line%%[![:space:]]*}"}"
+      [[ -z "$line" || "$line" == \#* ]] && continue
+      line="${line#export }"
+      [[ "$line" == *=* ]] || continue
+      key="${line%%=*}"
+      value="${line#*=}"
+      [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+      value="${value%\"}"; value="${value#\"}"
+      value="${value%\'}"; value="${value#\'}"
+      if [[ -z "${!key+x}" ]]; then
+        export "$key=$value"
+      fi
+    done < .env
   fi
   export LOOPFORGE_DEMO_MODE="${LOOPFORGE_DEMO_MODE:-true}"
-  PORT="${LOOPFORGE_PORT:-8080}"
-  export LOOPFORGE_PORT="$PORT"
-  IMAGE="${LOOPFORGE_IMAGE:-ghcr.io/tencent/loopforge:${LOOPFORGE_VERSION:-latest}}"
+  export LOOPFORGE_PORT="${LOOPFORGE_PORT:-8080}"
+}
+
+# Writes KEY=VALUE into .env, replacing an existing (possibly commented) line.
+set_env_value() {
+  local key="$1" value="$2"
+  [[ -f .env ]] || touch .env
+  if grep -qE "^[#[:space:]]*${key}=" .env; then
+    local tmp
+    tmp="$(mktemp)"
+    awk -v k="$key" -v v="$value" 'BEGIN{done=0} { if (!done && $0 ~ "^[#[:space:]]*" k "=") { print k "=" v; done=1 } else print }' .env > "$tmp"
+    cat "$tmp" > .env
+    rm -f "$tmp"
+  else
+    printf '%s=%s\n' "$key" "$value" >> .env
+  fi
 }
 
 install_pkg_linux() {
@@ -293,96 +320,201 @@ ensure_docker() {
   log "✓ Docker + Compose ready"
 }
 
-doctor() {
-  log "LoopForge doctor — checking what you need to run locally"
-  log "  os: $(uname -s) $(uname -m)"
+port_in_use() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+stack_running() {
+  [[ -n "$("${COMPOSE[@]}" ps -q --status running loopforge 2>/dev/null)" ]]
+}
+
+# Our own running stack may hold the port; anything else means pick another.
+choose_port() {
+  local port="$LOOPFORGE_PORT"
+  if stack_running; then
+    local published
+    published="$("${COMPOSE[@]}" port loopforge 8080 2>/dev/null | tail -1)"
+    if [[ "${published##*:}" == "$port" ]]; then
+      return 0
+    fi
+  fi
+  port_in_use "$port" || return 0
+  local candidate
+  for candidate in $(seq $((port + 1)) $((port + 50))); do
+    if ! port_in_use "$candidate"; then
+      warn "port $port is already in use; using $candidate instead (saved to .env as LOOPFORGE_PORT)"
+      set_env_value LOOPFORGE_PORT "$candidate"
+      export LOOPFORGE_PORT="$candidate"
+      return 0
+    fi
+  done
+  die "ports $port-$((port + 50)) are all in use; set LOOPFORGE_PORT in .env"
+}
+
+# A release checkout (tag platform-vX.Y.Z) or an explicit LOOPFORGE_VERSION /
+# LOOPFORGE_IMAGE runs the published image; any other checkout builds its own
+# code so what runs matches what was cloned.
+IMAGE_MODE=build
+resolve_image() {
+  local forced="${1:-}"
+  if [[ "$forced" == "pull" ]]; then
+    IMAGE_MODE=pull
+    export LOOPFORGE_IMAGE="${LOOPFORGE_IMAGE:-$PUBLISHED_REPO:${LOOPFORGE_VERSION:-latest}}"
+  elif [[ "$forced" == "build" ]]; then
+    IMAGE_MODE=build
+    export LOOPFORGE_IMAGE="$SOURCE_IMAGE"
+  elif [[ -n "${LOOPFORGE_IMAGE:-}" || -n "${LOOPFORGE_VERSION:-}" ]]; then
+    IMAGE_MODE=pull
+    export LOOPFORGE_IMAGE="${LOOPFORGE_IMAGE:-$PUBLISHED_REPO:$LOOPFORGE_VERSION}"
+  else
+    local tag=""
+    if have git && [[ -d .git || -f .git ]]; then
+      tag="$(git describe --exact-match --tags --match 'platform-v*' 2>/dev/null || true)"
+    fi
+    if [[ -n "$tag" ]]; then
+      IMAGE_MODE=release
+      export LOOPFORGE_IMAGE="$PUBLISHED_REPO:${tag#platform-v}"
+    else
+      IMAGE_MODE=build
+      export LOOPFORGE_IMAGE="$SOURCE_IMAGE"
+    fi
+  fi
+}
+
+reachable() {
+  curl -fsS -o /dev/null --connect-timeout 4 --max-time 8 "$1" 2>/dev/null
+}
+
+# Networks that cannot reach the default Go / npm registries get mirrors for
+# the image build; explicit LOOPFORGE_GOPROXY / LOOPFORGE_NPM_REGISTRY win.
+detect_build_mirrors() {
+  if [[ -z "${LOOPFORGE_GOPROXY:-}" ]] && ! reachable "https://proxy.golang.org/github.com/gin-gonic/gin/@v/list"; then
+    export LOOPFORGE_GOPROXY="https://goproxy.cn,direct"
+    warn "proxy.golang.org is unreachable; building with GOPROXY=$LOOPFORGE_GOPROXY"
+  fi
+  if [[ -z "${LOOPFORGE_NPM_REGISTRY:-}" ]] && ! reachable "https://registry.npmjs.org/@openai%2fcodex"; then
+    export LOOPFORGE_NPM_REGISTRY="https://registry.npmmirror.com"
+    warn "registry.npmjs.org is unreachable; building with npm registry $LOOPFORGE_NPM_REGISTRY"
+  fi
+}
+
+check_disk() {
+  local dir avail_kb
+  dir="$(docker_bin info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+  [[ -n "$dir" && -d "$dir" ]] || dir="/"
+  avail_kb="$(df -Pk "$dir" 2>/dev/null | awk 'NR==2{print $4}')"
+  [[ -n "$avail_kb" ]] || return 0
+  if (( avail_kb < 6 * 1024 * 1024 )); then
+    warn "only $((avail_kb / 1024 / 1024)) GB free under $dir; the LoopForge and sandbox images need about 6 GB"
+  else
+    log "✓ disk: $((avail_kb / 1024 / 1024)) GB free"
+  fi
+}
+
+check_host() {
+  log "Checking this machine ($(uname -s) $(uname -m))"
   ensure_curl
   ensure_git
   ensure_docker
   compose_cmd
-  log "  compose: ${COMPOSE[*]} ($("${COMPOSE[@]}" version 2>/dev/null | head -1 || echo ok))"
-  log "  image target: $IMAGE"
-  log "  demo mode: $LOOPFORGE_DEMO_MODE"
-  log "  port: $PORT"
-  if docker_bin image inspect "$IMAGE" >/dev/null 2>&1; then
-    log "  ✓ image present: $IMAGE"
+  check_disk
+}
+
+start_stack() {
+  local forced="${1:-}"
+  resolve_image "$forced"
+  choose_port
+  case "$IMAGE_MODE" in
+    pull|release)
+      log "pulling $LOOPFORGE_IMAGE …"
+      if docker_bin pull "$LOOPFORGE_IMAGE"; then
+        "${COMPOSE[@]}" up -d --no-build
+        return 0
+      fi
+      [[ "$IMAGE_MODE" == "release" ]] || die "could not pull $LOOPFORGE_IMAGE"
+      warn "published image $LOOPFORGE_IMAGE is not available; building this checkout instead"
+      export LOOPFORGE_IMAGE="$SOURCE_IMAGE"
+      ;;
+  esac
+  detect_build_mirrors
+  if docker_bin image inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
+    log "building this checkout (cached layers make this quick after the first time)…"
   else
-    log "  · image not local yet (will pull or build on up)"
+    log "building this checkout — the first build downloads Go/Node dependencies and takes a few minutes…"
   fi
-  log "doctor ok"
+  "${COMPOSE[@]}" up -d --build
 }
 
 wait_for_health() {
-  local url="http://127.0.0.1:${PORT}/api/health"
-  local i
+  local url="http://127.0.0.1:${LOOPFORGE_PORT}/api/health" i
   printf 'waiting for %s ' "$url"
-  for i in $(seq 1 90); do
-    if have curl && curl -fsS -o /dev/null "$url" 2>/dev/null; then
-      echo "ok"
-      return 0
-    fi
-    if have wget && wget -q -O /dev/null "$url" 2>/dev/null; then
+  for i in $(seq 1 120); do
+    if curl -fsS -o /dev/null "$url" 2>/dev/null; then
       echo "ok"
       return 0
     fi
     printf '.'
     sleep 1
   done
-  echo ""
-  warn "API not healthy in 90s — check: ./start.sh logs"
-  return 0
+  echo
+  "${COMPOSE[@]}" logs --tail 40 loopforge >&2 || true
+  die "LoopForge did not become healthy in 120s (logs above; more with ./start.sh logs)"
 }
 
 print_ready() {
-  echo
-  echo "=============================================="
-  echo " LoopForge is up"
-  echo "  UI      http://localhost:${PORT}"
-  echo "  health  http://localhost:${PORT}/api/health"
-  if [[ "${LOOPFORGE_DEMO_MODE}" == "true" && -z "${LOOPFORGE_ADMIN_PASSWORD:-}" ]]; then
-    echo "  login   admin / demo1234   (demo mode)"
+  local password_hint
+  if [[ -n "${LOOPFORGE_ADMIN_PASSWORD:-}" ]]; then
+    password_hint="admin / (LOOPFORGE_ADMIN_PASSWORD from .env)"
+  elif [[ "${LOOPFORGE_DEMO_MODE}" == "true" ]]; then
+    password_hint="admin / demo1234"
   else
-    echo "  login   see: ./start.sh logs | grep 'Created admin account'"
+    password_hint="admin / see: ./start.sh logs | grep 'Created admin account'"
   fi
-  echo "=============================================="
-  echo " Next: open the UI → 工作总览 → 「一键演示」"
-  echo " Real work: finish the credential wizard, then use SOP「快速修复」"
-  echo " Logs: ./start.sh logs    Stop: ./start.sh down"
-  echo
+  cat <<EOF
+
+==============================================
+ LoopForge is up
+   UI      http://localhost:${LOOPFORGE_PORT}
+   login   ${password_hint}
+==============================================
+ Try it:      工作总览 → 快速开始 → 「一键开跑」(no API key needed)
+ Real work:   follow the credential wizard, then dispatch with SOP「快速修复」
+ Self-test:   ./start.sh doctor
+ Logs / stop: ./start.sh logs | ./start.sh down
+
+EOF
+  if [[ "${LOOPFORGE_PREWARM_SANDBOX:-true}" == "true" ]]; then
+    log "The default sandbox image builds in the background now; the first real run will not wait for it."
+  fi
+  if [[ "$HAD_DATA" == "1" ]]; then
+    log "Note: reusing the existing data volume, so accounts and passwords are the ones set before (./start.sh reset starts fresh)."
+  fi
 }
 
-pull_or_build_up() {
-  compose_cmd
-  local mode="${1:-pull}"
-  if [[ "$mode" == "build" ]]; then
-    log "building image from this checkout…"
-    "${COMPOSE[@]}" up -d --build
+HAD_DATA=0
+detect_existing_data() {
+  local project
+  project="$("${COMPOSE[@]}" config 2>/dev/null | awk '/^name:/{print $2; exit}')"
+  [[ -n "$project" ]] || return 0
+  if [[ -n "$(docker_bin volume ls -q --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.volume=loopforge-data" 2>/dev/null)" ]]; then
+    HAD_DATA=1
+  fi
+}
+
+run_self_test() {
+  if ! stack_running; then
+    log "LoopForge is not running; start it with ./start.sh to run the end-to-end self-test"
     return 0
   fi
-
-  log "pulling $IMAGE …"
-  if docker_bin pull "$IMAGE" >/tmp/loopforge-pull.log 2>&1; then
-    LOOPFORGE_VERSION="${LOOPFORGE_VERSION:-latest}" "${COMPOSE[@]}" up -d
-    return 0
-  fi
-
-  warn "published image unavailable; building from this checkout (needs a few minutes)…"
-  tail -5 /tmp/loopforge-pull.log 2>/dev/null || true
-  "${COMPOSE[@]}" up -d --build
+  log
+  log "End-to-end self-test (inside the LoopForge container):"
+  "${COMPOSE[@]}" exec -T loopforge loopforge --self-test
 }
 
 cmd_up() {
-  ensure_env_file
-  doctor
-  pull_or_build_up pull
-  wait_for_health
-  print_ready
-}
-
-cmd_build() {
-  ensure_env_file
-  doctor
-  pull_or_build_up build
+  check_host
+  detect_existing_data
+  start_stack "${1:-}"
   wait_for_health
   print_ready
 }
@@ -393,8 +525,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -y|--yes) YES=1; export LOOPFORGE_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    up|doctor|down|logs|pull|build|restart) cmd=$1; shift ;;
-    -d) shift ;; # accepted for Grasp muscle-memory; always detached
+    up|doctor|warm|down|logs|pull|build|restart|reset) cmd=$1; shift ;;
+    -d) shift ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac
 done
@@ -402,28 +534,38 @@ done
 ensure_env_file
 
 case "$cmd" in
-  doctor) doctor ;;
-  pull)
-    doctor
-    compose_cmd
-    log "pulling $IMAGE …"
-    docker_bin pull "$IMAGE"
-    "${COMPOSE[@]}" pull loopforge || true
-    log "done"
+  up) cmd_up ;;
+  pull) cmd_up pull ;;
+  build) cmd_up build ;;
+  doctor)
+    check_host
+    resolve_image
+    log "  image:  $LOOPFORGE_IMAGE ($IMAGE_MODE)"
+    log "  port:   $LOOPFORGE_PORT"
+    run_self_test
     ;;
-  down)
-    compose_cmd
-    "${COMPOSE[@]}" down
+  warm)
+    check_host
+    stack_running || die "start LoopForge first: ./start.sh"
+    "${COMPOSE[@]}" exec -T loopforge loopforge --prewarm-sandbox
     ;;
   logs)
     compose_cmd
     "${COMPOSE[@]}" logs -f loopforge
     ;;
-  build) cmd_build ;;
+  down)
+    compose_cmd
+    "${COMPOSE[@]}" down
+    ;;
   restart)
     compose_cmd
     "${COMPOSE[@]}" down || true
     cmd_up
     ;;
-  up) cmd_up ;;
+  reset)
+    compose_cmd
+    confirm "Stop LoopForge and delete all its data (requirements, runs, accounts)?" || die "aborted"
+    "${COMPOSE[@]}" down -v
+    log "data removed; run ./start.sh to start fresh"
+    ;;
 esac

@@ -2,6 +2,7 @@
 
 FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS build
 WORKDIR /src
+ARG GOPROXY
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -23,12 +24,13 @@ FROM node:22-bookworm-slim
 # Agent CLIs executed by the built-in executors. Set to "false" for a slim
 # control-plane image that only dispatches to remote runners.
 ARG INSTALL_AGENT_CLIS=true
+ARG LOOPFORGE_NPM_REGISTRY
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates git openssh-client bubblewrap curl tini; \
     rm -rf /var/lib/apt/lists/*; \
     if [ "$INSTALL_AGENT_CLIS" = "true" ]; then \
-      npm install -g @anthropic-ai/claude-code @openai/codex @tencent-ai/codebuddy-code; \
+      npm install -g ${LOOPFORGE_NPM_REGISTRY:+--registry "$LOOPFORGE_NPM_REGISTRY"} @anthropic-ai/claude-code @openai/codex @tencent-ai/codebuddy-code; \
       npm cache clean --force; \
     fi; \
     useradd --create-home --uid 10001 loopforge; \

@@ -77,10 +77,11 @@ function renderQuickstart() {
     host.innerHTML = '';
     return;
   }
+  if (!state.doctorStatus) loadDoctor();
   const done = plan.realSteps.filter(step => step.done).length;
   const demoBlock = plan.demoSteps.length ? `<section class="qs-section qs-demo"><header><b>先体验一遍</b><span>演示模式已开启，什么都不用配</span></header><ol>${plan.demoSteps.map(quickstartStepHTML).join('')}</ol></section>` : '';
   host.hidden = false;
-  host.innerHTML = `<div class="qs-head"><div><span class="qs-eyebrow">快速开始</span><h2>照着这张清单，第一张需求就能跑起来</h2><p>做完一项会自动打勾，五项都完成后这张卡片会自动收起。</p></div><div class="qs-progress"><b>${done} / ${plan.realSteps.length}</b><span>正式使用</span></div><button type="button" class="qs-close" data-qs-close title="收起，之后可在接入指南里点「重看引导」再打开">收起</button></div><div class="qs-body">${demoBlock}<section class="qs-section"><header><b>正式使用</b><span>在自己的仓库上跑真实需求</span></header><ol>${plan.realSteps.map(quickstartStepHTML).join('')}</ol></section></div>`;
+  host.innerHTML = `<div class="qs-head"><div><span class="qs-eyebrow">快速开始</span><h2>照着这张清单，第一张需求就能跑起来</h2><p>做完一项会自动打勾，五项都完成后这张卡片会自动收起。</p></div><div class="qs-progress"><b>${done} / ${plan.realSteps.length}</b><span>正式使用</span></div><button type="button" class="qs-close" data-qs-close title="收起，之后可在接入指南里点「重看引导」再打开">收起</button></div>${doctorQuickstartLine()}<div class="qs-body">${demoBlock}<section class="qs-section"><header><b>正式使用</b><span>在自己的仓库上跑真实需求</span></header><ol>${plan.realSteps.map(quickstartStepHTML).join('')}</ol></section></div>`;
   host.querySelector('[data-qs-close]').onclick = () => {
     setQuickstartHidden(true);
     renderQuickstart();

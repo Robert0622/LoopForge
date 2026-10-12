@@ -95,7 +95,7 @@ LoopForge **不是**又一个编码 Agent，也不是通用自动化工具。它
 
 ### 一键启动（推荐）
 
-只要有一台能上网的 Linux / macOS 机器。`./start.sh` 会检测缺什么（curl / git / Docker / Compose），在征得确认后自动安装，再拉镜像、等健康检查，并打印登录信息：
+只要有一台能上网的 Linux / macOS 机器。`./start.sh` 会检测缺什么（curl / git / Docker / Compose），在征得确认后自动安装；然后构建你 clone 下来的这份代码（发布 tag 会直接拉已发布镜像），8080 被占用时自动换下一个空闲端口，等健康检查通过后打印登录信息。首次构建需要几分钟；连不上默认 Go / npm 源时会自动改用国内镜像：
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
@@ -108,14 +108,20 @@ git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
 curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
 ```
 
-启动后打开 <http://localhost:8080>：
+启动后打开它打印的地址（一般是 <http://localhost:8080>）：
 
 - 用户名：`admin`
 - 密码：`demo1234`
 
 （演示模式且未设 `LOOPFORGE_ADMIN_PASSWORD` 时固定；共享/生产请改掉。）点工作总览 **一键演示**，批准后在「产物」打开 `delivery-report.md`，全程不调模型。
 
-常用：`./start.sh doctor` 只检查依赖 · `./start.sh logs` · `./start.sh down` · `./start.sh pull`
+常用命令：
+
+- `./start.sh doctor`：先检查本机，再在容器里跑端到端自检——登录、环境检查、派发一张演示需求、用免登录分享链接批准、确认交付报告产出。
+- `./start.sh warm`：现在就构建默认沙箱镜像（首次启动时也会在后台自动构建）。
+- `./start.sh logs` · `./start.sh down`（保留数据）· `./start.sh reset`（删除数据重来）· `./start.sh pull`（用已发布镜像）
+
+页面上 **接入指南 → 最小接入配置** 顶部有同样的「环境自检」，缺什么就在那一项上点修复。
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="创建几张演示需求后的 LoopForge 工作总览" width="100%">

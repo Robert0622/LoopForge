@@ -250,6 +250,9 @@ func New(s *repo.Store, e *engine.Engine, syncSvc *tracker.Service, basicUser, b
 
 	// --- catalog ---
 	g.GET("/api/capabilities", api.capabilities)
+	doctor := &doctorHandlers{deps: d}
+	g.GET("/api/doctor", doctor.report)
+	g.POST("/api/doctor/prewarm-sandbox", doctor.prewarm)
 	g.GET("/api/executor-models", api.catalog.executorModels)
 	g.GET("/api/openapi.yaml", api.openAPI)
 	g.GET("/api/bootstrap", api.bootstrap)

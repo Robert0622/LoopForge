@@ -157,7 +157,8 @@ function renderGuideSetupBody(body,user,isGuest){
   const doneBanner=allReady
     ?`<div class="setup-done"><div><b>✓ 最小配置完成</b><p>凭据、项目、SOP 都已就绪，可以派发需求运行 SOP 了。</p></div><button type="button" class="button primary" data-goto-view="issues">去派发第一个需求 →</button></div>`
     :`<div class="setup-done pending"><div><b>就绪度 ${credDone}/3 凭据 · ${projReady?'✓':'—'} 项目 · ${sopReady?'✓':'—'} SOP</b><p>按上面 4 步依次完成，全部就绪后即可直接派发需求运行 SOP。</p></div></div>`;
-  body.innerHTML=`<div class="quick-wrap"><div class="quick-hero"><div class="quick-hero-text"><h2>最小接入配置</h2><p>按 4 步配好，平台即可完整运行需求：凭据就位、项目就位、流程就位，然后派发第一条需求。状态实时检测，完成即亮。</p></div><div class="quick-hero-facts"><div><b>${credDone}/3</b><span>个人凭据</span></div><div><b>${projReady?'✓':'—'}</b><span>项目</span></div><div><b>${sopReady?'✓':'—'}</b><span>SOP</span></div><div><b>${allReady?'就绪':'进行中'}</b><span>整体状态</span></div></div></div><div class="setup-grid">${credCard}${projCard}${sopCard}${issueCard}</div>${doneBanner}</div>`;
+  body.innerHTML=`<div class="quick-wrap"><div class="quick-hero"><div class="quick-hero-text"><h2>最小接入配置</h2><p>按 4 步配好，平台即可完整运行需求：凭据就位、项目就位、流程就位，然后派发第一条需求。状态实时检测，完成即亮。</p></div><div class="quick-hero-facts"><div><b>${credDone}/3</b><span>个人凭据</span></div><div><b>${projReady?'✓':'—'}</b><span>项目</span></div><div><b>${sopReady?'✓':'—'}</b><span>SOP</span></div><div><b>${allReady?'就绪':'进行中'}</b><span>整体状态</span></div></div></div>${doctorCardHTML()}<div class="setup-grid">${credCard}${projCard}${sopCard}${issueCard}</div>${doneBanner}</div>`;
+  if(!state.doctorStatus)loadDoctor();
   body.querySelectorAll('[data-setup-cred]').forEach(b=>b.onclick=()=>gotoCredential(b.dataset.setupCred));
   body.querySelectorAll('[data-goto-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.gotoView));
 }

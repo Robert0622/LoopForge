@@ -19,6 +19,11 @@ FSM-canvas philosophy or Live page variants in this pass.
 | 6 | Outbound IM notify (group-chat webhook; plain-text adapter fallback) | done |
 | 7 | One-time approval share link (no login) | done |
 | 8 | README: fixed demo creds + four-step path | done |
+| 9 | `./start.sh -y`: install missing Docker/Compose/curl/git, free-port fallback, build the checkout (release tags pull), Go/npm mirror fallback | done |
+| 10 | Environment doctor (`/api/doctor` + 接入指南 card with fix buttons) | done |
+| 11 | `loopforge --self-test` / `./start.sh doctor`: demo run + share-link approval + artifact, end to end | done |
+| 12 | Sandbox image prewarm on first start (`LOOPFORGE_PREWARM_SANDBOX`, `./start.sh warm`) | done |
+| 13 | `./start.sh reset` (fresh data) and compose healthcheck | done |
 
 Later (not this pass unless time left): Cursor/OpenCode executors, project
 credential aliases, clarify `page.html`, failure/rollback edges on canvas,

@@ -90,9 +90,7 @@ func ensureAdmin(s *repo.Store) (int64, error) {
 	demoMode, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_DEMO_MODE")))
 	if generated {
 		if demoMode {
-			// Match Grasp's fixed local-demo login so README and teammates
-			// can sign in without scraping compose logs.
-			password = "demo1234"
+			password = demoAdminPassword
 		} else {
 			password = auth.RandomSecret()[:20]
 		}
