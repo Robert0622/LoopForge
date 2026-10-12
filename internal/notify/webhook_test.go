@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestHumanWaitPostsWeComShape(t *testing.T) {
+func TestHumanWaitPostsRobotShape(t *testing.T) {
 	var got map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)

@@ -137,7 +137,7 @@ Longer built-in SOPs:
 | Frontend delivery | requirement → design → implement → review → verify → open PR → archive |
 | Product delivery | product definition → interactive demo → engineering hand-off → acceptance → issue write-back → summary |
 
-Optional: set `LOOPFORGE_NOTIFY_WEBHOOK` to a WeCom group-robot URL for waiting/failed alerts. Set `LOOPFORGE_PUBLIC_URL` for absolute links in notifications and share URLs.
+Optional: set `LOOPFORGE_NOTIFY_WEBHOOK` to a group-chat robot URL for waiting/failed alerts. Set `LOOPFORGE_PUBLIC_URL` for absolute links in notifications and share URLs.
 
 The first real run builds the default sandbox image (Node, the agent CLIs, Go, Git), which takes a few minutes once. A full backend requirement typically takes 30 to 75 minutes; small fixes via **快速修复** are much shorter.
 
@@ -207,7 +207,7 @@ Everything is optional; see [.env.example](.env.example) for the full list. The 
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | Accept `X-Forwarded-User` from a trusted proxy (oauth2-proxy, Authelia, ...). |
 | `LOOPFORGE_ROLE` | `all` (default), `api`, or `worker` for split deployments. |
 | `LOOPFORGE_DEMO_MODE` | Seed the scripted demo executor and SOP; fixed `admin` / `demo1234` when admin password unset. |
-| `LOOPFORGE_NOTIFY_WEBHOOK` | WeCom (or compatible) webhook for waiting/failed alerts. |
+| `LOOPFORGE_NOTIFY_WEBHOOK` | Group-chat robot webhook for waiting/failed alerts. |
 | `LOOPFORGE_PUBLIC_URL` | Public base URL for notify links and approval share links. |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | Sandbox for the built-in SOPs: `generic-docker`, `linux-bwrap`, `macos-seatbelt` or `local`. Auto-detected when unset. |
 | `LOOPFORGE_MCP_MARKET` / `LOOPFORGE_TEMPLATES` / `LOOPFORGE_WEB_PLUGINS` | Add your own MCP market entries, SOP templates and UI pages from files, directories or URLs. See [docs/extending.md](docs/extending.md). |

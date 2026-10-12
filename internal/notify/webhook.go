@@ -1,5 +1,5 @@
 // Package notify sends lightweight outbound alerts when a run needs a human.
-// Configure LOOPFORGE_NOTIFY_WEBHOOK with a WeCom group-robot URL (or any
+// Configure LOOPFORGE_NOTIFY_WEBHOOK with a group-chat robot URL (or any
 // endpoint that accepts {"msgtype":"text","text":{"content":"..."}} or a plain
 // {"text":"..."} JSON body).
 package notify
@@ -35,9 +35,9 @@ func send(text string) {
 		return
 	}
 	payloads := []map[string]any{
-		// WeCom / generic robot style
+		// Common group-robot style
 		{"msgtype": "text", "text": map[string]string{"content": text}},
-		// Fallback used by some QQ / custom bots
+		// Fallback used by some custom bots
 		{"text": text},
 	}
 	client := &http.Client{Timeout: 5 * time.Second}

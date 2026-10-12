@@ -137,7 +137,7 @@ LOOPFORGE_DEMO_MODE=true docker compose up -d
 | 前端交付 | 需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总 |
 | 产品交付 | 产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总 |
 
-可选：设置 `LOOPFORGE_NOTIFY_WEBHOOK` 为企业微信群机器人 URL，待确认/失败时推送文本通知。`LOOPFORGE_PUBLIC_URL` 用于通知与分享链接中的绝对地址。
+可选：设置 `LOOPFORGE_NOTIFY_WEBHOOK` 为群聊机器人 Webhook URL，待确认/失败时推送文本通知。`LOOPFORGE_PUBLIC_URL` 用于通知与分享链接中的绝对地址。
 
 第一次跑真实需求时会构建默认的沙箱镜像（Node、Agent CLI、Go、Git），只需构建一次，耗时几分钟。一张完整后端需求从头到尾一般需要 30 到 75 分钟；小修小改用「快速修复」会短很多。
 
@@ -207,7 +207,7 @@ web/                   内嵌的 Studio 界面
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | 信任反向代理（oauth2-proxy、Authelia 等）注入的 `X-Forwarded-User`。 |
 | `LOOPFORGE_ROLE` | `all`（默认）、`api` 或 `worker`，用于拆分部署。 |
 | `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP；未设管理员密码时固定为 `admin` / `demo1234`。 |
-| `LOOPFORGE_NOTIFY_WEBHOOK` | 企微群机器人等 Webhook；待确认/失败时推送文本。 |
+| `LOOPFORGE_NOTIFY_WEBHOOK` | 群聊机器人 Webhook；待确认/失败时推送文本。 |
 | `LOOPFORGE_PUBLIC_URL` | 对外访问根 URL，用于通知与审批分享链接。 |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | 内置 SOP 使用的沙箱：`generic-docker`、`linux-bwrap`、`macos-seatbelt` 或 `local`。不设置时自动检测。 |
 | `LOOPFORGE_MCP_MARKET` / `LOOPFORGE_TEMPLATES` / `LOOPFORGE_WEB_PLUGINS` | 从文件、目录或 URL 加载自己的 MCP 市场条目、SOP 模板和界面扩展页面，见 [docs/extending.md](docs/extending.md)。 |

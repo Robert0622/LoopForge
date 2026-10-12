@@ -16,13 +16,13 @@ FSM-canvas philosophy or Live page variants in this pass.
 | 3 | Built-in short "quick fix" SOP as a default non-demo path | done |
 | 4 | Humanized run errors with next-step buttons | done |
 | 5 | Approvals inbox as cards | done |
-| 6 | Outbound IM notify (WeCom webhook first; QQ-shaped adapter next) | done |
+| 6 | Outbound IM notify (group-chat webhook; plain-text adapter fallback) | done |
 | 7 | One-time approval share link (no login) | done |
 | 8 | README: fixed demo creds + four-step path | done |
 
 Later (not this pass unless time left): Cursor/OpenCode executors, project
 credential aliases, clarify `page.html`, failure/rollback edges on canvas,
-QQ inbound chat.
+inbound chat bots.
 
 ## Design notes
 
@@ -32,6 +32,6 @@ QQ inbound chat.
   skippable; replay from 接入指南.
 - Short SOP: script/mock-friendly when demo; otherwise uses the user's
   configured executor.
-- IM notify: WeCom group robot webhook via `LOOPFORGE_NOTIFY_WEBHOOK`.
+- IM notify: group-chat robot webhook via `LOOPFORGE_NOTIFY_WEBHOOK`.
 - Share link: HMAC token signed with session secret, TTL 24h, approve only
   (reject still requires login).
