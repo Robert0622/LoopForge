@@ -93,27 +93,29 @@ LoopForge **不是**又一个编码 Agent，也不是通用自动化工具。它
 
 ## 快速开始
 
-### 五分钟体验，不需要 API Key
+### 一键启动（推荐）
+
+只要有一台能上网的 Linux / macOS 机器。`./start.sh` 会检测缺什么（curl / git / Docker / Compose），在征得确认后自动安装，再拉镜像、等健康检查，并打印登录信息：
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
-./start.sh          # 默认演示模式；能拉 GHCR 就拉，否则从本仓库构建
+./start.sh -y          # -y：缺依赖时自动装，不提问
 ```
 
-打开 <http://localhost:8080>，用固定演示账号登录：
+或不先 clone：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
+```
+
+启动后打开 <http://localhost:8080>：
 
 - 用户名：`admin`
 - 密码：`demo1234`
 
-（仅当 `LOOPFORGE_DEMO_MODE=true` 且未设置 `LOOPFORGE_ADMIN_PASSWORD` 时固定；生产环境请改掉。）演示模式带脚本执行器和「演示交付流程」。在工作总览对话框点 **一键演示**（或输入一句话需求），通过审批后在「产物」打开 `delivery-report.md`。整个过程不调用模型。
+（演示模式且未设 `LOOPFORGE_ADMIN_PASSWORD` 时固定；共享/生产请改掉。）点工作总览 **一键演示**，批准后在「产物」打开 `delivery-report.md`，全程不调模型。
 
-等价 compose：
-
-```bash
-docker compose pull
-LOOPFORGE_DEMO_MODE=true docker compose up -d
-# 登录 admin / demo1234
-```
+常用：`./start.sh doctor` 只检查依赖 · `./start.sh logs` · `./start.sh down` · `./start.sh pull`
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="创建几张演示需求后的 LoopForge 工作总览" width="100%">

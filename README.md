@@ -93,27 +93,29 @@ These tools compose well: use an agent board for one-off tasks, and LoopForge on
 
 ## Quick start
 
-### Try it in five minutes, no API key needed
+### One command (recommended)
+
+On a networked Linux or macOS host, `./start.sh` detects what is missing (curl / git / Docker / Compose), installs it after confirmation, pulls the image, waits for health, and prints the login:
 
 ```bash
 git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
-./start.sh          # demo mode on; pulls GHCR or builds from this checkout
+./start.sh -y          # -y: install missing deps without prompts
 ```
 
-Open <http://localhost:8080> and sign in with the fixed demo account (port taken? set `LOOPFORGE_PORT=9090`):
+Or without cloning first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
+```
+
+Then open <http://localhost:8080>:
 
 - user: `admin`
 - password: `demo1234`
 
-(Fixed only when `LOOPFORGE_DEMO_MODE=true` and `LOOPFORGE_ADMIN_PASSWORD` is unset — change it before any shared deploy.) Demo mode adds a scripted executor and a "演示交付流程" SOP. On the dashboard chat, click **一键演示** (or type a requirement), approve the gate, and open `delivery-report.md` under **产物**. No model is called.
+(Fixed when demo mode is on and `LOOPFORGE_ADMIN_PASSWORD` is unset — change it before any shared deploy.) Click **一键演示** on the dashboard, approve the gate, and open `delivery-report.md` under **产物**. No model is called.
 
-Equivalent compose:
-
-```bash
-docker compose pull
-LOOPFORGE_DEMO_MODE=true docker compose up -d
-# sign in as admin / demo1234
-```
+Helpers: `./start.sh doctor` · `./start.sh logs` · `./start.sh down` · `./start.sh pull`
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="The LoopForge dashboard after a few demo requirements" width="100%">
