@@ -25,6 +25,10 @@ Treat it as privileged infrastructure:
   `macos-seatbelt`, or Docker for unattended runs, and never mix untrusted
   tenants on one host: none of the bundled drivers is a hostile multi-tenant
   boundary.
+- The default `docker-compose.yml` mounts the host's Docker socket so each run
+  gets its own container. Access to that socket is root-equivalent on the
+  host: run the stack on a machine dedicated to LoopForge, or remove the socket
+  and bind a separate runner machine with Docker instead.
 - Only enable `LOOPFORGE_TRUST_IDENTITY_HEADERS` behind a reverse proxy that
   strips and re-injects the identity header, and restrict
   `LOOPFORGE_TRUSTED_PROXY_CIDRS` to that proxy.

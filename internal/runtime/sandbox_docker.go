@@ -75,8 +75,13 @@ const dockerTeardownTimeout = 60 * time.Second
 // that only ever use the local driver. Cleanup runs per finished run and on a
 // 20s sweep, so this is on a hot path.
 var dockerAvailable = sync.OnceValue(func() bool {
-	_, err := exec.LookPath("docker")
-	return err == nil
+	docker, err := exec.LookPath("docker")
+	if err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, docker, "version", "--format", "{{.Server.Version}}").Run() == nil
 })
 
 func (s *dockerSandbox) Exec(ctx context.Context, command CommandSpec, sink EventSink) (string, error) {
@@ -337,6 +342,9 @@ func dockerSandboxesUnder(ctx context.Context, root string) (map[string]string, 
 	if err != nil {
 		return nil, err
 	}
+	if absRoot, err = dockerHostPath(absRoot); err != nil {
+		return nil, err
+	}
 	ids, err := exec.CommandContext(ctx, "docker", "ps", "-aq", "--filter", "name=^/"+dockerSandboxPrefix).Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker ps: %w", err)
@@ -572,9 +580,13 @@ func (s *dockerSandbox) ensureStarted(ctx context.Context) error {
 		return nil
 	}
 	name, workspace, p := s.name, s.workspace, s.profile
+	hostWorkspace, err := dockerHostPath(workspace)
+	if err != nil {
+		return err
+	}
 	if err := exec.CommandContext(ctx, "docker", "inspect", name).Run(); err == nil {
 		source, sourceErr := dockerWorkspaceBindSource(ctx, name)
-		if dockerContainerReusable(source, sourceErr, workspace) {
+		if dockerContainerReusable(source, sourceErr, hostWorkspace) {
 			if startErr := exec.CommandContext(ctx, "docker", "start", name).Run(); startErr != nil {
 				_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
 			} else if readyErr := waitDockerWorkspaceReady(ctx, name); readyErr != nil {
@@ -586,7 +598,7 @@ func (s *dockerSandbox) ensureStarted(ctx context.Context) error {
 		} else if sourceErr != nil {
 			_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
 		} else {
-			return fmt.Errorf("docker sandbox %s is bound to %s, not %s", name, source, workspace)
+			return fmt.Errorf("docker sandbox %s is bound to %s, not %s", name, source, hostWorkspace)
 		}
 	}
 	built, err := ensureDockerImage(ctx, workspace, s.dockerfile)
@@ -595,7 +607,8 @@ func (s *dockerSandbox) ensureStarted(ctx context.Context) error {
 	}
 	image := built
 	s.builtImage = built
-	args := []string{"create", "--name", name, "--init", "--cap-drop=ALL", "--security-opt", "no-new-privileges", "-v", workspace + ":/workspace"}
+	args := []string{"create", "--name", name, "--init", "--cap-drop=ALL", "--security-opt", "no-new-privileges", "-v", hostWorkspace + ":/workspace"}
+	args = append(args, dockerSandboxNetworkArgs()...)
 	maskArgs, err := dockerAgentConfigMasks(workspace)
 	if err != nil {
 		return err

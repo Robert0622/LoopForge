@@ -12,7 +12,15 @@ services:
     build: .
     ports:
       - "${LOOPFORGE_PORT:-8080}:8080"
+    # Per-run isolation: each run gets its own container on this host's Docker,
+    # removed when the run ends. The socket gives LoopForge root-equivalent
+    # access to the host, so it runs as root here like a host install would.
+    # To run without it, delete `user: root` and the docker.sock line; runs then
+    # execute as processes inside this container.
+    user: root
     environment:
+      # Sandbox containers join this compose network and reach the API by name.
+      LOOPFORGE_PLATFORM_MCP_URL: http://loopforge:8080
       LOOPFORGE_ADMIN_USER: ${LOOPFORGE_ADMIN_USER:-admin}
       # Leave empty to have a random password printed once in `docker compose logs`.
       LOOPFORGE_ADMIN_PASSWORD: ${LOOPFORGE_ADMIN_PASSWORD:-}
@@ -22,6 +30,7 @@ services:
       # LOOPFORGE_DATABASE_URL: mysql://loopforge:loopforge@tcp(mysql:3306)/loopforge?parseTime=true
     volumes:
       - loopforge-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
   mysql:

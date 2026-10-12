@@ -33,6 +33,7 @@ LoopForge grew out of the R&D SOPs of Tencent teams and is used by multiple proj
 - **Requirements come in on their own.** GitHub Issues sync on a schedule. Each new item is scored against the project's clarification bar, and anything below the bar is sent back to clarification instead of reaching the coding agents.
 - **Dispatch needs no one.** Scheduled triggers pick up every ready requirement and start its SOP. Integration-branch conflicts are resolved by an alignment agent, and the same requirement is never run twice.
 - **"Done" is checked, not claimed.** Every step ends with an explicit verdict (pass, rework, fail, needs a human). Command gates such as tests, linters and scripts must pass. A rejection rewinds to the chosen step, resets everything downstream and carries the reason into the next attempt.
+- **Every run in its own container.** Each requirement runs in a fresh container with its own workspace, removed when the run ends, out of the box with `docker compose`. Runs never see each other's files or processes.
 - **Delivery closes itself.** Work lands on an integration branch and a pull request. Once the PR is merged, the requirement closes.
 - **Humans where you want them.** Approval steps are optional nodes in the SOP: require sign-off on the design and nothing else, or run the whole path unattended.
 
@@ -72,7 +73,7 @@ GitHub issue ──► Clarify ──► Design ──► Implement ──► Re
 | Good for | Teams that want every requirement to follow the same published pipeline, with approvals, metrics and PR delivery | One developer who wants clarify → design → build → review → test inside their own agent |
 | Start | `docker compose up -d` ([Quick start](#quick-start)) | `npx -y loopforge-cli@latest install claude` ([cli/README.md](cli/README.md)) |
 
-Both follow the same idea: confirm the requirement first, separate the roles, and leave reviewable evidence at every stage. They are independent, so either one can be used alone. The rest of this page covers the platform.
+The platform is the deployed edition of the CLI workflow. Both follow the same idea: confirm the requirement first, separate the roles, and leave reviewable evidence at every stage. The CLI runs it inside one developer's agent with nothing to deploy; the platform runs it for a whole team, unattended. Either can be used alone. The rest of this page covers the platform.
 
 ## How it compares
 
@@ -121,7 +122,7 @@ Start without `LOOPFORGE_DEMO_MODE`, then:
 | Frontend delivery | requirement → design → implement → review → verify → open PR → archive |
 | Product delivery | product definition → interactive demo → engineering hand-off → acceptance → issue write-back → summary |
 
-A backend requirement typically takes 30 to 75 minutes end to end. Most of that time is the agents working through seven sessions. For small fixes, publish a shorter SOP such as implement → test → open PR.
+The first real run builds the default sandbox image (Node, the agent CLIs, Go, Git), which takes a few minutes once. A backend requirement typically takes 30 to 75 minutes end to end. Most of that time is the agents working through seven sessions. For small fixes, publish a shorter SOP such as implement → test → open PR.
 
 GitHub Enterprise Server: set `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` and `LOOPFORGE_GITHUB_HOST=<host>`.
 
@@ -132,15 +133,18 @@ GitHub Enterprise Server: set `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` a
 
 ## Where runs execute
 
-Each run gets its own workspace, and every step of that run shares it. How strongly runs are isolated depends on where they execute:
+Every run gets its own environment. In the `docker compose` setup, LoopForge uses the host's Docker through the mounted socket and starts **one container per run**: the steps of a run share that container and its workspace, other runs cannot see it, and it is removed when the run ends. Containers drop all Linux capabilities and join the LoopForge network only to report back to the platform.
 
 | Setup | Isolation |
 | --- | --- |
-| A host with Docker (binary on the host, or a bound runner machine with Docker) | **One container per run**, removed when the run ends |
-| Linux host with bubblewrap, or macOS | One bubblewrap or Seatbelt sandbox per run |
-| The `docker compose` setup above | Runs are processes inside the LoopForge container, each in its own workspace directory. The container is the boundary; runs are not isolated from each other. |
+| `docker compose up -d` (default) | One container per run on the host's Docker |
+| Binary on a host with Docker, or a bound runner machine with Docker | One container per run |
+| Linux host with bubblewrap, or macOS, without Docker | One bubblewrap or Seatbelt sandbox per run |
+| `docker compose` without the Docker socket | Runs are processes inside the LoopForge container, each in its own workspace directory |
 
-The sandbox is picked automatically at startup (Docker, then bubblewrap or Seatbelt, then local) and logged. You can change it per SOP in **流程设置** (SOP settings) or globally with `LOOPFORGE_TEMPLATE_SANDBOX`. For unattended team use, bind a runner machine that has Docker. See [Runners](#runners-execute-on-your-own-machine).
+Mounting the Docker socket gives LoopForge root-equivalent access to the host, the same as installing it directly on the host. If that is not acceptable, delete `user: root` and the `docker.sock` line in `docker-compose.yml` and bind a separate runner machine with Docker for isolated runs.
+
+The sandbox is picked automatically at startup (Docker, then bubblewrap or Seatbelt, then local) and logged. Change it per SOP in **流程设置** (SOP settings) or globally with `LOOPFORGE_TEMPLATE_SANDBOX`. See [Runners](#runners-execute-on-your-own-machine) for running on other machines.
 
 ## Concepts
 
@@ -206,7 +210,7 @@ The installer downloads the runner from your server (no Go needed), discovers in
 
 ## Security
 
-LoopForge executes agent commands against real repositories. The `local` sandbox is a convenience, not a boundary. Seatbelt, bubblewrap and Docker are suitable for unattended runs on a trusted host but are not hostile multi-tenant isolation. See [SECURITY.md](SECURITY.md) for deployment guidance and how to report vulnerabilities.
+LoopForge executes agent commands against real repositories. The `local` sandbox is a convenience, not a boundary. Seatbelt, bubblewrap and Docker are suitable for unattended runs on a trusted host but are not hostile multi-tenant isolation. The default `docker compose` setup mounts the Docker socket, which is root-equivalent on that host; run it on a machine dedicated to LoopForge. See [SECURITY.md](SECURITY.md) for deployment guidance and how to report vulnerabilities.
 
 ## Roadmap and known limitations
 

@@ -17,6 +17,8 @@ RUN set -eux; \
       CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "$out/loopforge-gate-mcp-$os-$arch" ./cmd/loopforge-gate-mcp; \
     done; done
 
+FROM docker:28-cli AS docker-cli
+
 FROM node:22-bookworm-slim
 # Agent CLIs executed by the built-in executors. Set to "false" for a slim
 # control-plane image that only dispatches to remote runners.
@@ -30,11 +32,18 @@ RUN set -eux; \
       npm cache clean --force; \
     fi; \
     useradd --create-home --uid 10001 loopforge; \
-    mkdir -p /data && chown loopforge:loopforge /data
+    mkdir -p /data/home && chown -R loopforge:loopforge /data
 
+# Docker CLI for per-run sandbox containers when the host's Docker socket is
+# mounted (see docker-compose.yml); without the socket it stays unused.
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx
 COPY --from=build /out/ /
 
+# HOME lives on the data volume so CLI logins survive upgrades and can be
+# shared with sandbox containers.
 ENV LOOPFORGE_DATA_DIR=/data \
+    HOME=/data/home \
     LOOPFORGE_HTTP_PORT=8080 \
     LOOPFORGE_RUNNER_BINARY=/opt/loopforge/loopforge-runner-{os}-{arch} \
     LOOPFORGE_GATE_MCP_BINARY=/opt/loopforge/loopforge-gate-mcp-{os}-{arch} \

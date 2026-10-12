@@ -7,6 +7,7 @@ LoopForge aims to be a fully automated loop for requirements: a requirement goes
 ## Available today
 
 - **The automated loop.** Scheduled issue sync, clarification scoring, scheduled dispatch, verdicts and command gates, reject-and-rework with downstream reset, integration branch and pull request delivery, optional human approval nodes.
+- **Per-run isolation.** One container per run, out of the box with `docker compose`, on bound runner machines, or on any host with Docker.
 - **Observability and evaluation.** Live telemetry per run, process metrics across runs, and an evaluation of every run whose recommendations can be applied to SOPs and roles in one click.
 - **Expert experience as SOPs.** Built-in backend, frontend and product delivery SOPs, reusable roles, declared artifacts with full attempt history, knowledge base search over MCP.
 
@@ -30,9 +31,9 @@ Describe what you need in one sentence, from the web UI or a chat tool, and get 
 - A leaner Studio navigation that shows the daily views first and moves configuration out of the way.
 - An English UI.
 
-### Isolation out of the box
+### Isolation without the Docker socket
 
-Today the `docker compose` setup runs every run as a process inside the LoopForge container; one container per run needs a host or runner machine with Docker. Planned: per-run containers in the default deployment as well, without giving the platform container control of the host.
+The default deployment already starts one container per run, through the host's Docker socket, which is root-equivalent on that host. Planned: a rootless option (for example rootless Docker or a dedicated sandbox runtime) so teams can keep per-run containers without handing the platform the host.
 
 ### Fewer dependencies
 

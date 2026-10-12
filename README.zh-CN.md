@@ -33,6 +33,7 @@ LoopForge 源自腾讯团队的研发 SOP，腾讯内部已有多个项目团队
 - **需求自己进来**：GitHub Issue 定时同步，每张新需求按项目的澄清标准打分，不达标的退回澄清，不会直接交给编码 Agent。
 - **派发不需要人**：定时触发任务扫描所有就绪需求并启动 SOP；集成分支冲突由对齐 Agent 解决；同一张需求不会被重复运行。
 - **“做完”要验证，不靠自称**：每一步都以明确结论结束（通过、返工、失败、需要人工）；测试、Lint、脚本等命令门禁必须通过；打回会回到指定步骤，重置下游，并把原因带进下一次尝试。
+- **每次运行一个独立容器**：每张需求都在一个全新的容器里运行，有自己的工作区，运行结束后删除；用 `docker compose` 部署即可开箱使用。不同运行之间看不到彼此的文件和进程。
 - **交付自动闭环**：产出落到集成分支并提交 Pull Request，PR 合并后需求自动关闭。
 - **人只在你需要的地方出现**：人工审批是 SOP 里的可选节点，可以只在方案设计处签字，也可以全程无人值守。
 
@@ -72,7 +73,7 @@ GitHub Issue ──► 澄清 ──► 设计 ──► 实现 ──► 评审
 | 适合 | 希望每张需求都按同一条发布过的流程走，并且需要审批、效能指标和 PR 交付的团队 | 想在自己的 Agent 里走「澄清 → 设计 → 实现 → 评审 → 测试」的个人开发者 |
 | 开始 | `docker compose up -d`（见[快速开始](#快速开始)） | `npx -y loopforge-cli@latest install claude`（见 [cli/README.zh-CN.md](cli/README.zh-CN.md)） |
 
-两者理念相同：先确认需求、分离角色、每个阶段都留下可评审的证据。它们互相独立，可以单独使用。本页后面介绍的是平台。
+平台是 CLI 工作流的部署版。两者理念相同：先确认需求、分离角色、每个阶段都留下可评审的证据。CLI 在单个开发者的 Agent 里运行，不需要部署；平台把同一套流程交给整个团队，无人值守地跑。两者都可以单独使用。本页后面介绍的是平台。
 
 ## 和其他项目的区别
 
@@ -121,7 +122,7 @@ docker compose logs loopforge | grep "Created admin account"   # 一次性管理
 | 前端交付 | 需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总 |
 | 产品交付 | 产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总 |
 
-一张后端需求从头到尾一般需要 30 到 75 分钟，大部分时间是 Agent 在七个会话里干活。小修小改可以发布一条更短的 SOP，比如 实现 → 测试 → 提 PR。
+第一次跑真实需求时会构建默认的沙箱镜像（Node、Agent CLI、Go、Git），只需构建一次，耗时几分钟。一张后端需求从头到尾一般需要 30 到 75 分钟，大部分时间是 Agent 在七个会话里干活。小修小改可以发布一条更短的 SOP，比如 实现 → 测试 → 提 PR。
 
 GitHub Enterprise Server：设置 `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` 和 `LOOPFORGE_GITHUB_HOST=<host>`。
 
@@ -132,15 +133,18 @@ GitHub Enterprise Server：设置 `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v
 
 ## 运行在哪里执行
 
-每次运行有自己独立的工作区，同一次运行的各个步骤共用它。运行之间隔离到什么程度，取决于在哪里执行：
+每次运行都有自己独立的环境。用 `docker compose` 部署时，LoopForge 通过挂载进来的 Docker socket 使用宿主机的 Docker，**每次运行启动一个容器**：同一次运行的各个步骤共用这个容器和工作区，其他运行看不到它，运行结束后删除。容器去掉了全部 Linux capability，只加入 LoopForge 的网络，用来向平台回报结果。
 
 | 部署方式 | 隔离 |
 | --- | --- |
-| 装有 Docker 的主机（直接在主机上运行二进制，或绑定一台装有 Docker 的执行机器） | **每次运行一个容器**，运行结束后删除 |
-| 装有 bubblewrap 的 Linux 主机，或 macOS | 每次运行一个 bubblewrap 或 Seatbelt 沙箱 |
-| 上面的 `docker compose` 部署 | 运行是 LoopForge 容器里的进程，各自有独立的工作区目录。边界是这个容器，运行之间不互相隔离。 |
+| `docker compose up -d`（默认） | 在宿主机 Docker 上每次运行一个容器 |
+| 在装有 Docker 的主机上直接运行二进制，或绑定一台装有 Docker 的执行机器 | 每次运行一个容器 |
+| 没有 Docker 的 Linux（有 bubblewrap）或 macOS 主机 | 每次运行一个 bubblewrap 或 Seatbelt 沙箱 |
+| 不挂 Docker socket 的 `docker compose` | 运行是 LoopForge 容器里的进程，各自有独立的工作区目录 |
 
-沙箱在启动时自动选择（依次尝试 Docker、bubblewrap 或 Seatbelt、local）并写入日志；可以在「流程设置」里按 SOP 修改，或用 `LOOPFORGE_TEMPLATE_SANDBOX` 全局指定。团队无人值守使用时，建议绑定一台装有 Docker 的执行机器，见[执行机器](#执行机器在自己的电脑上跑)。
+挂载 Docker socket 等于让 LoopForge 拥有宿主机的 root 权限，和直接装在宿主机上一样。如果不能接受，删掉 `docker-compose.yml` 里的 `user: root` 和 `docker.sock` 两行，再绑定一台单独的、装有 Docker 的执行机器来跑需要隔离的运行。
+
+沙箱在启动时自动选择（依次尝试 Docker、bubblewrap 或 Seatbelt、local）并写入日志；可以在「流程设置」里按 SOP 修改，或用 `LOOPFORGE_TEMPLATE_SANDBOX` 全局指定。在其他机器上执行见[执行机器](#执行机器在自己的电脑上跑)。
 
 ## 核心概念
 
@@ -206,7 +210,7 @@ curl -fsSL https://loopforge.example.com/runners/install.sh | bash -s -- \
 
 ## 安全
 
-LoopForge 会让 Agent 在真实仓库上执行命令。`local` 沙箱只是便利，不是隔离边界；Seatbelt、bubblewrap 和 Docker 适合在可信主机上无人值守运行，但不是对抗性的多租户隔离。部署建议和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
+LoopForge 会让 Agent 在真实仓库上执行命令。`local` 沙箱只是便利，不是隔离边界；Seatbelt、bubblewrap 和 Docker 适合在可信主机上无人值守运行，但不是对抗性的多租户隔离。默认的 `docker compose` 部署挂载了 Docker socket，等同于这台主机的 root 权限，请部署在专门给 LoopForge 用的机器上。部署建议和漏洞报告方式见 [SECURITY.md](SECURITY.md)。
 
 ## 规划与已知限制
 

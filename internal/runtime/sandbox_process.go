@@ -499,6 +499,12 @@ func dockerAgentConfigMasks(workspace string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if emptyDir, err = dockerHostPath(emptyDir); err != nil {
+		return nil, err
+	}
+	if emptyFile, err = dockerHostPath(emptyFile); err != nil {
+		return nil, err
+	}
 	emptyDirTarget := filepath.ToSlash(filepath.Join("/workspace", ".loopforge", "isolation", "empty-dir"))
 	emptyFileTarget := filepath.ToSlash(filepath.Join("/workspace", ".loopforge", "isolation", "empty-file"))
 	args := []string{
@@ -550,7 +556,11 @@ func dockerAgentStateMountRequirements(requirements SandboxRequirements) ([]stri
 			return nil, fmt.Errorf("Agent CLI state path is not a directory: %s", state.path)
 		}
 		target := filepath.ToSlash(filepath.Join("/root", filepath.Base(state.path)))
-		args = append(args, "--mount", "type=bind,src="+state.path+",dst="+target)
+		hostState, err := dockerHostPath(state.path)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--mount", "type=bind,src="+hostState+",dst="+target)
 		for _, name := range state.files {
 			stateFile := filepath.Join(filepath.Dir(state.path), name)
 			fileInfo, fileErr := os.Stat(stateFile)
@@ -558,7 +568,11 @@ func dockerAgentStateMountRequirements(requirements SandboxRequirements) ([]stri
 				if !fileInfo.Mode().IsRegular() {
 					return nil, fmt.Errorf("Agent CLI state path is not a regular file: %s", stateFile)
 				}
-				args = append(args, "--mount", "type=bind,src="+stateFile+",dst=/root/"+name)
+				hostFile, err := dockerHostPath(stateFile)
+				if err != nil {
+					return nil, err
+				}
+				args = append(args, "--mount", "type=bind,src="+hostFile+",dst=/root/"+name)
 			} else if !os.IsNotExist(fileErr) {
 				return nil, fileErr
 			}
