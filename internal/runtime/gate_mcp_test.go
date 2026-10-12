@@ -138,3 +138,39 @@ func TestMaterializeGateMCPSelectsLinuxForDocker(t *testing.T) {
 		t.Fatalf("docker gate helper = %q, want linux artifact", raw)
 	}
 }
+
+func TestMockExecutorDoesNotNeedGateMCPBinary(t *testing.T) {
+	t.Setenv("LOOPFORGE_GATE_MCP_BINARY", filepath.Join(t.TempDir(), "missing-{os}-{arch}"))
+	options := InvocationOptions{GateResultPath: ".loopforge/gate-results/review/attempt-1.json"}
+	workspace := t.TempDir()
+	if _, err := materializeInvocation(workspace, "invoke-mock", domain.ExecutorDefinition{Kind: "mock"}, domain.AgentDefinition{ID: "reviewer", Name: "Reviewer"}, domain.AgentAssetBundle{}, options); err != nil {
+		t.Fatalf("mock executor should not need the gate MCP binary: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".loopforge", "config", "reviewer", "gate-mcp")); !os.IsNotExist(err) {
+		t.Fatalf("mock executor should not get a gate MCP copy: %v", err)
+	}
+	if _, err := materializeInvocation(t.TempDir(), "invoke-real", domain.ExecutorDefinition{Kind: "codebuddy"}, domain.AgentDefinition{ID: "reviewer", Name: "Reviewer"}, domain.AgentAssetBundle{}, options); err == nil {
+		t.Fatal("a real executor must still fail without the gate MCP binary")
+	}
+}
+
+func TestCheckGateMCPBinary(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOOPFORGE_GATE_MCP_BINARY", filepath.Join(dir, "gate-{os}-{arch}"))
+	if err := CheckGateMCPBinary("linux", "amd64"); err == nil || !strings.Contains(err.Error(), "gate-linux-amd64") {
+		t.Fatalf("missing prebuilt binary should be reported with its path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gate-linux-amd64"), []byte("bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckGateMCPBinary("linux", "amd64"); err != nil {
+		t.Fatalf("deployed prebuilt binary: %v", err)
+	}
+
+	t.Setenv("LOOPFORGE_GATE_MCP_BINARY", "")
+	t.Setenv("LOOPFORGE_SOURCE_ROOT", t.TempDir())
+	err := CheckGateMCPBinary("linux", "arm64")
+	if err == nil || !strings.Contains(err.Error(), "make build") {
+		t.Fatalf("missing binary should explain how to fix the install: %v", err)
+	}
+}

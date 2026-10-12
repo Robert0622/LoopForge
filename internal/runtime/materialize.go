@@ -201,7 +201,10 @@ func materializeInvocationForDriver(workspace, invocationID string, ex domain.Ex
 	// Repository-local MCP configuration is intentionally not discovered. The
 	// Agent definition is the sole allowlist for tools in unattended runs.
 	mergedMCP := mergeMCPServers(assets.MCPServers, nil)
-	if strings.TrimSpace(options.GateResultPath) != "" {
+	// The built-in mock executor writes its gate result directly and never
+	// starts MCP servers, so it must not depend on the gate MCP binary.
+	_, builtin := providerForKind(ex.Kind).(mockProvider)
+	if strings.TrimSpace(options.GateResultPath) != "" && !builtin {
 		gateServer, err := materializeGateMCP(configRoot, filepath.Join(".loopforge", "config", agentID, "gate-mcp"), options.GateResultPath, driver)
 		if err != nil {
 			return compiled, err

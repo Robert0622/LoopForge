@@ -82,7 +82,7 @@ func resolveGateMCPBinary(targetOS, targetArch string) (string, error) {
 	}
 	root := gateMCPSourceRoot()
 	if root == "" {
-		return "", fmt.Errorf("gate MCP binary %s/%s is unavailable; deploy LOOPFORGE_GATE_MCP_BINARY or LOOPFORGE_SOURCE_ROOT", targetOS, targetArch)
+		return "", gateMCPMissingError(targetOS, targetArch)
 	}
 	gateMCPBuildMu.Lock()
 	defer gateMCPBuildMu.Unlock()
@@ -97,6 +97,37 @@ func resolveGateMCPBinary(targetOS, targetArch string) (string, error) {
 		}
 	}
 	return cache, nil
+}
+
+func gateMCPMissingError(targetOS, targetArch string) error {
+	return fmt.Errorf("gate MCP binary loopforge-gate-mcp-%s-%s not found: run the Docker image, build with `make build` and start bin/loopforge, or set LOOPFORGE_GATE_MCP_BINARY (prebuilt files) or LOOPFORGE_SOURCE_ROOT (source checkout with Go)", targetOS, targetArch)
+}
+
+// CheckGateMCPBinary reports, without building anything, whether runs that
+// need the gate MCP for targetOS/targetArch will be able to provision it.
+func CheckGateMCPBinary(targetOS, targetArch string) error {
+	if pattern := strings.TrimSpace(os.Getenv("LOOPFORGE_GATE_MCP_BINARY")); pattern != "" {
+		if path := expandPlatformPath(pattern, targetOS, targetArch); !validExecutableFile(path) {
+			return fmt.Errorf("gate MCP binary %s/%s is not deployed at %s", targetOS, targetArch, path)
+		}
+		return nil
+	}
+	if executable, err := os.Executable(); err == nil {
+		dir := filepath.Dir(executable)
+		if validExecutableFile(filepath.Join(dir, fmt.Sprintf("loopforge-gate-mcp-%s-%s", targetOS, targetArch))) {
+			return nil
+		}
+		if targetOS == goruntime.GOOS && targetArch == goruntime.GOARCH && validExecutableFile(filepath.Join(dir, "loopforge-gate-mcp")) {
+			return nil
+		}
+	}
+	if gateMCPSourceRoot() == "" {
+		return gateMCPMissingError(targetOS, targetArch)
+	}
+	if _, err := exec.LookPath("go"); err != nil {
+		return fmt.Errorf("gate MCP binary %s/%s must be built from source but Go is not installed: %w", targetOS, targetArch, err)
+	}
+	return nil
 }
 
 func expandPlatformPath(pattern, targetOS, targetArch string) string {
@@ -115,19 +146,27 @@ func gateMCPSourceRoot() string {
 		}
 		return ""
 	}
-	start, err := os.Getwd()
-	if err != nil {
-		return ""
+	// A binary built into <checkout>/bin is often started from another
+	// directory, so look upward from the executable as well as the cwd.
+	var starts []string
+	if cwd, err := os.Getwd(); err == nil {
+		starts = append(starts, cwd)
 	}
-	for current := start; ; current = filepath.Dir(current) {
-		if validSourceRoot(current) {
-			return current
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			return ""
+	if executable, err := os.Executable(); err == nil {
+		starts = append(starts, filepath.Dir(executable))
+	}
+	for _, start := range starts {
+		for current := start; ; current = filepath.Dir(current) {
+			if validSourceRoot(current) {
+				return current
+			}
+			parent := filepath.Dir(current)
+			if parent == current {
+				break
+			}
 		}
 	}
+	return ""
 }
 
 func validSourceRoot(root string) bool {

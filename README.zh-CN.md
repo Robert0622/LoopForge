@@ -129,7 +129,7 @@ GitHub Enterprise Server：设置 `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v
 ### 其他启动方式
 
 - `docker compose up -d --build` 总是从源码构建镜像；没有先 `docker compose pull` 时，`up` 也会自动构建，需要几分钟。`LOOPFORGE_VERSION=0.1.0` 可固定版本。
-- 从源码运行（需要 Go 1.25+ 和 Git）：`make run` 把 SQLite 放在 `~/.loopforge` 并监听 `:8080`；`make demo` 启动演示模式。
+- 从源码运行（需要 Go 1.25+ 和 Git）：`make run` 把 SQLite 放在 `~/.loopforge` 并监听 `:8080`；`make demo` 启动演示模式。要单独运行二进制，请用 `make build`，并让 `bin/loopforge-gate-mcp-*` 这几个辅助程序和 `bin/loopforge` 放在一起；Agent 运行要用到它们，缺失时服务启动日志会给出警告。
 
 ## 运行在哪里执行
 

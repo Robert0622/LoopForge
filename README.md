@@ -129,7 +129,7 @@ GitHub Enterprise Server: set `LOOPFORGE_GITHUB_API_URL=https://<host>/api/v3` a
 ### Other ways to start
 
 - `docker compose up -d --build` always builds the image from source. Without `docker compose pull`, `up` does the same automatically, which takes a few minutes. `LOOPFORGE_VERSION=0.1.0` pins a release.
-- From source (Go 1.25+ and Git): `make run` keeps SQLite under `~/.loopforge` and listens on `:8080`; `make demo` starts demo mode.
+- From source (Go 1.25+ and Git): `make run` keeps SQLite under `~/.loopforge` and listens on `:8080`; `make demo` starts demo mode. To run a binary, use `make build` and keep the `bin/loopforge-gate-mcp-*` helpers next to `bin/loopforge`; Agent runs need them, and the server logs a warning at startup when they are missing.
 
 ## Where runs execute
 

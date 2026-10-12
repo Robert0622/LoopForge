@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -136,6 +137,7 @@ func main() {
 		}
 		repo.SetTemplateSandbox(sandbox)
 		log.Printf("built-in SOP templates use sandbox %q (override with LOOPFORGE_TEMPLATE_SANDBOX)", sandbox)
+		warnMissingGateMCP()
 		configureExtensions()
 		ownerID, err := ensureAdmin(s)
 		if err != nil {
@@ -340,5 +342,20 @@ func attachPreviewStore(e *engine.Engine, s *repo.Store) {
 		log.Printf("preview gateway path=/preview/{token}/ public=%s://%s", cfg.PublicScheme, cfg.PublicHost)
 	} else {
 		log.Printf("preview gateway path=/preview/{token}/")
+	}
+}
+
+// warnMissingGateMCP surfaces a broken install at startup instead of on the
+// first real run: every Agent node with a gate needs the gate MCP helper for
+// the host and, for Docker sandboxes, for linux.
+func warnMissingGateMCP() {
+	targets := []string{goruntime.GOOS}
+	if goruntime.GOOS != "linux" {
+		targets = append(targets, "linux")
+	}
+	for _, targetOS := range targets {
+		if err := runtime.CheckGateMCPBinary(targetOS, goruntime.GOARCH); err != nil {
+			log.Printf("WARNING: Agent runs with gates will fail: %v", err)
+		}
 	}
 }
