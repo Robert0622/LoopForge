@@ -564,6 +564,13 @@ func (e *Engine) executeNode(ctx context.Context, runID string, wf domain.Workfl
 			err = errResolve
 			break
 		}
+		if run, ok := e.repo.RunState(runID); ok {
+			if alt, swapped := fallbackExecutor(ex, userProviderKeys(e.repo, run.ExecutionContext.ResponsibleUserID)); swapped {
+				msg := fmt.Sprintf("责任人没有配置 %s 的 Key，本节点改用已配置的 %s 执行", ex.Name, alt.Name)
+				e.updateRun(runID, func(current *domain.Run) { e.event(current, node.ID, "executor_fallback", msg) })
+				ex = alt
+			}
+		}
 		effectiveNode.ArtifactOutputs = mergeArtifactContracts(agent.ArtifactOutputs, node.ArtifactOutputs)
 		gates = gates[:0]
 		for _, gate := range agent.Verification {

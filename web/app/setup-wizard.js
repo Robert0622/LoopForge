@@ -121,6 +121,7 @@ function paintSetupWizard(root, ctx) {
       closeSetupWizard(true);
       if (typeof renderPersonalSettings === 'function' && state.view === 'settings') renderPersonalSettings();
       if (typeof renderHomeChat === 'function') renderHomeChat();
+      if (opt.field === 'codeBuddyApiKey' && typeof verifyCodeBuddyKey === 'function') verifyCodeBuddyKey(user.id);
     } catch (e) {
       paintSetupWizard(root, { ...ctx, key, gitToken, busy: false, error: e.message || '保存失败' });
     }

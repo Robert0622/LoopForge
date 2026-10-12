@@ -92,7 +92,14 @@ func (h *authHandlers) currentPayload(user *auth.User) map[string]any {
 		"authRequired": authRequired(),
 		"loginMode":    "password",
 		"proxyAuth":    trustGatewayIdentityHeaders(),
+		// The login form shows the fixed demo account only while it applies.
+		"demoLogin": demoDefaultLogin(),
 	}
+}
+
+func demoDefaultLogin() bool {
+	demo, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_DEMO_MODE")))
+	return demo && strings.TrimSpace(os.Getenv("LOOPFORGE_ADMIN_PASSWORD")) == ""
 }
 
 func (h *authHandlers) authCurrent(c *gin.Context) {

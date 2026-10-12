@@ -224,6 +224,8 @@ async function homeChatSend() {
     const data = await homeChatReadSSE(resp);
     chat.messages = chat.messages.filter(m => m.role !== 'status');
     if (data.sessionId) chat.sessionId = data.sessionId;
+    if (data.error) throw new Error(data.error);
+    if (!data.summary && !data.message && !data.reply && !(data.questions || []).length && !data.assessment) throw new Error('这一轮没有拿到澄清结论，请再试一次');
     const summary = data.summary || data.message || data.reply || '澄清完成';
     const questions = (data.questions || []).map((q, i) => `<li><b>Q${i + 1}.</b> ${escapeHTML(typeof q === 'string' ? q : (q.question || q.text || JSON.stringify(q)))}</li>`).join('');
     const score = data.assessment?.score ?? data.score;
@@ -240,7 +242,11 @@ async function homeChatSend() {
   } catch (err) {
     chat.messages = chat.messages.filter(m => m.role !== 'status');
     if (err.name !== 'AbortError') {
-      homeChatPush('assistant', '澄清失败：' + err.message, { html: escapeHTML('澄清失败：' + err.message) });
+      const credential = /401|API Key|网络环境|Unauthorized/i.test(err.message);
+      homeChatPush('assistant', '澄清失败：' + err.message, {
+        html: escapeHTML('澄清失败：' + err.message),
+        actions: credential ? '<div class="home-chat-cta"><button type="button" class="button primary small" data-goto-settings>去个人设置检查 Key</button></div>' : '',
+      });
     } else {
       homeChatPush('status', '已停止');
     }
@@ -274,7 +280,8 @@ async function homeChatReadSSE(resp) {
       if (!data) continue;
       try {
         const payload = JSON.parse(data);
-        if (event === 'result' || event === 'done' || payload.summary || payload.questions) last = { ...last, ...payload };
+        if (event === 'error') last.error = payload.error || payload.message || '澄清失败';
+        else if (event === 'result' || event === 'done' || payload.summary || payload.questions) last = { ...last, ...payload };
         if (payload.sessionId) last.sessionId = payload.sessionId;
         if (payload.message && event === 'status') {
           const chat = ensureHomeChatState();

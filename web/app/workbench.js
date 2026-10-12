@@ -140,7 +140,7 @@ async function renderPersonalSettings(){
   host.querySelector('#userCredentialForm').onsubmit=async e=>{
     e.preventDefault();const f=e.currentTarget,button=f.querySelector('button[type="submit"]');button.disabled=true;
     const payload={personalMcpToken:f.elements.personalMcpToken.value.trim(),personalMcpTokenClear:credentialClearPending(f,'personalMcpToken'),gitToken:f.elements.gitToken.value.trim(),gitTokenClear:credentialClearPending(f,'gitToken'),codeBuddyApiKey:f.elements.codeBuddyApiKey.value.trim(),codeBuddyApiKeyClear:credentialClearPending(f,'codeBuddyApiKey'),codeBuddyInternetEnvironment:f.elements.codeBuddyInternetEnvironment.value.trim(),codexApiKey:f.elements.codexApiKey.value.trim(),codexApiKeyClear:credentialClearPending(f,'codexApiKey'),codexBaseUrl:f.elements.codexBaseUrl.value.trim(),claudeCodeApiKey:f.elements.claudeCodeApiKey.value.trim(),claudeCodeApiKeyClear:credentialClearPending(f,'claudeCodeApiKey'),claudeCodeBaseUrl:f.elements.claudeCodeBaseUrl.value.trim()};
-    try{if(payload.gitToken||payload.gitTokenClear)state.gitTokenVerify=null;if(payload.gitToken)state.gitTokenAnnounceVerify=true;const saved=await api(`/api/users/${user.id}/credentials`,{method:'PUT',body:JSON.stringify(payload)}),index=state.data.users.findIndex(u=>Number(u.id)===Number(saved.id));if(index>=0)state.data.users[index]=saved;else state.data.users.push(saved);renderPersonalSettings();toast('个人凭据已保存')}
+    try{if(payload.gitToken||payload.gitTokenClear)state.gitTokenVerify=null;if(payload.gitToken)state.gitTokenAnnounceVerify=true;const saved=await api(`/api/users/${user.id}/credentials`,{method:'PUT',body:JSON.stringify(payload)}),index=state.data.users.findIndex(u=>Number(u.id)===Number(saved.id));if(index>=0)state.data.users[index]=saved;else state.data.users.push(saved);renderPersonalSettings();toast('个人凭据已保存');if(payload.codeBuddyApiKey)verifyCodeBuddyKey(user.id)}
     catch(err){toast(err.message);button.disabled=false}
   };
 }
@@ -663,3 +663,23 @@ function renderDashboard(){
   $('#dashFeed').innerHTML=feed||'<div class="tl-item"><div class="muted">尚未配置外部同步。可在「需求列表」里同步 GitHub Issues。</div></div>';
 }
 
+
+// Checks a saved CodeBuddy key against both network environments; the server
+// stores the one that works (China-site keys fail on the international default).
+async function verifyCodeBuddyKey(userId){
+  toast('正在验证 CodeBuddy Key（约 10 秒）…');
+  try{
+    const result=await api(`/api/users/${userId}/codebuddy/verify`,{method:'POST',silent:true});
+    if(result.ok){
+      if(result.switched){
+        const index=(state.data.users||[]).findIndex(u=>Number(u.id)===Number(userId));
+        if(index>=0)state.data.users[index]={...state.data.users[index],codeBuddyInternetEnvironment:result.environment};
+        if(typeof renderPersonalSettings==='function'&&activeViewName()==='settings')renderPersonalSettings();
+      }
+      toast(result.switched?`CodeBuddy Key 可用：这是${result.environment==='internal'?'中国站':'国际站'}的 Key，已自动切换网络环境`:'CodeBuddy Key 验证通过','ok');
+    }else if(!result.skipped){
+      toast(result.error||'CodeBuddy Key 验证失败','err');
+    }
+    return result;
+  }catch(err){toast(err.message||'CodeBuddy Key 验证失败','err');return null}
+}

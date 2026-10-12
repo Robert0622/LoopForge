@@ -578,6 +578,9 @@ func (h *streamHandlers) executeClarify(ctx context.Context, issue domain.Issue,
 		if parsed, raw, ok := takeNativeClarification(toolSession, turnRaw); ok {
 			return parsed, raw, repoInfo, nil
 		}
+		if modelAuthRejected(turnRaw, err) {
+			return nil, "", repoInfo, errModelAuthRejected
+		}
 		if cand, candRaw, ok := recoverNativeClarification(turnRaw); ok && recoveredParsed == nil {
 			recoveredParsed, recoveredRaw = cand, candRaw
 		}
@@ -1053,4 +1056,18 @@ func extractClarifyJSONFromEvent(event map[string]any, try func(string) (any, bo
 		}
 	}
 	return nil, "", false
+}
+
+var errModelAuthRejected = fmt.Errorf("模型服务拒绝了你的 API Key（401）：请到个人设置检查 Key 是否完整；CodeBuddy 中国站的 Key 需要把「CodeBuddy 网络环境」设为 internal（保存 Key 后会自动验证并切换）")
+
+// modelAuthRejected reports a CLI turn that failed because the provider
+// rejected the credential, which no retry can fix.
+func modelAuthRejected(raw string, err error) bool {
+	text := raw
+	if err != nil {
+		text += "\n" + err.Error()
+	}
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "401 unauthorized") || strings.Contains(lower, "401 authentication required") ||
+		(strings.Contains(lower, "401") && strings.Contains(lower, "invalid api key"))
 }

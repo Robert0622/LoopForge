@@ -549,7 +549,7 @@ function humanizeRunError(error){
   if(!text)return null;
   const lower=text.toLowerCase();
   if(/api[_ ]?key|unauthorized|401|authentication|anthropic|openai|codebuddy|凭据|个人设置/i.test(text)){
-    return {title:'模型凭据不可用',hint:'到个人设置粘贴 Claude / Codex / CodeBuddy 的 API Key，或用首次配置向导。',actions:`<button type="button" class="button primary small" data-goto-settings>去个人设置</button><button type="button" class="button ghost small" data-open-setup-wizard>打开配 Key 向导</button>`};
+    return {title:'模型凭据不可用',hint:'到个人设置粘贴 Claude / Codex / CodeBuddy 的 API Key，或用首次配置向导。CodeBuddy 中国站的 Key 需要把「CodeBuddy 网络环境」设为 internal（保存 Key 时会自动验证）。',actions:`<button type="button" class="button primary small" data-goto-settings>去个人设置</button><button type="button" class="button ghost small" data-open-setup-wizard>打开配 Key 向导</button>`};
   }
   if(/git.*(auth|credential|permission|403|401)|github.*token|仓库.*(鉴权|权限)|authentication failed/i.test(text)||/could not read Username/i.test(text)){
     return {title:'代码仓库鉴权失败',hint:'在个人设置填写可读写目标仓库的 GitHub Token（classic 勾选 repo）。',actions:`<button type="button" class="button primary small" data-goto-settings>去个人设置</button>`};

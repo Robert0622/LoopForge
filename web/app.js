@@ -776,7 +776,7 @@ function openLoginModal({forced=false}={}){
   if(!modal){
     modal=document.createElement('div');
     modal.id='loginModal';modal.className='modal';
-    modal.innerHTML=`<form id="loginForm" class="modal-card login-modal-card"><button type="button" class="modal-close login-close">×</button><p class="eyebrow">SIGN IN</p><h2>登录 LoopForge</h2><p class="modal-hint">使用平台管理员为你创建的账号登录。首次启动时会创建 <code>admin</code> 账号，初始密码只在服务日志里打印一次（也可用 <code>LOOPFORGE_ADMIN_PASSWORD</code> 指定）。</p><label>登录名</label><input name="loginName" class="input" autocomplete="username" required><label>密码</label><input name="password" class="input" type="password" autocomplete="current-password" required><p class="login-error" hidden></p><div class="modal-actions"><button type="button" class="button ghost login-close">取消</button><button type="submit" class="button primary">登录</button></div></form>`;
+    modal.innerHTML=`<form id="loginForm" class="modal-card login-modal-card"><button type="button" class="modal-close login-close">×</button><p class="eyebrow">SIGN IN</p><h2>登录 LoopForge</h2><p class="modal-hint">${state.demoLogin?'演示模式默认账号：<code>admin</code> / <code>demo1234</code>（改过密码后以新密码为准；共享部署前请修改）。':'使用平台管理员为你创建的账号登录。首次启动时会创建 <code>admin</code> 账号，初始密码只在服务日志里打印一次（也可用 <code>LOOPFORGE_ADMIN_PASSWORD</code> 指定）。'}</p><label>登录名</label><input name="loginName" class="input" autocomplete="username" required><label>密码</label><input name="password" class="input" type="password" autocomplete="current-password" required><p class="login-error" hidden></p><div class="modal-actions"><button type="button" class="button ghost login-close">取消</button><button type="submit" class="button primary">登录</button></div></form>`;
     document.body.appendChild(modal);
     modal.querySelectorAll('.login-close').forEach(b=>b.onclick=()=>modal.classList.remove('open'));
     modal.querySelector('#loginForm').onsubmit=async e=>{
@@ -811,6 +811,7 @@ async function boot(){
       state.currentUser = curRes.user || null;
       state.authRequired = !!curRes.authRequired;
       state.proxyAuth = !!curRes.proxyAuth;
+      state.demoLogin = !!curRes.demoLogin;
     } catch (err) {
       console.warn('[auth] get current user failed:', err);
     }
