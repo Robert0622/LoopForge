@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tencent/LoopForge/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Tencent/LoopForge?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
+  <a href="https://github.com/Tencent/LoopForge/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Tencent/LoopForge?filter=v*&sort=semver&label=release&labelColor=16161A&color=FF5A1F&style=flat-square"></a>
   <a href="https://www.npmjs.com/package/loopforge-cli"><img alt="npm loopforge-cli" src="https://img.shields.io/npm/v/loopforge-cli?label=npm&labelColor=16161A&color=FF5A1F&style=flat-square"></a>
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-FF5A1F?labelColor=16161A&color=FF5A1F&style=flat-square"></a>
   <a href="https://github.com/Tencent/LoopForge/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/Tencent/LoopForge?labelColor=16161A&color=FF5A1F&style=flat-square"></a>

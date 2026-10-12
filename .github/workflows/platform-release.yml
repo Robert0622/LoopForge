@@ -7,7 +7,7 @@ on:
     tags: ["platform-v*"]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Resolve image tags
         id: meta
@@ -37,6 +39,7 @@ jobs:
             tags+=$'\n'"${image}:latest"
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
           {
             echo "tags<<EOF"
             printf '%s\n' "$tags"
@@ -76,3 +79,27 @@ jobs:
             org.opencontainers.image.licenses=Apache-2.0
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            exit 0
+          fi
+          args=(--title "LoopForge Platform v${VERSION}" --generate-notes)
+          previous="$(git tag --list 'platform-v*' --sort=-v:refname | grep -vx "${GITHUB_REF_NAME}" | head -n1 || true)"
+          if [[ -n "${previous}" ]]; then
+            args+=(--notes-start-tag "${previous}")
+          fi
+          if [[ "${VERSION}" == *-* ]]; then
+            args+=(--prerelease --latest=false)
+          else
+            args+=(--latest)
+          fi
+          printf 'Container image: `%s:%s` (linux/amd64, linux/arm64)\n\n```bash\nLOOPFORGE_VERSION=%s docker compose up -d\n```\n' \
+            "${IMAGE}" "${VERSION}" "${VERSION}" > notes.md
+          gh release create "${GITHUB_REF_NAME}" "${args[@]}" --notes-file notes.md

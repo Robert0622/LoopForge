@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   hygiene:
+    name: platform hygiene
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +22,7 @@ jobs:
         run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" zricethezav/gitleaks:v8.24.3 detect --source /repo --config /repo/.gitleaks.toml --no-banner --redact
 
   test:
+    name: platform test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +42,7 @@ jobs:
         run: go test -p=1 ./... -count=1 -timeout=600s
 
   e2e:
+    name: platform e2e
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -137,7 +137,11 @@ jobs:
           VERSION: ${{ steps.package.outputs.version }}
           TAG: ${{ steps.package.outputs.tag }}
         run: |
-          release_args=(--title "LoopForge v${VERSION}" --generate-notes)
+          release_args=(--title "LoopForge CLI v${VERSION}" --generate-notes --latest=false)
+          previous="$(git tag --list 'v*.*.*' --sort=-v:refname | grep -vx "${TAG}" | head -n1 || true)"
+          if [[ -n "$previous" ]]; then
+            release_args+=(--notes-start-tag "$previous")
+          fi
           if [[ "$VERSION" == *-* ]]; then
             release_args+=(--prerelease)
           fi
