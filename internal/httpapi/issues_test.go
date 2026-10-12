@@ -78,6 +78,41 @@ func TestIssueDispatchCreatesTaskAndRun(t *testing.T) {
 	t.Fatal("workflow did not reach its approval gate")
 }
 
+func TestDemoDispatchIgnoresBoundRepositories(t *testing.T) {
+	root := t.TempDir()
+	s, err := repo.OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.PutWorkflow(domain.WorkflowDefinition{ID: repo.DemoWorkflowID, Name: "Demo", Version: 1, SandboxProfileID: "local", Nodes: []domain.WorkflowNode{{ID: "approval", Name: "Approval", Type: "approval", MaxAttempts: 1}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutRepository(domain.Repository{ID: "bound-repo", ProjectID: "platform", Name: "hello-world", Provider: "github", RepoPath: "octo/hello-world", CloneURL: "https://github.com/octo/hello-world.git"}); err != nil {
+		t.Fatal(err)
+	}
+	project, _ := s.Project("platform")
+	project.DefaultRepositoryID = "bound-repo"
+	if err := s.PutProject(project); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutIssue(domain.Issue{ID: "iss-demo", ProjectID: "platform", Title: "Demo", Status: "todo", WorkflowID: repo.DemoWorkflowID, RepositoryID: "bound-repo"}); err != nil {
+		t.Fatal(err)
+	}
+	e := engine.New(s, runtime.NewManager(filepath.Join(root, "workspaces")))
+	h := New(s, e, tracker.NewService(), "", "")
+
+	task := requestEmptyJSON[domain.Task](t, h, http.MethodPost, "/api/issues/iss-demo/dispatch", http.StatusCreated)
+	t.Cleanup(func() { _ = e.Cancel(task.RunID) })
+	run, ok := s.Run(task.RunID)
+	if !ok {
+		t.Fatal("dispatch did not create a run")
+	}
+	if len(run.Repositories) != 0 || task.Repository.RepositoryID != "" {
+		t.Fatalf("demo run should not check out repositories: run=%+v task=%+v", run.Repositories, task.Repository)
+	}
+}
+
 func TestFailedDispatchStartCanBeRetried(t *testing.T) {
 	root := t.TempDir()
 	s, err := repo.OpenTest()

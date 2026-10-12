@@ -89,7 +89,11 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 		return domain.Task{}, HTTPError{http.StatusBadRequest, "该需求尚未运行这条 SOP，不能使用重新运行"}
 	}
 	repositoryIDs := issue.EffectiveRepositoryIDs()
-	if len(repositoryIDs) == 0 {
+	if workflowID == repo.DemoWorkflowID {
+		// The demo SOP simulates every step; cloning a bound repository would
+		// only make it fail on credentials it never uses.
+		repositoryIDs = nil
+	} else if len(repositoryIDs) == 0 {
 		if p, ok := d.repo.Project(issue.ProjectID); ok && strings.TrimSpace(p.DefaultRepositoryID) != "" {
 			repositoryIDs = []string{p.DefaultRepositoryID}
 		}
