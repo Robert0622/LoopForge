@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "team-knowledge",
+      "name": "Team knowledge base (example)",
+      "description": "Example of a private MCP server added to the market. Replace the URL with your own HTTP MCP endpoint.",
+      "category": "knowledge",
+      "tags": ["docs", "internal"],
+      "url": "https://mcp.example.com/knowledge",
+      "transport": "http",
+      "authType": "personal-token",
+      "aliases": ["kb"]
+    }
+  ]
+}

@@ -12,6 +12,7 @@ body:
     attributes:
       label: Host
       options:
+        - LoopForge Platform (server, web studio, runner)
         - CodeBuddy
         - Codex
         - Cursor
@@ -26,6 +27,7 @@ body:
       options:
         - Classic
         - Portable
+        - Not applicable (Platform)
         - Not sure
     validations:
       required: true

@@ -1,0 +1,55 @@
+{
+  "Workflow": {
+    "id": "docs-update",
+    "name": "文档更新 SOP",
+    "version": 1,
+    "status": "published",
+    "tags": ["docs"],
+    "description": "Example of an operator-supplied SOP template: a writer updates the docs and a reviewer checks them.",
+    "nodes": [
+      {
+        "id": "write",
+        "name": "撰写文档",
+        "type": "agent",
+        "agentId": "docs-writer",
+        "prompt": "Update the documentation for the following request. Keep the existing style and only change what the request needs.\n\n{{input}}",
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {"x": 80, "y": 200}
+      },
+      {
+        "id": "review",
+        "name": "文档审查",
+        "type": "agent",
+        "agentId": "docs-reviewer",
+        "prompt": "Review the documentation change for accuracy, broken links and missing steps. Reject with concrete fixes if anything is wrong.\n\n{{input}}",
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {"x": 360, "y": 200}
+      }
+    ],
+    "edges": [
+      {"id": "e-write-review", "source": "write", "target": "review", "when": "success"}
+    ]
+  },
+  "Agents": [
+    {
+      "id": "docs-writer",
+      "name": "文档工程师",
+      "version": 1,
+      "description": "Writes and updates user-facing documentation.",
+      "instructions": "Read the existing docs and code first. Write concise, accurate steps a new user can follow.",
+      "rules": ["engineering"],
+      "skills": ["repository-navigation"]
+    },
+    {
+      "id": "docs-reviewer",
+      "name": "文档审查员",
+      "version": 1,
+      "description": "Checks documentation changes before they ship.",
+      "instructions": "Verify every command and link against the repository. Report only actionable problems.",
+      "rules": ["review"],
+      "skills": ["code-review"]
+    }
+  ]
+}

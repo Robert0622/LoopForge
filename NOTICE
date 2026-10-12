@@ -1,0 +1,6 @@
+LoopForge
+Copyright (C) 2026 Tencent. All rights reserved.
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE),
+except for the LoopForge CLI under cli/, which is licensed under the MIT License
+(see cli/LICENSE). Third-party components are listed in THIRD_PARTY_NOTICES.md.

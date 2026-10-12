@@ -1,0 +1,42 @@
+# Build output
+/bin/
+/dist/
+/loopforge
+/loopforge-*
+*.exe
+*.test
+*.out
+*.cover
+coverage.out
+coverage.html
+
+# Local state and secrets
+/data/
+.env
+.env.*
+!.env.example
+deploy/tls/*.pem
+deploy/tls/*.key
+deploy/tls/*.crt
+
+# Fetched on demand (make web-deps)
+web/vscode-web/*
+!web/vscode-web/README.md
+
+# Browser end-to-end tests
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+.playwright/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+*.log
+*.tmp

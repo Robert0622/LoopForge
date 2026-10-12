@@ -1,0 +1,41 @@
+# Quick start:   docker compose pull; docker compose up -d   (SQLite in the loopforge-data volume)
+# From source:   docker compose up -d --build
+# Pin a release: LOOPFORGE_VERSION=0.1.0 docker compose up -d
+# Other port:    LOOPFORGE_PORT=9090 docker compose up -d
+# With MySQL:    docker compose --profile mysql up -d
+#                and set LOOPFORGE_DATABASE_URL below.
+services:
+  loopforge:
+    # `up` builds from source when this image is not present locally; run
+    # `docker compose pull` first to use the published image instead.
+    image: ghcr.io/tencent/loopforge:${LOOPFORGE_VERSION:-latest}
+    build: .
+    ports:
+      - "${LOOPFORGE_PORT:-8080}:8080"
+    environment:
+      LOOPFORGE_ADMIN_USER: ${LOOPFORGE_ADMIN_USER:-admin}
+      # Leave empty to have a random password printed once in `docker compose logs`.
+      LOOPFORGE_ADMIN_PASSWORD: ${LOOPFORGE_ADMIN_PASSWORD:-}
+      LOOPFORGE_GITHUB_TOKEN: ${LOOPFORGE_GITHUB_TOKEN:-}
+      # true: seed a scripted executor and demo SOP that run without any API key.
+      LOOPFORGE_DEMO_MODE: ${LOOPFORGE_DEMO_MODE:-}
+      # LOOPFORGE_DATABASE_URL: mysql://loopforge:loopforge@tcp(mysql:3306)/loopforge?parseTime=true
+    volumes:
+      - loopforge-data:/data
+    restart: unless-stopped
+
+  mysql:
+    profiles: ["mysql"]
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me}
+      MYSQL_DATABASE: loopforge
+      MYSQL_USER: loopforge
+      MYSQL_PASSWORD: loopforge
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  loopforge-data:
+  mysql-data:

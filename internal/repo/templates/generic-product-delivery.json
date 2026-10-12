@@ -1,0 +1,429 @@
+{
+  "Workflow": {
+    "id": "generic-product-delivery",
+    "name": "通用产品交付 SOP",
+    "version": 3,
+    "revision": 1,
+    "status": "published",
+    "owner": "平台",
+    "tags": [
+      "通用",
+      "产品",
+      "harness"
+    ],
+    "description": "产品交付闭环：产品定义 → 交互 Demo → 研发交接 → 产品验收 → Issue 回写 → 交付汇总。需求澄清由平台在派发前完成，本模板消费澄清结论；与项目无关，所有项目都可在「通用模板」中直接运行或复制后修改。",
+    "sandboxProfileId": "generic-docker",
+    "metricCategory": "需求开发",
+    "generic": true,
+    "requirements": [
+      {
+        "key": "github-mcp",
+        "nodeId": "issue",
+        "label": "GitHub MCP",
+        "hint": "Issue 回写节点调用 GitHub MCP 把验收结论写回 Issue；未安装时只产出待人工粘贴的回写说明。",
+        "setup": "mcp"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "prd",
+        "name": "产品定义",
+        "type": "agent",
+        "agentId": "product-prd",
+        "prompt": "你是产品经理，只做产品定义，不写代码、不做技术方案。\n\n## 任务\n\n{{input}}\n\n## 平台澄清结论\n\n平台已在派发前完成需求澄清。把澄清摘要与逐项答案当作既成事实，不要重复提问。\n\n## 要求\n\n1. 先调研仓库、已有文档和历史需求，把「现状」与「诉求」分开记录。\n2. 用澄清结论 + 证据写清：目标用户、要解决的问题、范围、排除项、关键决策、可验证的验收标准。\n3. 澄清未覆盖的分支登记为显式假设（默认取值、影响面、触发重评条件）。\n4. 把结论写入 product-brief.md，作为后续 Demo、交接和验收的唯一事实来源。\n\n## 产物\n\nproduct-brief.md：产品定义。",
+        "artifactOutputs": [
+          {
+            "name": "product-brief",
+            "path": "product-brief.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 80,
+          "y": 200
+        }
+      },
+      {
+        "id": "demo",
+        "name": "交互 Demo",
+        "type": "agent",
+        "agentId": "product-demo",
+        "prompt": "你是交互设计师，只产出可评审的交互 Demo 说明，不实现业务代码。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 基于 product-brief.md 梳理关键用户路径、页面/状态和异常分支。\n2. 若仓库已有前端或设计稿，对齐现有信息架构与组件，不另起炉灶。\n3. 信息不足时给出可回退的默认交互，并在假设中标明。\n4. 把 Demo 规格写入 interaction-demo.md：路径、关键界面、状态、验收对照。\n\n## 产物\n\ninteraction-demo.md：交互 Demo 规格。",
+        "artifactOutputs": [
+          {
+            "name": "interaction-demo",
+            "path": "interaction-demo.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 320,
+          "y": 200
+        }
+      },
+      {
+        "id": "handoff",
+        "name": "研发交接",
+        "type": "agent",
+        "agentId": "product-handoff",
+        "prompt": "你是产品交接人，把已定型的产品和交互交给研发，不写实现代码。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 汇总产品定义与交互 Demo，整理研发必须知道的范围、非目标、依赖和风险。\n2. 把验收标准拆成研发可执行的检查项（功能 / 体验 / 数据 / 兼容）。\n3. 标明未决假设和对研发的默认处理方式，避免暗含需求。\n4. 写入 handoff-brief.md，作为研发实现与后续验收的交接包。\n\n## 产物\n\nhandoff-brief.md：研发交接说明。",
+        "artifactOutputs": [
+          {
+            "name": "handoff-brief",
+            "path": "handoff-brief.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 560,
+          "y": 200
+        }
+      },
+      {
+        "id": "acceptance",
+        "name": "产品验收",
+        "type": "agent",
+        "agentId": "product-acceptance",
+        "prompt": "你是产品验收人，只对照交接包验收，不改实现、不扩需求。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 逐条核对 handoff-brief.md 与 product-brief.md 中的验收标准。\n2. 能从仓库或产物中找到证据的标为通过；找不到证据或与定义冲突的标为不通过，并写明复现/缺口。\n3. 不通过时把原因写入 acceptance-report.md，流程会回到「{{rejectTo}}」补齐定义或交接。\n4. 结论必须明确写出「通过」或「不通过」。\n5. 报告中必须单独一行写「结论: 通过」或「结论: 不通过」（不要写成其他格式）。平台会检查这一行：只有「结论: 通过」才继续；写「不通过」或缺少该行会自动打回「{{rejectTo}}」。\n\n## 产物\n\nacceptance-report.md：验收结论与证据。",
+        "artifactOutputs": [
+          {
+            "name": "acceptance-report",
+            "path": "acceptance-report.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "rejectTo": "prd",
+        "onFailure": "reject",
+        "retryStrategy": "targeted_fix",
+        "maxAttempts": 2,
+        "maxReworks": 2,
+        "position": {
+          "x": 800,
+          "y": 200
+        }
+      },
+      {
+        "id": "issue",
+        "name": "Issue 回写",
+        "type": "agent",
+        "agentId": "product-issue",
+        "prompt": "你是交付协调人，只把验收结论回写到来源 Issue，不改产品定义或代码。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 从任务输入和产品定义中识别来源 Issue（如 GitHub Issue 链接或编号）；没有标识时在产物中写明无法回写的原因。\n2. 优先调用 GitHub MCP 的 add_issue_comment 把验收结论、关键范围和残余风险写回对应 Issue。\n3. MCP 不可用时不要伪造回写成功：整理可直接粘贴的评论正文，并写明未回写原因。\n4. 把结果写入 issue-update.md。\n\n## 产物\n\nissue-update.md：Issue 回写结果或待人工粘贴的内容。",
+        "artifactOutputs": [
+          {
+            "name": "issue-update",
+            "path": "issue-update.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 2,
+        "maxReworks": 1,
+        "position": {
+          "x": 1040,
+          "y": 200
+        }
+      },
+      {
+        "id": "summary",
+        "name": "交付汇总",
+        "type": "agent",
+        "agentId": "product-summary",
+        "prompt": "你是交付总结角色，只做汇总，不修改上游产物。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 核对产品定义、Demo、交接、验收和 Issue 回写状态。\n2. 写入 workflow-summary.md：结论、产物清单、验收证据、回写状态、剩余风险与后续建议。\n3. 未完成项必须显式标注。\n\n## 产物\n\nworkflow-summary.md：产品交付汇总。",
+        "artifactOutputs": [
+          {
+            "name": "workflow-summary",
+            "path": "workflow-summary.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 1280,
+          "y": 200
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-prd-demo",
+        "source": "prd",
+        "target": "demo",
+        "when": "success"
+      },
+      {
+        "id": "e-demo-handoff",
+        "source": "demo",
+        "target": "handoff",
+        "when": "success"
+      },
+      {
+        "id": "e-handoff-acceptance",
+        "source": "handoff",
+        "target": "acceptance",
+        "when": "success"
+      },
+      {
+        "id": "e-acceptance-issue",
+        "source": "acceptance",
+        "target": "issue",
+        "when": "success"
+      },
+      {
+        "id": "e-issue-summary",
+        "source": "issue",
+        "target": "summary",
+        "when": "success"
+      }
+    ],
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "Agents": [
+    {
+      "id": "product-prd",
+      "name": "产品经理",
+      "version": 1,
+      "description": "只做产品定义：吸收澄清结论，写清目标、范围、排除项与可验证验收标准。",
+      "instructions": "不写代码、不做技术方案；缺口登记为显式假设；验收标准必须可执行、可验证。",
+      "rules": [
+        "engineering",
+        "product-core"
+      ],
+      "skills": [
+        "repository-navigation",
+        "product-write-prd"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "product-brief",
+          "path": "product-brief.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-demo",
+      "name": "交互设计师",
+      "version": 1,
+      "description": "只产出交互 Demo 规格：关键路径、状态和异常分支。",
+      "instructions": "对齐仓库已有前端与设计约定；不实现业务代码。",
+      "rules": [
+        "product-core"
+      ],
+      "skills": [
+        "product-demo-spec"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "interaction-demo",
+          "path": "interaction-demo.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-handoff",
+      "name": "产品交接人",
+      "version": 1,
+      "description": "把产品定义与交互整理成研发可执行的交接包。",
+      "instructions": "范围、非目标、依赖、风险和验收检查项必须写全；不写实现。",
+      "rules": [
+        "product-core"
+      ],
+      "skills": [
+        "product-write-prd",
+        "product-acceptance"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "handoff-brief",
+          "path": "handoff-brief.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-acceptance",
+      "name": "产品验收人",
+      "version": 1,
+      "description": "对照交接包逐条验收，给出通过/不通过与证据。",
+      "instructions": "不扩需求、不改实现；缺证据或不符定义必须打回。",
+      "rules": [
+        "review",
+        "product-core"
+      ],
+      "skills": [
+        "product-acceptance"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": true,
+        "maxIterations": 2,
+        "exitCondition": "all_gates_pass",
+        "onExhausted": "human",
+        "feedbackPrompt": "你已提交「通过」，但报告未通过结论门禁：报告里必须有单独一行、格式为「结论：通过」或「结论：不通过」的结论行，冒号后紧跟判定词，不能写成总结句。\n请只修正本节点的报告，不要重做已完成的验证；如果复核后结论其实是不通过，请调用 submit_gate_result 提交 reject。\n门禁反馈：\n{{feedback}}"
+      },
+      "artifactOutputs": [
+        {
+          "name": "acceptance-report",
+          "path": "acceptance-report.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": [
+        {
+          "id": "product-acceptance-verdict",
+          "name": "产品验收结论",
+          "mode": "command",
+          "stage": "after_execution",
+          "commands": [
+            "test -f acceptance-report.md && ! grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(不通过|FAILED|FAIL|REJECTED|REJECT)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' acceptance-report.md && grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(通过|PASSED|PASS|APPROVED)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' acceptance-report.md"
+          ],
+          "required": true,
+          "onFailure": "loop",
+          "executionScope": "run"
+        }
+      ],
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-issue",
+      "name": "交付协调人",
+      "version": 1,
+      "description": "把验收结论回写来源 Issue；MCP 不可用时产出待粘贴内容。",
+      "instructions": "不伪造回写成功；没有需求标识时写明原因。",
+      "rules": [
+        "product-core"
+      ],
+      "skills": [
+        "product-acceptance"
+      ],
+      "mcpServers": [
+        "github"
+      ],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "issue-update",
+          "path": "issue-update.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-summary",
+      "name": "产品交付总结",
+      "version": 1,
+      "description": "汇总产品交付结论、产物与残余风险。",
+      "instructions": "不修改上游产物；未完成项必须显式标注。",
+      "rules": [
+        "product-core"
+      ],
+      "skills": [
+        "product-write-prd"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "workflow-summary",
+          "path": "workflow-summary.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "Rules": [
+    {
+      "id": "product-core",
+      "name": "产品交付纪律",
+      "description": "产品 harness 的核心约束",
+      "content": "证据优先：结论必须能追溯到澄清答案、仓库或文档。范围最小：不扩需求、不顺手改实现。结果真实：不得把未验证项写成已完成。未决项一律登记为显式假设。",
+      "priority": 100,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "Skills": [
+    {
+      "id": "product-write-prd",
+      "name": "撰写产品定义",
+      "description": "把诉求整理成可验收的产品定义",
+      "content": "# 撰写产品定义\n\n先读澄清结论和仓库现状，再写目标、范围、排除项、决策与可验证验收标准。信息不足登记为显式假设。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-demo-spec",
+      "name": "交互 Demo 规格",
+      "description": "把产品定义落成可评审的交互路径",
+      "content": "# 交互 Demo\n\n覆盖主路径、关键状态和异常分支；对齐已有信息架构。用文字规格描述界面与流转，不要求可运行原型。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "product-acceptance",
+      "name": "产品验收",
+      "description": "对照验收标准收集证据",
+      "content": "# 产品验收\n\n逐条核对验收标准。有证据才标通过；冲突或缺失标不通过并写复现步骤。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "VerdictGateSeedVersion": 1
+}

@@ -4,8 +4,9 @@ Describe the user problem and the resulting behavior.
 
 ## Scope
 
-- [ ] Classic
-- [ ] Portable
+- [ ] Platform (repository root)
+- [ ] CLI: Classic
+- [ ] CLI: Portable
 - [ ] Shared behavior contract
 - [ ] Installer / CLI
 - [ ] Documentation only
@@ -19,6 +20,11 @@ List affected hosts and any migration or backward-compatibility impact.
 List commands that were actually run and mark anything blocked or not run.
 
 ```text
+# Platform (repository root)
+make test
+make e2e
+
+# CLI (cli/)
 bash scripts/validate.sh
 bash scripts/smoke-install.sh
 bash scripts/e2e.sh

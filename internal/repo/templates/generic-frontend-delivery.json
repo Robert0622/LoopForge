@@ -1,0 +1,544 @@
+{
+  "Workflow": {
+    "id": "generic-frontend-delivery",
+    "name": "通用前端交付 SOP",
+    "version": 3,
+    "revision": 1,
+    "status": "published",
+    "owner": "平台",
+    "tags": [
+      "通用",
+      "前端",
+      "harness"
+    ],
+    "description": "前端研发闭环：需求定型 → 方案设计 → 实现 → 独立评审 → 验证 → 发起 PR → 归档汇总。需求澄清由平台在派发前完成；与项目无关，所有项目都可直接运行或复制后修改。",
+    "sandboxProfileId": "generic-docker",
+    "metricCategory": "需求开发",
+    "generic": true,
+    "requirements": [
+      {
+        "key": "git-token",
+        "nodeId": "mr",
+        "label": "Git Token",
+        "hint": "发起 PR 节点需要把工作分支推送到远端仓库（GitHub 上使用 Personal Access Token）；未配置时 push 会失败。",
+        "setup": "settings"
+      },
+      {
+        "key": "github-mcp",
+        "nodeId": "mr",
+        "label": "GitHub MCP",
+        "hint": "发起 PR 节点调用 GitHub MCP 的 create_pull_request；未安装时只能产出待人工创建的 PR 说明，安装后需为交付角色绑定该 MCP（或重新复制模板）。",
+        "setup": "mcp"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "shape",
+        "name": "需求定型",
+        "type": "agent",
+        "agentId": "frontend-shape",
+        "prompt": "你是前端需求负责人，只做需求定型，不写业务代码、不做视觉稿。\n\n## 任务\n\n{{input}}\n\n## 平台澄清结论\n\n平台已在派发前完成需求澄清。直接使用澄清结论，不要重复提问。\n\n## 要求\n\n1. 调研现有页面、路由、组件和设计约定，把「现状」与「诉求」分开。\n2. 定型目标、影响页面、交互变化、排除项和可验证的前端验收标准（视觉 / 交互 / 兼容）。\n3. 未覆盖分支登记为显式假设。\n4. 写入 requirement-report.md。\n\n## 产物\n\nrequirement-report.md：前端需求报告。",
+        "artifactOutputs": [
+          {
+            "name": "requirement-report",
+            "path": "requirement-report.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 80,
+          "y": 200
+        }
+      },
+      {
+        "id": "design",
+        "name": "方案设计",
+        "type": "agent",
+        "agentId": "frontend-design",
+        "prompt": "你是前端架构师，只做方案与实施计划，不实现页面。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 基于需求报告调研受影响的路由、组件、状态和接口契约。\n2. 复用仓库已有组件与样式体系，说明取舍。\n3. 盘点已有单测 / 组件测 / E2E；落入已有覆盖时把补测写进计划。\n4. 写入 tech-design.md 与 execution-plan.md（按文件列出改动点与验证命令）。\n\n## 产物\n\ntech-design.md：前端方案。\nexecution-plan.md：实施计划。",
+        "artifactOutputs": [
+          {
+            "name": "tech-design",
+            "path": "tech-design.md",
+            "mediaType": "text/markdown",
+            "required": true
+          },
+          {
+            "name": "execution-plan",
+            "path": "execution-plan.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 320,
+          "y": 200
+        }
+      },
+      {
+        "id": "build",
+        "name": "实现",
+        "type": "agent",
+        "agentId": "frontend-build",
+        "prompt": "你是前端工程师，只按计划实现，不批准自己的工作。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 只修改 execution-plan.md 内的文件；超出计划时先说明并更新依据。\n2. 沿用项目组件、样式、状态管理和错误处理约定。\n3. 完成计划要求的测试与针对性验证，记录真实命令与结果。\n4. 写入 change-report.md。\n\n## 产物\n\nchange-report.md：变更报告与验证证据。",
+        "artifactOutputs": [
+          {
+            "name": "change-report",
+            "path": "change-report.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 2,
+        "maxReworks": 2,
+        "position": {
+          "x": 560,
+          "y": 200
+        }
+      },
+      {
+        "id": "review",
+        "name": "独立评审",
+        "type": "agent",
+        "agentId": "frontend-review",
+        "prompt": "你是独立前端审查员，只做评审，不改代码。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 对照计划、变更报告和 diff 检查正确性、回归、无障碍与安全（XSS、敏感信息）。\n2. 逐条核对验收标准是否有对应验证。\n3. 问题必须给出文件、位置、影响和建议；结论写明「通过」或「不通过」。\n4. 不通过时打回「{{rejectTo}}」。\n5. 报告中必须单独一行写「结论: 通过」或「结论: 不通过」（不要写成其他格式）。平台会检查这一行：只有「结论: 通过」才继续；写「不通过」或缺少该行会自动打回「{{rejectTo}}」。\n\n## 产物\n\nreview-report.md：评审结论。",
+        "artifactOutputs": [
+          {
+            "name": "review-report",
+            "path": "review-report.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "rejectTo": "build",
+        "onFailure": "reject",
+        "retryStrategy": "targeted_fix",
+        "maxAttempts": 2,
+        "maxReworks": 2,
+        "position": {
+          "x": 800,
+          "y": 200
+        }
+      },
+      {
+        "id": "verify",
+        "name": "验证",
+        "type": "agent",
+        "agentId": "frontend-verify",
+        "prompt": "你是前端测试工程师，只做验证，只能改测试文件和 test-report.md。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 复用仓库已有测试能力，按验收标准选择层级，不引入新框架。\n2. 记录真实命令与 passed / failed / blocked / not-run。\n3. 发现生产缺陷时写最小复现并打回「{{rejectTo}}」，不要自己改业务代码。\n4. 写入 test-report.md。\n5. 报告中必须单独一行写「结论: 通过」或「结论: 不通过」（不要写成其他格式）。平台会检查这一行：只有「结论: 通过」才继续；写「不通过」或缺少该行会自动打回「{{rejectTo}}」。\n\n## 产物\n\ntest-report.md：验证报告。",
+        "artifactOutputs": [
+          {
+            "name": "test-report",
+            "path": "test-report.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "rejectTo": "build",
+        "onFailure": "reject",
+        "retryStrategy": "targeted_fix",
+        "maxAttempts": 2,
+        "maxReworks": 2,
+        "position": {
+          "x": 1040,
+          "y": 200
+        }
+      },
+      {
+        "id": "mr",
+        "name": "发起 PR",
+        "type": "agent",
+        "agentId": "frontend-mr",
+        "prompt": "你是交付工程师，只负责推送并创建 Pull Request，不改业务代码。\n\n## 环境\n\n{{repository}}\n\n{{existingMR}}\n\n## 要求\n\n1. 确认工作分支已提交，并用当前工作分支 git push。\n2. 推送成功后优先调用 GitHub MCP 的 create_pull_request（或在 GH_TOKEN 可用时使用 `gh pr create`）：源分支为本次工作分支，目标为仓库基线。\n3. 都不可用时不要伪造链接：整理可粘贴的 PR 标题与描述，并写明未创建原因。\n4. 写入 mr-body.md。\n\n## 产物\n\nmr-body.md：PR 链接或待创建内容。",
+        "artifactOutputs": [
+          {
+            "name": "mr-body",
+            "path": "mr-body.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 2,
+        "maxReworks": 1,
+        "position": {
+          "x": 1280,
+          "y": 200
+        }
+      },
+      {
+        "id": "archive",
+        "name": "归档汇总",
+        "type": "agent",
+        "agentId": "frontend-archive",
+        "prompt": "你是交付总结角色，只做汇总，不修改代码或上游报告。\n\n## 上游输入\n\n{{upstream}}\n\n## 要求\n\n1. 核对实现、评审、验证和 PR 状态。\n2. 写入 workflow-summary.md：结论、产物清单、验证证据、PR 状态、剩余风险。\n3. 未完成项必须显式标注。\n\n## 产物\n\nworkflow-summary.md：前端交付汇总。",
+        "artifactOutputs": [
+          {
+            "name": "workflow-summary",
+            "path": "workflow-summary.md",
+            "mediaType": "text/markdown",
+            "required": true
+          }
+        ],
+        "maxAttempts": 1,
+        "maxReworks": 1,
+        "position": {
+          "x": 1520,
+          "y": 200
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-shape-design",
+        "source": "shape",
+        "target": "design",
+        "when": "success"
+      },
+      {
+        "id": "e-design-build",
+        "source": "design",
+        "target": "build",
+        "when": "success"
+      },
+      {
+        "id": "e-build-review",
+        "source": "build",
+        "target": "review",
+        "when": "success"
+      },
+      {
+        "id": "e-review-verify",
+        "source": "review",
+        "target": "verify",
+        "when": "success"
+      },
+      {
+        "id": "e-verify-mr",
+        "source": "verify",
+        "target": "mr",
+        "when": "success"
+      },
+      {
+        "id": "e-mr-archive",
+        "source": "mr",
+        "target": "archive",
+        "when": "success"
+      }
+    ],
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "Agents": [
+    {
+      "id": "frontend-shape",
+      "name": "前端需求负责人",
+      "version": 1,
+      "description": "只做前端需求定型：页面范围、交互变化与可验证验收标准。",
+      "instructions": "不写业务代码；缺口登记为显式假设。",
+      "rules": [
+        "engineering",
+        "frontend-core"
+      ],
+      "skills": [
+        "repository-navigation",
+        "frontend-shape"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "requirement-report",
+          "path": "requirement-report.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-design",
+      "name": "前端架构师",
+      "version": 1,
+      "description": "只做前端方案与实施计划。",
+      "instructions": "复用现有组件与样式；不实现页面。",
+      "rules": [
+        "engineering",
+        "frontend-core",
+        "frontend-profile"
+      ],
+      "skills": [
+        "repository-navigation",
+        "frontend-design"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "tech-design",
+          "path": "tech-design.md",
+          "mediaType": "text/markdown",
+          "required": true
+        },
+        {
+          "name": "execution-plan",
+          "path": "execution-plan.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-build",
+      "name": "前端工程师",
+      "version": 1,
+      "description": "按计划做最小可验证的前端改动。",
+      "instructions": "只改计划内文件；完成计划要求的验证。",
+      "rules": [
+        "engineering",
+        "security",
+        "frontend-core",
+        "frontend-profile"
+      ],
+      "skills": [
+        "test-driven-change",
+        "frontend-build"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "change-report",
+          "path": "change-report.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-review",
+      "name": "前端审查员",
+      "version": 1,
+      "description": "独立审查前端实现与验证证据。",
+      "instructions": "不改代码；阻断问题必须可复现。",
+      "rules": [
+        "review",
+        "frontend-core",
+        "frontend-profile"
+      ],
+      "skills": [
+        "code-review",
+        "frontend-review"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": true,
+        "maxIterations": 2,
+        "exitCondition": "all_gates_pass",
+        "onExhausted": "human",
+        "feedbackPrompt": "你已提交「通过」，但报告未通过结论门禁：报告里必须有单独一行、格式为「结论：通过」或「结论：不通过」的结论行，冒号后紧跟判定词，不能写成总结句。\n请只修正本节点的报告，不要重做已完成的验证；如果复核后结论其实是不通过，请调用 submit_gate_result 提交 reject。\n门禁反馈：\n{{feedback}}"
+      },
+      "artifactOutputs": [
+        {
+          "name": "review-report",
+          "path": "review-report.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": [
+        {
+          "id": "frontend-review-verdict",
+          "name": "前端评审结论",
+          "mode": "command",
+          "stage": "after_execution",
+          "commands": [
+            "test -f review-report.md && ! grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(不通过|FAILED|FAIL|REJECTED|REJECT)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' review-report.md && grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(通过|PASSED|PASS|APPROVED)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' review-report.md"
+          ],
+          "required": true,
+          "onFailure": "loop",
+          "executionScope": "run"
+        }
+      ],
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-verify",
+      "name": "前端测试工程师",
+      "version": 1,
+      "description": "按验收标准执行前端验证。",
+      "instructions": "只改测试文件；发现缺陷打回实现，不改业务代码。",
+      "rules": [
+        "frontend-core",
+        "frontend-profile"
+      ],
+      "skills": [
+        "test-driven-change"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": true,
+        "maxIterations": 2,
+        "exitCondition": "all_gates_pass",
+        "onExhausted": "human",
+        "feedbackPrompt": "你已提交「通过」，但报告未通过结论门禁：报告里必须有单独一行、格式为「结论：通过」或「结论：不通过」的结论行，冒号后紧跟判定词，不能写成总结句。\n请只修正本节点的报告，不要重做已完成的验证；如果复核后结论其实是不通过，请调用 submit_gate_result 提交 reject。\n门禁反馈：\n{{feedback}}"
+      },
+      "artifactOutputs": [
+        {
+          "name": "test-report",
+          "path": "test-report.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": [
+        {
+          "id": "frontend-verify-verdict",
+          "name": "前端验证结论",
+          "mode": "command",
+          "stage": "after_execution",
+          "commands": [
+            "test -f test-report.md && ! grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(不通过|FAILED|FAIL|REJECTED|REJECT)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' test-report.md && grep -Eqi '^[[:space:]>*#-]*(结论|VERDICT)[*_[:space:]]*(：|:|=)[*_`[:space:]]*(通过|PASSED|PASS|APPROVED)([[:space:]，,。.；;：:！!、（(）)*_`]|$)' test-report.md"
+          ],
+          "required": true,
+          "onFailure": "loop",
+          "executionScope": "run"
+        }
+      ],
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-mr",
+      "name": "前端交付工程师",
+      "version": 1,
+      "description": "推送工作分支并创建 GitHub PR。",
+      "instructions": "不改业务代码；MCP 不可用时产出待创建说明。",
+      "rules": [
+        "frontend-core"
+      ],
+      "skills": [],
+      "mcpServers": [
+        "github"
+      ],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "mr-body",
+          "path": "mr-body.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-archive",
+      "name": "前端交付总结",
+      "version": 1,
+      "description": "汇总前端交付结论与残余风险。",
+      "instructions": "不修改上游产物；未完成项必须显式标注。",
+      "rules": [
+        "frontend-core"
+      ],
+      "skills": [
+        "frontend-shape"
+      ],
+      "mcpServers": [],
+      "loop": {
+        "enabled": false,
+        "maxIterations": 0,
+        "exitCondition": "",
+        "onExhausted": ""
+      },
+      "artifactOutputs": [
+        {
+          "name": "workflow-summary",
+          "path": "workflow-summary.md",
+          "mediaType": "text/markdown",
+          "required": true
+        }
+      ],
+      "verification": null,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "Rules": [
+    {
+      "id": "frontend-core",
+      "name": "前端交付纪律",
+      "description": "前端 harness 的核心约束",
+      "content": "证据优先、最小必要范围、结果真实。不引入仓库没有的框架或组件库。不把未运行的验证写成已通过。安全：不输出凭据，不引入 XSS 或危险 HTML。",
+      "priority": 100,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-profile",
+      "name": "前端工程约定",
+      "description": "前端实现与评审时遵守的工程画像",
+      "content": "复用现有路由、组件、样式变量和状态管理。保持可访问性与响应式已有约定。改动视觉时说明对照的设计/现状。接口契约变化必须同步调用方与错误处理。",
+      "priority": 90,
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "Skills": [
+    {
+      "id": "frontend-shape",
+      "name": "前端需求定型",
+      "description": "把前端诉求整理成可验收范围",
+      "content": "# 前端需求定型\n\n先摸清现有页面与组件，再写影响面、交互变化和可验证验收标准。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-design",
+      "name": "前端方案设计",
+      "description": "产出可执行的前端实施计划",
+      "content": "# 前端方案设计\n\n按路由/组件/状态/接口拆任务，每条写目标文件与验证命令。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-build",
+      "name": "前端实现",
+      "description": "按计划做最小可验证改动",
+      "content": "# 前端实现\n\n只改计划内文件，沿用项目约定，保留真实验证证据。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "frontend-review",
+      "name": "前端评审",
+      "description": "独立审查前端变更",
+      "content": "# 前端评审\n\n核对验收标准、回归风险、无障碍与安全，只报可复现问题。",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "VerdictGateSeedVersion": 1
+}

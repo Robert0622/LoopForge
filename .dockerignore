@@ -1,0 +1,8 @@
+# The platform image is built from the repository root; the CLI is not part of it.
+.git
+cli
+bin
+loopforge
+e2e/node_modules
+e2e/test-results
+e2e/playwright-report

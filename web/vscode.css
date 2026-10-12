@@ -1,0 +1,8 @@
+html,body,#workbench{height:100%;margin:0;overflow:hidden;background:#1e1e1e}
+.monaco-workbench .scm-view svg.graph{display:none!important}
+body.embed{background:#1e1e1e}
+.vscode-boot,.vscode-error{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px;text-align:center;color:#9d9d9d;background:#1e1e1e;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.vscode-boot b,.vscode-error b{color:#fff;font-size:13px}
+.vscode-error a{color:#75beff}
+.vscode-spinner{width:16px;height:16px;border:2px solid #3c3c3c;border-top-color:#007acc;border-radius:50%;animation:vscodeSpin .8s linear infinite}
+@keyframes vscodeSpin{to{transform:rotate(360deg)}}

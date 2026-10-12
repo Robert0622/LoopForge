@@ -1,0 +1,7 @@
+.delivery-board { padding: 24px; }
+.delivery-board h2 { margin: 0 0 16px; font-size: 18px; }
+.delivery-board-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.delivery-board-tile { border: 1px solid var(--line, #e5e7eb); border-radius: 10px; padding: 14px; background: var(--panel, #fff); }
+.delivery-board-tile b { display: block; font-size: 24px; }
+.delivery-board-tile span { color: var(--muted, #6b7280); font-size: 13px; }
+.delivery-board-recent { margin: 0; padding-left: 18px; line-height: 1.9; }

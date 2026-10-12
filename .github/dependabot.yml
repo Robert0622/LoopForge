@@ -22,7 +22,7 @@ updates:
 
   # npm dependencies — only minor and patch updates.
   - package-ecosystem: npm
-    directory: /
+    directory: /cli
     schedule:
       interval: monthly
     cooldown:
@@ -44,13 +44,31 @@ updates:
 
   # pip dependencies — only minor and patch updates.
   - package-ecosystem: pip
-    directory: /
+    directory: /cli
     schedule:
       interval: monthly
     cooldown:
       default-days: 2
     groups:
       python-deps:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  # Platform Go modules — only minor and patch updates.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 2
+    groups:
+      go-deps:
         patterns:
           - "*"
         update-types:

@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored minified bundles"
+paths = ['''(^|/)web/monaco/''']

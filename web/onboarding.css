@@ -1,0 +1,17 @@
+body.onboarding-open{overflow:hidden}
+#onboarding{position:fixed;inset:0;z-index:12000;pointer-events:none}
+#onboarding[hidden]{display:none}
+.onboarding-catch{position:absolute;inset:0;pointer-events:auto;background:transparent}
+.onboarding-spot{position:fixed;z-index:1;border-radius:10px;pointer-events:none;background:transparent;box-shadow:0 0 0 2px var(--blue),0 0 0 9999px rgba(15,23,42,.46)}
+.onboarding-card{position:fixed;z-index:2;width:min(320px,calc(100vw - 48px));padding:14px 14px 12px;pointer-events:auto;background:var(--panel);color:var(--text);border:1px solid var(--line-strong);border-radius:14px;box-shadow:0 16px 40px rgba(15,23,42,.18)}
+.onboarding-arrow{position:absolute;width:0;height:0;border-style:solid}
+.onboarding-card.is-right .onboarding-arrow{left:-8px;border-width:7px 8px 7px 0;border-color:transparent var(--panel) transparent transparent}
+.onboarding-card.is-left .onboarding-arrow{right:-8px;border-width:7px 0 7px 8px;border-color:transparent transparent transparent var(--panel)}
+.onboarding-kicker{margin:0 0 6px;color:var(--muted);font-size:12px}
+.onboarding-card h2{margin:0 0 6px;font-size:15px;font-weight:650;line-height:1.35;color:var(--text-strong)}
+.onboarding-card p{margin:0;font-size:13px;line-height:1.6;color:var(--text)}
+.onboarding-actions{display:flex;align-items:center;gap:8px;margin-top:14px}
+.onboarding-grow{flex:1}
+.onboarding-card .button{white-space:nowrap}
+.onboarding-actions .button[hidden]{display:none}
+.nav.onboarding-target{color:var(--text);background:var(--panel)}

@@ -22,6 +22,7 @@ body:
     attributes:
       label: Scope
       options:
+        - Platform (server, web studio, runner)
         - Shared behavior contract
         - Classic edition
         - Portable edition

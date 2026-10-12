@@ -1,0 +1,99 @@
+{
+  "source": "loopforge-builtin",
+  "tag": "public-remote",
+  "fetchedAt": "2026-09-30T00:00:00Z",
+  "items": [
+    {
+      "id": "github",
+      "name": "GitHub",
+      "description": "GitHub's hosted MCP server: issues, pull requests, code search, commits and repository files. Authenticates with each run owner's personal MCP token (a GitHub personal access token).",
+      "category": "Code hosting",
+      "tags": ["code hosting", "issues", "pull requests"],
+      "iconUrl": "/mcp-icons/github.svg",
+      "detailUrl": "https://github.com/github/github-mcp-server",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "transport": "http",
+      "authType": "personal-token",
+      "official": true,
+      "aliases": ["forge"]
+    },
+    {
+      "id": "context7",
+      "name": "Context7",
+      "description": "Up-to-date, version-specific library documentation and code examples pulled straight into the agent's context.",
+      "category": "Documentation",
+      "tags": ["documentation", "libraries"],
+      "iconUrl": "/mcp-icons/context7.svg",
+      "detailUrl": "https://github.com/upstash/context7",
+      "url": "https://mcp.context7.com/mcp",
+      "transport": "http",
+      "authType": "",
+      "official": true
+    },
+    {
+      "id": "deepwiki",
+      "name": "DeepWiki",
+      "description": "Ask questions about any public GitHub repository and read its generated wiki. No authentication required.",
+      "category": "Documentation",
+      "tags": ["documentation", "code understanding"],
+      "iconUrl": "/mcp-icons/deepwiki.svg",
+      "detailUrl": "https://docs.devin.ai/work-with-devin/deepwiki-mcp",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "transport": "http",
+      "authType": "",
+      "official": true
+    },
+    {
+      "id": "microsoft-learn",
+      "name": "Microsoft Learn",
+      "description": "Search and fetch official Microsoft and Azure documentation. No authentication required.",
+      "category": "Documentation",
+      "tags": ["documentation", "azure", "dotnet"],
+      "iconUrl": "/mcp-icons/microsoft-learn.svg",
+      "detailUrl": "https://github.com/MicrosoftDocs/mcp",
+      "url": "https://learn.microsoft.com/api/mcp",
+      "transport": "http",
+      "authType": "",
+      "official": true
+    },
+    {
+      "id": "cloudflare-docs",
+      "name": "Cloudflare Docs",
+      "description": "Search Cloudflare developer documentation (Workers, R2, D1, networking). No authentication required.",
+      "category": "Documentation",
+      "tags": ["documentation", "cloudflare"],
+      "iconUrl": "/mcp-icons/cloudflare-docs.svg",
+      "detailUrl": "https://github.com/cloudflare/mcp-server-cloudflare",
+      "url": "https://docs.mcp.cloudflare.com/mcp",
+      "transport": "http",
+      "authType": "",
+      "official": true
+    },
+    {
+      "id": "linear",
+      "name": "Linear",
+      "description": "Read and manage Linear issues, projects and comments. Authenticates with each run owner's personal MCP token (a Linear API key).",
+      "category": "Project management",
+      "tags": ["project management", "issues"],
+      "iconUrl": "/mcp-icons/linear.svg",
+      "detailUrl": "https://linear.app/docs/mcp",
+      "url": "https://mcp.linear.app/mcp",
+      "transport": "http",
+      "authType": "personal-token",
+      "official": true
+    },
+    {
+      "id": "huggingface",
+      "name": "Hugging Face",
+      "description": "Search models, datasets, Spaces and papers on the Hugging Face Hub. Authenticates with each run owner's personal MCP token (a Hugging Face access token).",
+      "category": "AI / ML",
+      "tags": ["models", "datasets"],
+      "iconUrl": "/mcp-icons/huggingface.svg",
+      "detailUrl": "https://huggingface.co/settings/mcp",
+      "url": "https://huggingface.co/mcp",
+      "transport": "http",
+      "authType": "personal-token",
+      "official": true
+    }
+  ]
+}

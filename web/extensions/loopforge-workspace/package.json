@@ -1,0 +1,33 @@
+{
+  "name": "workspace",
+  "displayName": "LoopForge Run Workspace",
+  "description": "Read-only SOP run workspace for VS Code for the Web",
+  "version": "1.4.2",
+  "publisher": "loopforge",
+  "engines": { "vscode": "^1.91.0" },
+  "activationEvents": ["onFileSystem:loopforge", "onStartupFinished"],
+  "browser": "./extension.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": { "supported": true }
+  },
+  "enabledApiProposals": ["fileSearchProvider", "textSearchProvider", "scmHistoryProvider"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "loopforge.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "loopforge.refresh",
+          "group": "navigation@99",
+          "when": "view == workbench.scm"
+        }
+      ]
+    }
+  }
+}
