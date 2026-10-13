@@ -56,7 +56,7 @@
   launch.innerHTML='<span aria-hidden="true">✦</span><b>AI 助手</b>';
   launch.setAttribute('aria-controls','aiAssistant');
   launch.setAttribute('aria-expanded','false');
-  launch.title='打开 AI 助手';
+  launch.title='到首页和 AI 助手对话';
   const actions=document.querySelector('.top-actions');
   if(actions){
     const theme=actions.querySelector('#themeToggle');
@@ -427,7 +427,8 @@
     syncChrome();
     if(hasKey())input.focus();
   }
-  launch.onclick=()=>{if(root.hidden)openPanel();else setOpen(false)};
+  // 平台只保留首页这一个对话入口；面板留着只为复用模型目录等能力。
+  launch.onclick=()=>{setOpen(false);if(typeof switchView==='function')switchView('chat');setTimeout(()=>document.getElementById('homeChatInput')?.focus(),50)};
   root.querySelector('[data-close]').onclick=()=>{setOpen(false);launch.focus()};
   root.querySelector('[data-new]').onclick=reset;
   root.querySelector('[data-stop]').onclick=()=>controller?.abort();

@@ -1,17 +1,17 @@
-// 第一次登录沿侧栏逐项说明，中间指一下工作总览的快速开始清单。看完或跳过之后
+// 第一次登录沿侧栏逐项说明，中间指一下首页的对话输入框。看完或跳过之后
 // 不再自动出现，可从接入指南重开。结束时打开个人设置里还没配好的那一页。
 const ONBOARDING_KEY = 'loopforge.onboarding.v3';
 
 function onboardingSteps(demo) {
   const start = demo
-    ? '演示模式已开启，什么都不用配：点清单里的「一键开跑」，或到「发起需求」点「一键演示」。停在审批节点时去「待我确认」批准，就能看到交付报告。'
-    : '照着清单配模型 Key、GitHub Token 和仓库，每项都有直达按钮；做完一项自动打勾。';
+    ? '提需求、问进度、让它画图出文档都在这里说，可以粘贴截图、@ 已有需求。演示模式已开启：没配 Key 也能点「先跑一遍演示」看完整流程，停在审批节点时右侧会出现「去确认」。'
+    : '提需求、问进度、让它画图出文档都在这里说，可以粘贴截图、@ 已有需求。需求说清后会出一张开跑卡片，进度在右侧看。';
   const last = demo
     ? { title: '跑真实需求前配凭据', body: '演示不需要凭据。跑真实需求前要配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）和能读写目标仓库的 GitHub Token。点「去配置」打开个人设置。', next: '去配置' }
     : { title: '先把凭据配齐', body: '没配齐就派不出去。先配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选），再填能读写目标仓库的 GitHub Token（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。GitHub MCP 会自动复用这个 Token。', next: '去填写' };
   return [
-    { target: '.nav[data-view="chat"]', title: '从对话发起需求', body: '在「发起需求」用一句话描述要改什么。平台会追问澄清，说清后一键建单开跑。' },
-    { target: '#dashQuickstart', title: '或照着清单一步步来', body: start },
+    { target: '.nav[data-view="chat"]', title: '首页就是对话', body: '平台的事都可以先在首页问。它是这个项目的 PM 助理，会查需求、查运行，帮你澄清需求并按 SOP 开跑。' },
+    { target: '#homeChatForm', title: '在这里说', body: start },
     { target: '.nav[data-view="issues"]', title: '需求都在这里', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
     { target: '.nav[data-view="approvals"]', title: '要你拍板时来这里', body: '运行停下来等你决定，会出现在「待我确认」。先看清问题，再同意或退回。没有待办时，这里是空的。' },
     { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },
@@ -42,7 +42,7 @@ function onboardingPlace(rect, card, viewport) {
     left = rect.left - gap - card.width;
     placement = 'left';
   }
-  // 目标太宽、左右都放不下时（比如工作总览的清单），改放到目标下方；
+  // 目标太宽、左右都放不下时（比如首页的输入框），改放到目标下方；
   // 只有上方完整放得下才放上方，免得盖住目标的标题。
   if (left < margin) {
     left = rect.left + 24;
@@ -87,7 +87,7 @@ function onboardingRoot() {
 function startOnboarding() {
   onboardingIndex = 0;
   if (typeof setQuickstartHidden === 'function') setQuickstartHidden(false);
-  if (typeof switchView === 'function') switchView('dashboard');
+  if (typeof switchView === 'function') switchView('chat');
   if (typeof renderQuickstart === 'function') renderQuickstart();
   const root = onboardingRoot();
   root.hidden = false;

@@ -3,8 +3,27 @@ package domain
 import "time"
 
 type AssistantMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role        string                `json:"role"`
+	Content     string                `json:"content"`
+	Attachments []AssistantAttachment `json:"attachments,omitempty"`
+	Refs        []AssistantRef        `json:"refs,omitempty"`
+}
+
+// AssistantAttachment is a file the user uploaded into a chat or the
+// assistant generated in a reply. The bytes live in the owner's assistant
+// directory; only the metadata travels with messages.
+type AssistantAttachment struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Mime string `json:"mime,omitempty"`
+	Size int64  `json:"size,omitempty"`
+}
+
+// AssistantRef is an @-mention of a platform object inside a user message.
+type AssistantRef struct {
+	Type  string `json:"type"` // issue
+	ID    string `json:"id"`
+	Title string `json:"title,omitempty"`
 }
 
 type AssistantSession struct {

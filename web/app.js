@@ -747,14 +747,6 @@ function isStaleRun(r){if(r?.status!=='running')return false;const t=new Date(r.
 function isGhostRun(r){if(!['failed','cancelled'].includes(r?.status))return false;return Object.values(r?.nodes||{}).some(n=>n?.status==='running'||n?.status==='pending_input')}
 function liveRuns(){return scopedRuns((state.data?.runs||[]).filter(r=>r.status==='waiting'||(r.status==='running'&&!isStaleRun(r))||isGhostRun(r)))}
 function staleRuns(){return scopedRuns((state.data?.runs||[]).filter(isStaleRun))}
-async function refreshDashboard(){
-  try{
-    const opt={silent:true};
-    const [runs,tasks,issues]=await Promise.all([api('/api/runs',opt),api('/api/tasks',opt),api('/api/issues',opt)]);
-    state.data.runs=runs;state.data.tasks=tasks;state.data.issues=issues;
-    renderDashboard();
-  }catch{}
-}
 function currentProject(){return (state.data.projects||[]).find(p=>p.id===state.projectFilter)||(state.data.projects||[])[0]}
 function currentRepository(project=currentProject()){const id=project?.defaultRepositoryId;return (state.data.repositories||[]).find(r=>r.id===id)}
 function userById(id){return (state.data.users||[]).find(u=>Number(u.id)===Number(id))}
@@ -1020,7 +1012,6 @@ function bind(){
   $('#agentClone')&&($('#agentClone').onclick=()=>cloneAgent(state.selectedAgent));
   $('#agentForm').addEventListener('input',()=>renderAgentPreview(state.agentDraft));
   $('#agentForm').addEventListener('change',()=>renderAgentPreview(state.agentDraft)); $('#refreshRuns').onclick=()=>refreshRuns(false);$('#runBackBtn')&&($('#runBackBtn').onclick=()=>showRunList());
-	$('#refreshDashboard').onclick=refreshDashboard;
 	$('#refreshIssues').onclick=refreshIssues;
 	$('#refreshSOPs').onclick=refreshWorkflowMetrics;
   $('#agentSearch').oninput=renderAgents;$('#agentPrev').onclick=()=>setAgentWizardStep(state.agentWizardStep-1);$('#agentNext').onclick=()=>setAgentWizardStep(state.agentWizardStep+1);$$('[data-wizard-steps="agent"] [data-step-target]').forEach(b=>b.onclick=()=>setAgentWizardStep(Number(b.dataset.stepTarget)));$$('.agent-close').forEach(b=>b.onclick=()=>$('#agentModal').classList.remove('open'));
@@ -1209,9 +1200,7 @@ function bind(){
   });
 
   // --- 工作台 / 待办验收 / 可观测与分析 / Issue 详情抽屉 ---
-  $('.platform-sidebar .brand').onclick=()=>switchView('dashboard');
-  $('#dashImportIssue')&&($('#dashImportIssue').onclick=openImportIssueModal);
-  $('#dashNewRequirement').onclick=openRequirementWizard;
+  $('.platform-sidebar .brand').onclick=()=>switchView('chat');
   $$('[data-jump]').forEach(el=>el.onclick=()=>switchView(el.dataset.jump));
   $('#refreshApprovals').onclick=()=>renderApprovals(false);
   $('#refreshObs').onclick=refreshObs;
@@ -1222,6 +1211,7 @@ function bind(){
   const issueDrawer=$('#issueDetailDrawer');
   if(issueDrawer&&issueDrawer.parentElement!==document.body)document.body.appendChild(issueDrawer);
   $$('[data-close-drawer]').forEach(el=>el.onclick=closeIssueDrawer);
+  $('#issueDetailChat')&&($('#issueDetailChat').onclick=()=>{const id=state.selectedIssue;closeIssueDrawer();if(typeof homeChatMentionIssue==='function')homeChatMentionIssue(id)});
   $('#projectSwitcher').onchange=e=>{
     state.projectFilter=e.target.value;state.projectDraft=null;state.selectedIssue=null;
     invalidateMetricsForProjectChange();
@@ -1231,7 +1221,7 @@ function bind(){
     renderProjectSwitcher();renderIssues();renderSync();renderProjectAdmin();
     renderSOPCatalog();renderAgents();renderAssets();renderMCPManagement();renderRuns();renderWorkflowMeta();
     renderApprovals(true);
-    if($('#dashboardView').classList.contains('active'))renderDashboard();
+    if($('#chatView').classList.contains('active')&&typeof renderHomeRunsPanel==='function')renderHomeRunsPanel();
     if($('#observabilityView').classList.contains('active'))refreshObs();
     if($('#knowledgeView')?.classList.contains('active')&&typeof renderKnowledgeView==='function')renderKnowledgeView();
     if($('#metricsView').classList.contains('active'))refreshMetrics();
@@ -1359,7 +1349,7 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),dashboard:'工作总览',chat:'发起需求',issues:'需求列表',rooms:'协作群聊',runs:'运行记录',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色定义',mcp:'MCP 管理',rules:'规则管理',skills:'技能管理',dockerfiles:'Dockerfile',environments:'环境安装脚本',sandboxes:'沙箱管理',observability:'用量分析',projects:'项目配置',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'需求列表',rooms:'协作群聊',runs:'运行记录',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色定义',mcp:'MCP 管理',rules:'规则管理',skills:'技能管理',dockerfiles:'Dockerfile',environments:'环境安装脚本',sandboxes:'沙箱管理',observability:'用量分析',projects:'项目配置',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
 function activeViewName(){if(state.currentView)return state.currentView;const el=document.querySelector('.view.active');return el?el.id.replace(/View$/,''):''}
 function setCapabilityNavExpanded(expanded){const toggle=$('#capabilityNavToggle'),group=$('#capabilityNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.capabilityNavExpanded',String(expanded))}
 function setEnvironmentNavExpanded(expanded){const toggle=$('#environmentNavToggle'),group=$('#environmentNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.environmentNavExpanded',String(expanded))}
@@ -1367,13 +1357,14 @@ function restoredView(){
   const titles=viewTitles();
   const hash=(location.hash||'').replace(/^#\/?/,'').split(/[/?]/)[0];
   if(hash==='access')return 'guide';
+  if(hash==='dashboard')return 'chat';
   if(hash==='assets')return 'dockerfiles';
   if(hash==='playbooks')return 'sops';
   if(titles[hash])return hash;
   const saved=localStorage.getItem('loopforge.activeView');
   if(saved==='playbooks')return 'sops';
   if(titles[saved])return saved;
-  return 'dashboard';
+  return 'chat';
 }
 function routePart(index){
   const raw=(location.hash||'').replace(/^#\/?/,'').split('?')[0];
@@ -1447,10 +1438,10 @@ function switchView(name){
   if(name==='playbooks')name='sops';
   const assetViews=['rules','skills','dockerfiles','environments','sandboxes'];
   const targetView=assetViews.includes(name)?'assets':name;
-  if(!titles[name]||!$(`#${targetView}View`)){name='dashboard'}
+  if(!titles[name]||!$(`#${targetView}View`)){name='chat'}
   // 手敲 #/platform 或者从别的账号留下的 localStorage 恢复进来，都要挡住。
-  if(name==='platform'&&!isPlatformAdmin())name='dashboard';
-  if(name==='businessDomainManagement'&&!canAccessPlatformManagement())name='dashboard';
+  if(name==='platform'&&!isPlatformAdmin())name='chat';
+  if(name==='businessDomainManagement'&&!canAccessPlatformManagement())name='chat';
   const target=assetViews.includes(name)?'assets':name;
   if(name==='settings'&&typeof currentSettingsTab==='function')state.settingsTab=currentSettingsTab();
   const staying=activeViewName()===name;
@@ -1472,7 +1463,7 @@ function switchView(name){
   persistView(name,!staying&&!!prevView);
   const nav=$('.platform-sidebar nav');
   if(nav){
-    if(['dashboard','chat','issues','approvals','sops'].includes(name)){
+    if(['chat','issues','approvals','sops'].includes(name)){
       nav.scrollTop=0;
     }else{
       const activeBtn=$(`.platform-sidebar .nav[data-view="${name}"]`);
@@ -1495,7 +1486,6 @@ function switchView(name){
   }
   if(name==='issues'){refreshIssues();renderSync()}
   if(name==='sops')refreshWorkflowMetrics()
-  if(name==='dashboard')refreshDashboard()
   if(name==='chat'&&typeof renderHomeChat==='function')renderHomeChat()
   if(name==='metrics'){const key=metricsQueryKey();if(state.metricsDataKey!==key&&metricsPendingKey!==key)refreshMetrics();else renderMetricsDashboard()}
   if(name==='approvals')renderApprovals(false)
@@ -1509,10 +1499,10 @@ function switchView(name){
   if(assetViews.includes(name)){state.assetType=name;if(!staying)state.selectedAsset=null;renderAssets()}
   if(name==='mcp')loadMCPMarket();
   if(name==='runners')refreshRunners();
-  if(name==='guide')renderGuide();
+  if(name==='guide'){renderGuide();renderQuickstart()}
   if(name==='knowledge'&&typeof renderKnowledgeView==='function')renderKnowledgeView();
   if(name==='rooms'&&typeof loadRooms==='function')loadRooms();
   if(pluginViews.has(name))renderPluginView(pluginViews.get(name));
   if(name==='flow'){state.selectedNode=state.selectedNode||state.workflow?.nodes?.[0]?.id||null;renderWorkflowMeta();renderCanvas();renderProperties();setFlowView('canvas');refreshGenericWorkflowRoles()}
 }
-function renderAll(){renderUserBadge();renderPlatformNav();renderProjectSwitcher();renderIssues();renderSOPCatalog();renderWorkflowMeta();renderCanvas();renderProperties();renderAgents();renderAssets();renderMCPManagement();renderRuns();renderSync();renderProjectAdmin();renderDashboard();renderGuide();updateApprovalBadge();showDirectRunButton($('#flowView').classList.contains('active'))}
+function renderAll(){renderUserBadge();renderPlatformNav();renderProjectSwitcher();renderIssues();renderSOPCatalog();renderWorkflowMeta();renderCanvas();renderProperties();renderAgents();renderAssets();renderMCPManagement();renderRuns();renderSync();renderProjectAdmin();renderQuickstart();renderGuide();updateApprovalBadge();showDirectRunButton($('#flowView').classList.contains('active'))}

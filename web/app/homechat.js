@@ -1,29 +1,31 @@
-// 「发起需求」：和澄清 Agent 对话，说清后按 SOP 开跑；右侧列出本项目正在跑的 SOP 和每一步的进度。
+// 首页对话：项目的 PM 助理。提需求（追问澄清 → 开跑卡片）、问进度、处理待确认、
+// 画图出文档都在这里说；可以带图片和文件，可以 @ 已有需求。右侧列出本项目正在跑的 SOP。
 const HOME_CHAT_DEMO = 'demo-delivery';
 const HOME_CHAT_QUICK = 'quick-fix';
-const HOME_CHAT_STORE = 'loopforge.homeChat.v2';
-const HOME_CHAT_PLACEHOLDERS = [
-  '给需求列表加导出 CSV，导出当前筛选结果',
-  '登录失败时提示具体原因，别只显示「登录失败」',
-  '个人主页增加徽章，兼容现有成就体系',
+const HOME_CHAT_STORE = 'loopforge.homeChat.v3';
+const HOME_CHAT_MAX_FILES = 10;
+const HOME_CHAT_MAX_BYTES = 20 * 1024 * 1024;
+const HOME_CHAT_SUGGESTIONS = [
+  { label: '提一个新需求', text: '我想加个功能：' },
+  { label: '现在有哪些在跑，卡在哪', text: '现在项目里有哪些 SOP 在跑？分别卡在哪一步，需要我做什么？' },
+  { label: '@ 一条需求，把它跑起来', text: '@' },
+  { label: '画一张交付流程图', text: '把这个项目从提需求到交付的流程画成一张图' },
 ];
 const HOME_RUN_ACTIVE = new Set(['queued', 'pending', 'running', 'waiting', 'waiting_approval', 'paused', 'retrying']);
 let homeRunsTimer = null;
+const homeMermaidCache = new Map();
+let homeMermaidLoading = null;
 
 function homeChatHasModelKey() {
-  const stored = userById(state.currentUser?.id) || {};
-  return !!(stored.claudeCodeApiKeyConfigured || stored.codexApiKeyConfigured || stored.codeBuddyApiKeyConfigured);
+  return !!(userById(state.currentUser?.id) || {}).codeBuddyApiKeyConfigured;
 }
 
 function homeChatWorkflows() {
   const projectId = state.projectFilter || '';
   const all = state.data.workflows || [];
   const mine = all.filter(w => !catalogGeneric(w) && (!projectId || w.projectId === projectId) && w.status !== 'archived');
-  const demo = all.find(w => w.id === HOME_CHAT_DEMO);
-  const quick = all.find(w => w.id === HOME_CHAT_QUICK);
   const list = [];
-  if (quick) list.push(quick);
-  if (demo) list.push(demo);
+  [HOME_CHAT_QUICK, HOME_CHAT_DEMO].forEach(id => { const w = all.find(x => x.id === id); if (w) list.push(w); });
   mine.forEach(w => { if (!list.some(x => x.id === w.id)) list.push(w); });
   return list;
 }
@@ -37,7 +39,7 @@ function ensureHomeChatState() {
   if (!state.homeChat || state.homeChat.key !== key) {
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
-    state.homeChat = { messages: [], sessionId: '', jobId: '', workflowId: '', draft: '', ...(saved || {}), key, busy: false, thinking: [] };
+    state.homeChat = { messages: [], sessionId: '', workflowId: '', draft: '', notes: [], ...(saved || {}), key, busy: false, live: null, files: [], refs: [], _abort: null };
   }
   return state.homeChat;
 }
@@ -47,7 +49,7 @@ function persistHomeChat() {
   if (!chat) return;
   try {
     localStorage.setItem(chat.key, JSON.stringify({
-      messages: chat.messages.slice(-80), sessionId: chat.sessionId, jobId: chat.jobId, workflowId: chat.workflowId, draft: chat.draft,
+      messages: chat.messages.slice(-80), sessionId: chat.sessionId, workflowId: chat.workflowId, draft: chat.draft, notes: chat.notes,
     }));
   } catch (e) {}
 }
@@ -68,21 +70,40 @@ function homeChatWorkflowTag(w) {
   return w.status === 'published' ? '' : '草稿';
 }
 
-// 一次对话从最近一次开跑之后算起：开跑之后再说话就是新需求。
-function homeChatTurns() {
-  const chat = ensureHomeChatState();
-  const last = chat.messages.map(m => m.kind).lastIndexOf('launched');
-  return chat.messages.slice(last + 1);
-}
-
-function homeChatLatestClarify() {
-  const turns = homeChatTurns();
-  for (let i = turns.length - 1; i >= 0; i--) {
-    if (turns[i].kind === 'clarify') return turns[i];
-    if (turns[i].role === 'user') return null;
+function homeChatLatestReply() {
+  const msgs = ensureHomeChatState().messages;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].kind === 'reply') return msgs[i];
+    if (msgs[i].role === 'user') return null;
   }
   return null;
 }
+
+function homeChatIssues() {
+  const projectId = state.projectFilter || '';
+  return (state.data.issues || []).filter(i => !projectId || i.projectId === projectId);
+}
+
+function homeIssueLabel(issue) {
+  return `${issue.number ? '#' + issue.number + ' ' : ''}${issue.title || issue.id}`;
+}
+
+function homeFileURL(id, download) {
+  return `/api/assistant/files/${encodeURIComponent(id)}${download ? '?download=1' : ''}`;
+}
+
+function homeFileIsImage(f) {
+  return /^image\/(png|jpe?g|gif|webp|svg\+xml)$/i.test(f?.mime || f?.mimeType || '');
+}
+
+function homeFileSize(n) {
+  n = Number(n) || 0;
+  if (n >= 1 << 20) return `${(n / (1 << 20)).toFixed(1)} MB`;
+  if (n >= 1 << 10) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
+}
+
+// ---- 渲染 ----
 
 function renderHomeChat() {
   const host = $('#homeChat');
@@ -103,36 +124,44 @@ function renderHomeChat() {
   renderHomeChatMain();
   renderHomeRunsPanel();
   startHomeRunsPolling();
-  if (chat.jobId && !chat._abort) homeChatAttach(chat.jobId);
 }
 
 function renderHomeChatMain() {
   const main = $('#hcMain');
   if (!main) return;
   const chat = ensureHomeChatState();
-  const workflow = homeChatSelectedWorkflow();
   const empty = !chat.messages.length && !chat.busy;
   main.classList.toggle('is-empty', empty);
-  main.innerHTML = empty ? homeChatHeroHTML(workflow) : `
+  main.innerHTML = empty ? homeChatHeroHTML() : `
     <header class="hc-head">
-      <div><b>${escapeHTML(homeChatTitle())}</b><span>${workflow ? `说清后按「${escapeHTML(workflow.name || workflow.id)}」开跑` : '先在项目里发布一条 SOP'}</span></div>
-      <button type="button" class="button ghost small" id="homeChatNew">＋ 新对话</button>
+      <div><b>${escapeHTML(homeChatTitle())}</b><span>${escapeHTML(homeChatSubtitle())}</span></div>
+      <div class="hc-head-actions">
+        <div class="hc-history-wrap"><button type="button" class="button ghost small" id="homeChatHistory" aria-haspopup="menu">历史</button><div class="hc-history" id="homeChatHistoryMenu" hidden></div></div>
+        <button type="button" class="button ghost small" id="homeChatNew">＋ 新对话</button>
+      </div>
     </header>
-    <div class="hc-thread" id="homeChatThread">${chat.messages.map(homeChatMessageHTML).join('')}${chat.busy ? homeChatThinkingHTML() : ''}</div>
-    <div class="hc-dock">${homeChatComposerHTML(workflow)}</div>`;
+    <div class="hc-thread" id="homeChatThread">${chat.messages.map(homeChatMessageHTML).join('')}${chat.busy ? homeChatLiveHTML() : ''}</div>
+    <div class="hc-dock">${homeChatComposerHTML()}</div>`;
   bindHomeChat();
+  renderHomeMermaid(main);
   const thread = $('#homeChatThread');
   if (thread) thread.scrollTop = thread.scrollHeight;
 }
 
 function homeChatTitle() {
-  const first = homeChatTurns().find(m => m.role === 'user') || ensureHomeChatState().messages.find(m => m.role === 'user');
-  return first ? first.text.split('\n')[0].slice(0, 60) : '新需求';
+  const first = ensureHomeChatState().messages.find(m => m.role === 'user' && m.text);
+  return first ? first.text.split('\n')[0].slice(0, 60) : '新对话';
 }
 
-function homeChatHeroHTML(workflow) {
+function homeChatSubtitle() {
+  const project = currentProject();
+  return project ? `项目 · ${project.name || project.id}` : '未选择项目 · 只能问答';
+}
+
+function homeChatHeroHTML() {
   const workflows = homeChatWorkflows();
-  const keyHint = homeChatHasModelKey() ? '' : `<p class="hc-key-hint">还没配置模型 Key，我暂时没法读代码、追问需求。<button type="button" class="link-button" data-chat-action="settings-models">去配置</button>，或<button type="button" class="link-button" data-chat-action="demo">先跑一遍演示</button>（不需要 Key）。</p>`;
+  const workflow = homeChatSelectedWorkflow();
+  const keyHint = homeChatHasModelKey() ? '' : `<p class="hc-key-hint">还没配置 CodeBuddy Key，我暂时没法读代码、查数据、追问需求。<button type="button" class="link-button" data-chat-action="settings-models">去配置</button>，或<button type="button" class="link-button" data-chat-action="demo">先跑一遍演示</button>（不需要 Key）。</p>`;
   const cards = workflows.map(w => {
     const steps = (w.nodes || []).length;
     const tag = homeChatWorkflowTag(w);
@@ -145,38 +174,68 @@ function homeChatHeroHTML(workflow) {
   }).join('');
   return `<div class="hc-hero">
     <h1 class="hc-brand">LoopForge</h1>
-    <p class="hc-sub">一句话说清要改什么。我会读代码、追问到说清楚，再按你选的 SOP 开跑。</p>
-    ${homeChatComposerHTML(workflow)}
+    <p class="hc-sub">提需求、问进度、处理待确认、画图出文档，都在这里说。需求说清了，我按 SOP 帮你开跑。</p>
+    ${homeChatComposerHTML()}
     ${keyHint}
-    ${workflows.length ? `<div class="hc-sop-head">选择 SOP</div><div class="hc-sop-rail" role="list">${cards}</div>` : '<p class="hc-key-hint">这个项目还没有 SOP。<button type="button" class="link-button" data-home-goto="templates">从模板创建一个</button></p>'}
+    <div class="hc-suggest">${HOME_CHAT_SUGGESTIONS.map((s, i) => `<button type="button" class="hc-chip" data-home-suggest="${i}">${escapeHTML(s.label)}</button>`).join('')}</div>
+    ${workflows.length ? `<div class="hc-sop-head">开跑默认用的 SOP</div><div class="hc-sop-rail" role="list">${cards}</div>` : '<p class="hc-key-hint">这个项目还没有 SOP。<button type="button" class="link-button" data-home-goto="templates">从模板创建一个</button></p>'}
   </div>`;
 }
 
-function homeChatComposerHTML(workflow) {
+function homeChatComposerHTML() {
   const chat = ensureHomeChatState();
-  const workflows = homeChatWorkflows();
-  const latest = homeChatLatestClarify();
-  const asking = latest && !latest.ready && (latest.questions || []).length;
-  const placeholder = !chat.messages.length ? HOME_CHAT_PLACEHOLDERS[0] : asking ? '点选上面的选项，或直接打字回答' : '继续补充，或说一个新需求';
+  const latest = homeChatLatestReply();
+  const asking = latest && (latest.questions || []).length && !latest.answered;
+  const placeholder = !chat.messages.length ? '说说要做什么，@ 可以引用需求，也可以粘贴截图' : asking ? '点选上面的选项，或直接打字回答' : '继续说，@ 引用需求，或粘贴图片和文件';
+  const uploading = chat.files.some(f => f.uploading);
+  const tray = chat.files.length || chat.refs.length ? `<div class="hc-tray">
+      ${chat.refs.map((r, i) => `<span class="hc-ref-chip" title="${escapeHTML(r.title)}">@${escapeHTML(r.label || r.title)}<button type="button" data-home-unref="${i}" aria-label="移除引用">×</button></span>`).join('')}
+      ${chat.files.map((f, i) => `<span class="hc-file-chip${f.uploading ? ' is-uploading' : ''}${f.error ? ' is-error' : ''}" title="${escapeHTML(f.error || f.name)}">
+        ${homeFileIsImage(f) && f.id ? `<img src="${homeFileURL(f.id)}" alt="">` : `<i class="hc-file-ext">${escapeHTML((f.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase())}</i>`}
+        <span>${escapeHTML(f.name)}</span><small>${f.uploading ? '上传中…' : f.error ? '失败' : homeFileSize(f.size)}</small>
+        <button type="button" data-home-unfile="${i}" aria-label="移除附件">×</button></span>`).join('')}
+    </div>` : '';
   return `<form class="hc-composer" id="homeChatForm">
-    <textarea id="homeChatInput" rows="${chat.messages.length ? 2 : 3}" maxlength="4000" placeholder="${escapeHTML(placeholder)}" ${chat.busy ? 'disabled' : ''}>${escapeHTML(chat.draft || '')}</textarea>
+    ${tray}
+    <div class="hc-mention" id="homeMention" hidden role="listbox"></div>
+    <textarea id="homeChatInput" rows="${chat.messages.length ? 2 : 3}" maxlength="8000" placeholder="${escapeHTML(placeholder)}" ${chat.busy ? 'disabled' : ''}>${escapeHTML(chat.draft || '')}</textarea>
     <div class="hc-composer-bar">
-      <label class="hc-sop-pick" title="说清后按这条 SOP 开跑"><span>SOP</span><select id="homeChatWorkflow" ${chat.busy ? 'disabled' : ''}>${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === workflow?.id ? 'selected' : ''}>${escapeHTML(w.name || w.id)}</option>`).join('')}</select></label>
+      <button type="button" class="hc-tool" id="homeChatAttach" title="添加图片或文件（也可以直接粘贴、拖进来）" aria-label="添加图片或文件" ${chat.busy ? 'disabled' : ''}>＋</button>
+      <button type="button" class="hc-tool" id="homeChatAt" title="引用一条需求" aria-label="引用一条需求" ${chat.busy ? 'disabled' : ''}>@</button>
+      <input type="file" id="homeChatFile" multiple hidden>
       ${typeof clarifyModelPickerHTML === 'function' ? clarifyModelPickerHTML(chat.busy) : ''}
-      <span class="hc-composer-hint">${chat.busy ? '分析中，关掉页面也会继续' : 'Enter 发送 · Shift+Enter 换行'}</span>
+      <span class="hc-composer-hint">${chat.busy ? '正在处理…' : uploading ? '附件上传中…' : 'Enter 发送 · Shift+Enter 换行'}</span>
       ${chat.busy
         ? '<button type="button" class="hc-send is-stop" id="homeChatStop" title="停止" aria-label="停止">■</button>'
-        : '<button type="submit" class="hc-send" id="homeChatSend" title="发送" aria-label="发送">↑</button>'}
+        : `<button type="submit" class="hc-send" id="homeChatSend" title="发送" aria-label="发送" ${uploading ? 'disabled' : ''}>↑</button>`}
     </div>
   </form>`;
 }
 
 function homeChatMessageHTML(m, index) {
-  if (m.role === 'user') return `<div class="hc-msg is-user"><div class="hc-bubble">${escapeHTML(m.text).replace(/\n/g, '<br>')}</div></div>`;
-  const body = m.kind === 'clarify' ? homeChatClarifyHTML(m, index)
+  if (m.role === 'user') return homeChatUserHTML(m);
+  if (m.kind === 'system') return `<div class="hc-system">${escapeHTML(m.text)}</div>`;
+  const body = m.kind === 'reply' ? homeChatReplyHTML(m, index)
     : m.kind === 'launched' ? homeChatLaunchedHTML(m)
     : `<p>${escapeHTML(m.text || '')}</p>${homeChatActionsHTML(m.actions)}`;
   return `<div class="hc-msg is-bot${m.kind === 'error' ? ' is-error' : ''}"><span class="hc-avatar" aria-hidden="true">LF</span><div class="hc-bubble">${body}</div></div>`;
+}
+
+function homeChatUserHTML(m) {
+  const refs = (m.refs || []).map(r => `<button type="button" class="hc-ref-chip is-link" data-open-created="${escapeHTML(r.id)}">@${escapeHTML(r.title || r.id)}</button>`).join('');
+  const files = homeChatFilesHTML(m.attachments || [], true);
+  const text = m.text ? `<div class="hc-bubble">${escapeHTML(m.text).replace(/\n/g, '<br>')}</div>` : '';
+  return `<div class="hc-msg is-user"><div class="hc-user-stack">${refs ? `<div class="hc-user-refs">${refs}</div>` : ''}${files}${text}</div></div>`;
+}
+
+function homeChatFilesHTML(files, compact) {
+  if (!files.length) return '';
+  const images = files.filter(homeFileIsImage);
+  const others = files.filter(f => !homeFileIsImage(f));
+  return `<div class="hc-files${compact ? ' is-compact' : ''}">
+    ${images.map(f => `<a class="hc-image" href="${homeFileURL(f.id)}" target="_blank" rel="noopener" title="${escapeHTML(f.name)}"><img src="${homeFileURL(f.id)}" alt="${escapeHTML(f.name)}" loading="lazy"></a>`).join('')}
+    ${others.map(f => `<a class="hc-file" href="${homeFileURL(f.id, true)}" download="${escapeHTML(f.name)}"><i class="hc-file-ext">${escapeHTML((f.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase())}</i><span><b>${escapeHTML(f.name)}</b><small>${homeFileSize(f.size)} · 下载</small></span></a>`).join('')}
+  </div>`;
 }
 
 function homeChatActionsHTML(actions) {
@@ -184,36 +243,70 @@ function homeChatActionsHTML(actions) {
   return `<div class="hc-actions">${actions.map(a => `<button type="button" class="button ${a.primary ? 'primary' : 'ghost'} small" data-chat-action="${escapeHTML(a.id)}">${escapeHTML(a.label)}</button>`).join('')}</div>`;
 }
 
-function homeChatClarifyHTML(m, index) {
-  const latest = homeChatLatestClarify() === m;
+// mermaid 代码块先占位，渲染完 DOM 后再异步画成图。
+function homeMarkdownHTML(text) {
+  const parts = String(text || '').split(/```mermaid[ \t]*\n([\s\S]*?)```/);
+  return parts.map((part, i) => i % 2
+    ? `<div class="hc-mermaid" data-mermaid="${escapeHTML(part.trim())}"><pre>${escapeHTML(part.trim())}</pre></div>`
+    : (part.trim() ? renderMarkdown(part) : '')).join('');
+}
+
+function homeChatReplyHTML(m, index) {
+  const latest = homeChatLatestReply() === m;
   const answers = m.answers || {};
+  const locked = !latest || m.answered;
   const questions = (m.questions || []).map((q, qi) => {
     const qid = q.id || `q${qi + 1}`;
     const picked = answers[qid] || [];
-    const options = clarifyQuestionOptions(q);
-    const chips = options.map(opt => `<button type="button" class="hc-opt${picked.includes(opt) ? ' is-picked' : ''}" data-q="${escapeHTML(qid)}" data-opt="${escapeHTML(opt)}" ${latest && !m.answered ? '' : 'disabled'}>${escapeHTML(opt)}</button>`).join('');
-    return `<li class="hc-q"><b>${escapeHTML(q.question)}</b>${q.multiSelect ? '<small>可多选</small>' : ''}${chips ? `<div class="hc-opts">${chips}</div>` : ''}</li>`;
+    const options = typeof clarifyQuestionOptions === 'function' ? clarifyQuestionOptions(q) : (q.options || []);
+    const chips = options.map(opt => `<button type="button" class="hc-opt${picked.includes(opt) ? ' is-picked' : ''}" data-q="${escapeHTML(qid)}" data-opt="${escapeHTML(opt)}" ${locked ? 'disabled' : ''}>${escapeHTML(opt)}</button>`).join('');
+    return `<li class="hc-q"><b>${escapeHTML(q.question)}</b>${q.multiSelect ? '<small>可多选</small>' : ''}${q.freeText && !locked ? '<small>在下面输入框里回答</small>' : ''}${chips ? `<div class="hc-opts">${chips}</div>` : ''}</li>`;
   }).join('');
-  const view = typeof composerAssessmentView === 'function' ? composerAssessmentView(m) : null;
-  const score = view && Object.keys(view.ratings || {}).length ? view.score : (m.assessment?.score ?? null);
-  const threshold = view?.threshold || 80;
-  const meter = score == null ? '' : `<div class="hc-meter${m.ready ? ' is-ready' : ''}"><div class="hc-meter-bar"><i style="width:${Math.max(4, Math.min(100, score))}%"></i><em style="left:${threshold}%"></em></div><span>${m.ready ? '已说清' : '完整度'} ${score} / ${threshold}</span></div>`;
-  const summary = m.summary ? `<div class="hc-md">${renderMarkdown(m.summary)}</div>` : '';
-  const launchable = latest && (m.ready || m.forceLaunch);
-  const tail = launchable ? homeChatLaunchCardHTML(m)
-    : latest && !m.answered ? `<div class="hc-actions"><button type="button" class="link-button" data-chat-action="force-launch">信息够了，按当前结论开跑</button></div>` : '';
-  return `${summary}${questions ? `<ol class="hc-questions">${questions}</ol>` : ''}${meter}${tail}`;
+  const trace = (m.trace || []).length ? `<details class="hc-trace-box"><summary>查了 ${m.trace.length} 处</summary><ul class="hc-trace">${m.trace.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ul></details>` : '';
+  const drafts = (m.drafts || []).map((d, di) => homeChatDraftHTML(d, index, di)).join('');
+  const launch = m.launch ? homeChatLaunchCardHTML(m, index) : (latest && (m.questions || []).length && !m.answered
+    ? '<div class="hc-actions"><button type="button" class="link-button" data-chat-action="force-launch">信息够了，按现在说的开跑</button></div>' : '');
+  return `${trace}<div class="hc-md">${homeMarkdownHTML(m.text)}</div>${homeChatFilesHTML(m.files || [])}${questions ? `<ol class="hc-questions">${questions}</ol>` : ''}${drafts}${launch}`;
 }
 
-function homeChatLaunchCardHTML(m) {
+function homeChatLaunchCardHTML(m, index) {
+  const l = m.launch;
   const workflows = homeChatWorkflows();
-  const workflow = homeChatSelectedWorkflow();
-  const title = m.suggestedTitle || homeChatTitle();
-  return `<div class="hc-launch" id="homeLaunchCard">
-    <div class="hc-launch-head"><b>${m.ready ? '需求已经说清，可以开跑' : '按当前结论开跑'}</b><span>建一张需求单并立即派发，进度在右侧看。</span></div>
-    <label>需求标题<input id="homeLaunchTitle" value="${escapeHTML(title)}" maxlength="120"></label>
-    <label>SOP<select id="homeLaunchWorkflow">${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === workflow?.id ? 'selected' : ''}>${escapeHTML(w.name || w.id)}</option>`).join('')}</select></label>
-    <div class="hc-actions"><button type="button" class="button primary" id="homeChatDispatch">建单并开跑</button></div>
+  const workflowId = l.workflowId && workflows.some(w => w.id === l.workflowId) ? l.workflowId : homeChatSelectedWorkflow()?.id;
+  if (l.done) {
+    return `<div class="hc-launch is-done"><div class="hc-launch-head"><b>已开跑</b><span>${escapeHTML(l.title || '')}，进度在右侧。</span></div></div>`;
+  }
+  const issue = l.issueId ? (state.data.issues || []).find(i => i.id === l.issueId) : null;
+  return `<div class="hc-launch" data-launch="${index}">
+    <div class="hc-launch-head"><b>${issue ? '跑这条已有需求' : '需求已经说清，可以开跑'}</b><span>${issue ? `按选中的 SOP 派发「${escapeHTML(homeIssueLabel(issue))}」` : '建一张需求单并立即派发'}，进度在右侧看。</span></div>
+    ${issue ? '' : `<label>需求标题<input data-launch-title value="${escapeHTML(l.title || '')}" maxlength="120"></label>`}
+    <label>SOP<select data-launch-workflow>${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === workflowId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}</option>`).join('')}</select></label>
+    ${l.description ? `<details class="hc-launch-desc"><summary>${issue ? '补充说明' : '澄清结论（会写进需求描述）'}</summary><div class="hc-md">${renderMarkdown(l.description)}</div></details>` : ''}
+    <div class="hc-actions"><button type="button" class="button primary" data-launch-go>${issue ? '开跑' : '建单并开跑'}</button></div>
+  </div>`;
+}
+
+function homeDraftKind(tool) {
+  const labels = {
+    issues_save: '保存需求', issues_dispatch: '派发 SOP', runs_start: '启动运行', runs_approve: '审批通过', runs_pass: '放行', runs_reject: '驳回',
+    runs_cancel: '取消运行', runs_retry: '重试运行', workflows_save: '保存 SOP', workflows_publish: '发布 SOP', agents_save: '保存角色',
+    schedule_jobs_save: '保存定时任务', assistant_tasks_save: '保存助手定时任务', issues_comments_add: '添加评论',
+  };
+  const danger = /(_delete|_publish|_dispatch|_start|_cancel|_reject|_run|_restore|_pass|_retry|_pause|_resume|_reopen|_approve)$/.test(tool) || tool === 'sync_start';
+  return { label: labels[tool] || tool, danger };
+}
+
+function homeChatDraftHTML(d, index, di) {
+  const kind = homeDraftKind(d.tool);
+  const targetId = d.path?.id || d.body?.id || '';
+  const issue = targetId ? (state.data.issues || []).find(i => i.id === targetId) : null;
+  const title = d.body?.name || d.body?.title || (issue ? homeIssueLabel(issue) : targetId);
+  const preview = { tool: d.tool, ...(d.path ? { path: d.path } : {}), ...(d.query ? { query: d.query } : {}), ...(d.body !== undefined ? { body: d.body } : {}) };
+  const status = d.saved ? (d.auto ? '已自动执行' : '已执行') : d.saveError ? `执行失败：${d.saveError}` : (kind.danger ? '确认后立即执行' : '确认后保存');
+  return `<div class="hc-draft${d.saved ? ' is-done' : ''}${kind.danger ? ' is-danger' : ''}">
+    <div class="hc-draft-head"><b>${escapeHTML(kind.label)}${title ? ' · ' + escapeHTML(String(title)) : ''}</b><small>${escapeHTML(status)}</small></div>
+    <details><summary>查看参数</summary><pre>${escapeHTML(JSON.stringify(preview, null, 2))}</pre></details>
+    ${d.saved ? '' : `<div class="hc-actions"><button type="button" class="button ${kind.danger ? 'danger-outline' : 'primary'} small" data-draft="${index}:${di}">确认${escapeHTML(kind.label)}</button></div>`}
   </div>`;
 }
 
@@ -222,30 +315,58 @@ function homeChatLaunchedHTML(m) {
     <div class="hc-actions">${m.issueId ? `<button type="button" class="button ghost small" data-open-created="${escapeHTML(m.issueId)}">打开需求</button>` : ''}</div>`;
 }
 
-function homeChatThinkingHTML() {
-  const chat = ensureHomeChatState();
-  const steps = chat.thinking.slice(-4);
-  const current = steps[steps.length - 1];
+function homeChatLiveHTML() {
+  const live = ensureHomeChatState().live || {};
+  const tools = (live.tools || []).slice(-4);
   return `<div class="hc-msg is-bot is-thinking"><span class="hc-avatar" aria-hidden="true">LF</span><div class="hc-bubble" id="hcThinking">
-    <div class="hc-typing"><i></i><i></i><i></i><span>${escapeHTML(homeChatThoughtText(current) || '正在分析…')}</span></div>
-    ${steps.length > 1 ? `<ul class="hc-trace">${steps.slice(0, -1).map(s => `<li>${escapeHTML(homeChatThoughtText(s))}</li>`).join('')}</ul>` : ''}
+    ${tools.length ? `<ul class="hc-trace">${tools.map(t => `<li class="${t.done ? 'is-done' : ''}">${escapeHTML(t.text)}</li>`).join('')}</ul>` : ''}
+    ${live.answer ? `<div class="hc-md">${renderMarkdown(live.answer)}</div>` : ''}
+    <div class="hc-typing"><i></i><i></i><i></i><span>${escapeHTML(live.status || '正在思考…')}</span></div>
   </div></div>`;
 }
 
-function homeChatThoughtText(ev) {
-  if (!ev) return '';
-  if (ev.kind === 'tool' && !ev.tool && ev.text) return ev.text;
-  if (ev.kind === 'tool') return `${typeof clarifyToolLabel === 'function' ? clarifyToolLabel(ev.tool) : ev.tool}${ev.detail ? ' · ' + ev.detail : ''}`;
-  return ev.text || '';
-}
-
-function homeChatPaintThinking() {
+function homeChatPaintLive() {
   const box = $('#hcThinking');
   if (!box) return;
-  box.closest('.hc-msg').outerHTML = homeChatThinkingHTML();
   const thread = $('#homeChatThread');
-  if (thread) thread.scrollTop = thread.scrollHeight;
+  const stick = thread && thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
+  box.closest('.hc-msg').outerHTML = homeChatLiveHTML();
+  if (thread && stick) thread.scrollTop = thread.scrollHeight;
 }
+
+async function renderHomeMermaid(root) {
+  const blocks = [...root.querySelectorAll('.hc-mermaid:not(.is-rendered)')];
+  if (!blocks.length) return;
+  try {
+    if (!window.mermaid) {
+      homeMermaidLoading = homeMermaidLoading || new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/vendor/mermaid/mermaid.min.js';
+        s.onload = resolve;
+        s.onerror = () => { homeMermaidLoading = null; reject(new Error('mermaid 加载失败')); };
+        document.head.append(s);
+      });
+      await homeMermaidLoading;
+      const dark = document.documentElement.dataset.theme === 'dark';
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'inherit' });
+    }
+    for (const el of blocks) {
+      const src = el.dataset.mermaid || '';
+      let svg = homeMermaidCache.get(src);
+      if (!svg) {
+        const out = await window.mermaid.render('hcm' + Math.random().toString(36).slice(2, 9), src);
+        svg = out.svg;
+        homeMermaidCache.set(src, svg);
+      }
+      el.innerHTML = svg;
+      el.classList.add('is-rendered');
+    }
+  } catch (e) {
+    blocks.forEach(el => el.classList.add('is-rendered', 'is-failed'));
+  }
+}
+
+// ---- 交互 ----
 
 function bindHomeChat() {
   const chat = ensureHomeChatState();
@@ -253,33 +374,199 @@ function bindHomeChat() {
   if (!main) return;
   const input = $('#homeChatInput');
   if (input) {
-    input.oninput = () => { chat.draft = input.value; persistHomeChat(); };
+    input.oninput = () => { chat.draft = input.value; persistHomeChat(); homeMentionUpdate(); };
     input.onkeydown = e => {
+      if (homeMentionKey(e)) return;
       if (e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return;
       e.preventDefault();
       homeChatSend();
     };
+    input.onpaste = e => {
+      const files = [...(e.clipboardData?.files || [])];
+      if (files.length) { e.preventDefault(); homeChatAddFiles(files); }
+    };
+    input.onblur = () => setTimeout(() => homeMentionClose(), 150);
   }
   const form = $('#homeChatForm');
-  if (form) form.onsubmit = e => { e.preventDefault(); homeChatSend(); };
+  if (form) {
+    form.onsubmit = e => { e.preventDefault(); homeChatSend(); };
+    form.ondragover = e => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); form.classList.add('is-drop'); } };
+    form.ondragleave = () => form.classList.remove('is-drop');
+    form.ondrop = e => {
+      form.classList.remove('is-drop');
+      const files = [...(e.dataTransfer?.files || [])];
+      if (files.length) { e.preventDefault(); homeChatAddFiles(files); }
+    };
+  }
+  const fileInput = $('#homeChatFile');
+  $('#homeChatAttach') && ($('#homeChatAttach').onclick = () => fileInput?.click());
+  if (fileInput) fileInput.onchange = () => { homeChatAddFiles([...fileInput.files]); fileInput.value = ''; };
+  $('#homeChatAt') && ($('#homeChatAt').onclick = () => homeMentionInsertAt());
+  main.querySelectorAll('[data-home-unfile]').forEach(b => b.onclick = () => { chat.files.splice(Number(b.dataset.homeUnfile), 1); renderHomeChatMain(); });
+  main.querySelectorAll('[data-home-unref]').forEach(b => b.onclick = () => { chat.refs.splice(Number(b.dataset.homeUnref), 1); renderHomeChatMain(); });
+  main.querySelectorAll('[data-home-suggest]').forEach(b => b.onclick = () => {
+    const s = HOME_CHAT_SUGGESTIONS[Number(b.dataset.homeSuggest)];
+    const el = $('#homeChatInput');
+    if (!el || !s) return;
+    el.value = s.text;
+    chat.draft = s.text;
+    el.focus();
+    el.setSelectionRange(s.text.length, s.text.length);
+    homeMentionUpdate();
+  });
   const pick = id => { chat.workflowId = id; persistHomeChat(); renderHomeChatMain(); };
-  const select = $('#homeChatWorkflow');
-  if (select) select.onchange = () => pick(select.value);
   main.querySelectorAll('[data-home-sop]').forEach(b => b.onclick = () => pick(b.dataset.homeSop));
-  const launchSelect = $('#homeLaunchWorkflow');
-  if (launchSelect) launchSelect.onchange = () => { chat.workflowId = launchSelect.value; persistHomeChat(); };
   $('#homeChatStop') && ($('#homeChatStop').onclick = () => homeChatStop());
   $('#homeChatNew') && ($('#homeChatNew').onclick = () => homeChatReset());
-  $('#homeChatDispatch') && ($('#homeChatDispatch').onclick = () => homeChatCreateAndDispatch());
+  $('#homeChatHistory') && ($('#homeChatHistory').onclick = e => { e.stopPropagation(); homeChatToggleHistory(); });
   main.querySelectorAll('.hc-opt').forEach(b => b.onclick = () => homeChatPickOption(b.dataset.q, b.dataset.opt));
   main.querySelectorAll('[data-chat-action]').forEach(b => b.onclick = () => homeChatAction(b.dataset.chatAction));
   main.querySelectorAll('[data-home-goto]').forEach(b => b.onclick = () => switchView(b.dataset.homeGoto));
   main.querySelectorAll('[data-open-created]').forEach(b => b.onclick = () => openIssueDetail(b.dataset.openCreated, 'sop'));
+  main.querySelectorAll('[data-launch-go]').forEach(b => b.onclick = () => homeChatLaunch(b.closest('[data-launch]')));
+  main.querySelectorAll('[data-draft]').forEach(b => b.onclick = () => homeChatConfirmDraft(b));
   main.querySelectorAll('[data-clarify-model]').forEach(el => typeof bindClarifyModelPicker === 'function' && bindClarifyModelPicker(el));
+  main.querySelectorAll('.md-code-copy').forEach(b => b.onclick = () => {
+    const code = b.closest('.md-code-block')?.querySelector('code')?.textContent || '';
+    navigator.clipboard?.writeText(code).then(() => { b.textContent = '已复制'; setTimeout(() => { b.textContent = '复制'; }, 1200); }).catch(() => {});
+  });
 }
 
+async function homeChatAddFiles(list) {
+  const chat = ensureHomeChatState();
+  const room = HOME_CHAT_MAX_FILES - chat.files.length;
+  if (room <= 0) return toast(`一条消息最多带 ${HOME_CHAT_MAX_FILES} 个附件`, 'err');
+  const picked = list.slice(0, room);
+  if (list.length > room) toast(`一条消息最多带 ${HOME_CHAT_MAX_FILES} 个附件，多出的没有添加`, 'err');
+  const accepted = [];
+  for (const file of picked) {
+    if (file.size > HOME_CHAT_MAX_BYTES) { toast(`${file.name} 超过 20 MB`, 'err'); continue; }
+    const entry = { name: file.name || 'pasted.png', size: file.size, mime: file.type, uploading: true };
+    chat.files.push(entry);
+    accepted.push([file, entry]);
+  }
+  if (!accepted.length) return;
+  renderHomeChatMain();
+  const form = new FormData();
+  accepted.forEach(([file, entry]) => form.append('files', file, entry.name));
+  try {
+    const resp = await fetch('/api/assistant/files', { method: 'POST', body: form });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+    (data.files || []).forEach((meta, i) => { const entry = accepted[i]?.[1]; if (entry) Object.assign(entry, meta, { uploading: false }); });
+  } catch (err) {
+    accepted.forEach(([, entry]) => { entry.uploading = false; entry.error = err.message; });
+    toast('上传失败：' + err.message, 'err');
+  }
+  if (activeViewName() === 'chat') renderHomeChatMain();
+  $('#homeChatInput')?.focus();
+}
+
+// ---- @ 引用需求 ----
+
+function homeMentionQuery() {
+  const input = $('#homeChatInput');
+  if (!input) return null;
+  const before = input.value.slice(0, input.selectionStart ?? input.value.length);
+  const match = before.match(/(^|[^A-Za-z0-9_.@])@([^\s@]{0,30})$/);
+  return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
+}
+
+function homeMentionUpdate() {
+  const box = $('#homeMention');
+  if (!box) return;
+  const q = homeMentionQuery();
+  if (!q) return homeMentionClose();
+  const needle = q.query.toLowerCase().replace(/^#/, '');
+  const items = homeChatIssues()
+    .filter(i => !needle || String(i.number || '').startsWith(needle) || (i.title || '').toLowerCase().includes(needle))
+    .slice(0, 8);
+  box.hidden = false;
+  box.dataset.active = '0';
+  box.innerHTML = items.length
+    ? `<div class="hc-mention-head">引用需求</div>${items.map((i, n) => `<button type="button" class="hc-mention-item${n === 0 ? ' is-active' : ''}" data-mention="${escapeHTML(i.id)}" role="option"><b>${escapeHTML(homeIssueLabel(i))}</b><small>${escapeHTML(typeof issueStatusLabel === 'function' ? issueStatusLabel(i.status) : (i.status || ''))}</small></button>`).join('')}`
+    : `<div class="hc-mention-empty">${homeChatIssues().length ? '没有匹配的需求' : '这个项目还没有需求，直接说要做什么就行'}</div>`;
+  box.querySelectorAll('[data-mention]').forEach(b => b.onmousedown = e => { e.preventDefault(); homeMentionPick(b.dataset.mention); });
+}
+
+function homeMentionClose() {
+  const box = $('#homeMention');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+}
+
+function homeMentionKey(e) {
+  const box = $('#homeMention');
+  if (!box || box.hidden) return false;
+  const items = [...box.querySelectorAll('[data-mention]')];
+  if (e.key === 'Escape') { e.preventDefault(); homeMentionClose(); return true; }
+  if (!items.length) return false;
+  let active = Number(box.dataset.active || 0);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    active = (active + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
+    box.dataset.active = String(active);
+    items.forEach((b, i) => b.classList.toggle('is-active', i === active));
+    return true;
+  }
+  if ((e.key === 'Enter' || e.key === 'Tab') && !e.isComposing) {
+    e.preventDefault();
+    homeMentionPick(items[active].dataset.mention);
+    return true;
+  }
+  return false;
+}
+
+function homeMentionPick(issueId) {
+  const chat = ensureHomeChatState();
+  const issue = (state.data.issues || []).find(i => i.id === issueId);
+  const input = $('#homeChatInput');
+  const q = homeMentionQuery();
+  if (!issue || !input) return;
+  const label = homeIssueLabel(issue).slice(0, 40);
+  if (q) {
+    const caret = input.selectionStart ?? input.value.length;
+    input.value = input.value.slice(0, q.start) + input.value.slice(caret);
+    input.setSelectionRange(q.start, q.start);
+  }
+  if (!chat.refs.some(r => r.id === issue.id)) chat.refs.push({ type: 'issue', id: issue.id, title: issue.title, label });
+  chat.draft = input.value;
+  homeMentionClose();
+  renderHomeChatMain();
+  const el = $('#homeChatInput');
+  if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+
+// 从需求详情跳过来：带上这条需求的 @ 引用，光标停在输入框里。
+function homeChatMentionIssue(issueId) {
+  const issue = (state.data.issues || []).find(i => i.id === issueId);
+  if (!issue) return switchView('chat');
+  if (issue.projectId && issue.projectId !== state.projectFilter) {
+    state.projectFilter = issue.projectId;
+    localStorage.setItem('loopforge.activeProject', issue.projectId);
+    if (typeof renderProjectSwitcher === 'function') renderProjectSwitcher();
+  }
+  const chat = ensureHomeChatState();
+  if (!chat.refs.some(r => r.id === issue.id)) chat.refs.push({ type: 'issue', id: issue.id, title: issue.title, label: homeIssueLabel(issue).slice(0, 40) });
+  switchView('chat');
+  setTimeout(() => $('#homeChatInput')?.focus(), 50);
+}
+
+function homeMentionInsertAt() {
+  const input = $('#homeChatInput');
+  if (!input) return;
+  const pos = input.selectionStart ?? input.value.length;
+  const pad = pos && !/\s$/.test(input.value.slice(0, pos)) ? ' @' : '@';
+  input.value = input.value.slice(0, pos) + pad + input.value.slice(pos);
+  input.focus();
+  input.setSelectionRange(pos + pad.length, pos + pad.length);
+  ensureHomeChatState().draft = input.value;
+  homeMentionUpdate();
+}
+
+// ---- 发送 ----
+
 function homeChatPickOption(qid, opt) {
-  const m = homeChatLatestClarify();
+  const m = homeChatLatestReply();
   if (!m || m.answered) return;
   const q = (m.questions || []).find((x, i) => (x.id || `q${i + 1}`) === qid);
   m.answers = m.answers || {};
@@ -297,18 +584,19 @@ function homeChatAction(id) {
   if (id === 'demo') return homeChatRunDemo();
   if (id === 'retry') return homeChatRetry();
   if (id === 'force-launch') {
-    const m = homeChatLatestClarify();
-    if (m) { m.forceLaunch = true; persistHomeChat(); renderHomeChatMain(); }
+    const m = homeChatLatestReply();
+    if (!m) return;
+    const said = ensureHomeChatState().messages.filter(x => x.role === 'user' && x.text).map(x => x.text);
+    m.launch = { title: (said[0] || '新需求').split('\n')[0].slice(0, 80), description: `${said.join('\n\n')}\n\n## 讨论结论\n\n${m.text || ''}`.trim() };
+    persistHomeChat();
+    renderHomeChatMain();
   }
 }
 
 function homeChatReset() {
   const chat = ensureHomeChatState();
-  if (chat.busy) homeChatStop();
-  chat.messages = [];
-  chat.sessionId = '';
-  chat.jobId = '';
-  chat.draft = '';
+  if (chat.busy) homeChatStop(true);
+  Object.assign(chat, { messages: [], sessionId: '', draft: '', notes: [], files: [], refs: [] });
   persistHomeChat();
   renderHomeChatMain();
   $('#homeChatInput')?.focus();
@@ -320,11 +608,16 @@ function homeChatPush(message) {
   persistHomeChat();
 }
 
-// 把当前这轮选中的选项和输入框里的文字拼成一条回答。
-function homeChatCollectReply() {
-  const input = $('#homeChatInput');
-  const typed = (input?.value || '').trim();
-  const m = homeChatLatestClarify();
+function homeChatNote(text) {
+  const chat = ensureHomeChatState();
+  chat.notes = [...(chat.notes || []), text].slice(-6);
+  persistHomeChat();
+}
+
+// 选中的选项和输入框里的文字拼成一条回答。
+function homeChatCollectText() {
+  const typed = ($('#homeChatInput')?.value || '').trim();
+  const m = homeChatLatestReply();
   const parts = [];
   if (m && !m.answered) {
     (m.questions || []).forEach((q, i) => {
@@ -336,67 +629,63 @@ function homeChatCollectReply() {
   return parts.join('\n');
 }
 
-function homeChatHistory() {
-  return homeChatTurns().filter(m => m.role === 'user' || m.kind === 'clarify').map(m => m.role === 'user'
-    ? { role: 'user', content: m.text }
-    : { role: 'assistant', content: JSON.stringify({ summary: m.summary, questions: m.questions, ready: m.ready, assessment: m.assessment, suggestedTitle: m.suggestedTitle }) });
+// 发给助手的历史：用户消息带附件和引用，助手回合是 JSON（和 AI 助手的会话格式一致）。
+function homeChatServerMessages() {
+  return ensureHomeChatState().messages.filter(m => m.role === 'user' || m.kind === 'reply').map(m => m.role === 'user'
+    ? { role: 'user', content: m.content || m.text || '（见附件）', ...(m.attachments?.length ? { attachments: m.attachments.map(a => ({ id: a.id, name: a.name, mime: a.mime, size: a.size })) } : {}), ...(m.refs?.length ? { refs: m.refs.map(r => ({ type: r.type || 'issue', id: r.id, title: r.title })) } : {}) }
+    : { role: 'assistant', content: JSON.stringify({ message: m.text || '', drafts: m.drafts || [], ...(m.questions?.length ? { questions: m.questions } : {}), ...(m.launch ? { launch: m.launch } : {}), ...(m.files?.length ? { files: m.files } : {}) }) });
 }
 
 async function homeChatSend() {
   const chat = ensureHomeChatState();
-  if (chat.busy) return;
-  const text = homeChatCollectReply();
-  if (!text) { $('#homeChatInput')?.focus(); return; }
-  const latest = homeChatLatestClarify();
-  if (latest) latest.answered = true;
-  chat.draft = '';
-  homeChatPush({ role: 'user', text });
+  if (chat.busy || chat.files.some(f => f.uploading)) return;
+  const text = homeChatCollectText();
+  const files = chat.files.filter(f => f.id && !f.error);
+  if (!text && !files.length) { $('#homeChatInput')?.focus(); return; }
+  const latest = homeChatLatestReply();
+  if (latest && (latest.questions || []).length) latest.answered = true;
+  const notes = chat.notes || [];
+  const message = {
+    role: 'user', text,
+    content: notes.length ? `（平台记录：${notes.join('；')}）\n\n${text || '（见附件）'}` : (text || '（见附件）'),
+    attachments: files.map(f => ({ id: f.id, name: f.name, mime: f.mime, size: f.size })),
+    refs: chat.refs.map(r => ({ type: 'issue', id: r.id, title: r.title })),
+  };
+  Object.assign(chat, { draft: '', files: [], refs: [], notes: [] });
+  homeChatPush(message);
   if (!homeChatHasModelKey()) {
-    homeChatPush({ role: 'assistant', kind: 'notice', text: '还没配置模型 Key，我暂时没法读代码、追问需求。配好后再发一次就行；也可以先跑一遍演示 SOP 看完整流程，它不调模型。', actions: [{ id: 'settings-models', label: '去配置模型 Key', primary: true }, { id: 'demo', label: '先跑演示' }] });
+    homeChatPush({ role: 'assistant', kind: 'notice', text: '还没配置 CodeBuddy Key，我暂时没法读代码、查数据、追问需求。配好后再发一次就行；也可以先跑一遍演示 SOP 看完整流程，它不调模型。', actions: [{ id: 'settings-models', label: '去配置模型 Key', primary: true }, { id: 'demo', label: '先跑演示' }] });
     return renderHomeChatMain();
   }
-  const project = currentProject() || (state.data.projects || [])[0];
-  if (!project) {
-    homeChatPush({ role: 'assistant', kind: 'notice', text: '还没有项目。先建一个项目并绑定代码仓库，我才知道要改哪里。', actions: [] });
-    return renderHomeChatMain();
-  }
-  await homeChatClarify(text, project);
+  await homeChatAsk();
 }
 
 function homeChatRetry() {
-  const last = homeChatTurns().filter(m => m.role === 'user').pop();
-  const project = currentProject() || (state.data.projects || [])[0];
-  if (!last || !project) return;
   const chat = ensureHomeChatState();
   if (chat.messages[chat.messages.length - 1]?.kind === 'error') chat.messages.pop();
-  homeChatClarify(last.text, project);
+  if (chat.messages[chat.messages.length - 1]?.role !== 'user') return;
+  homeChatAsk();
 }
 
-async function homeChatClarify(text, project) {
+async function homeChatAsk() {
   const chat = ensureHomeChatState();
-  const history = homeChatHistory();
-  const users = history.filter(h => h.role === 'user').map(h => h.content);
+  const project = currentProject();
   chat.busy = true;
-  chat.thinking = [{ kind: 'status', text: '正在准备分析…' }];
-  chat.jobId = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  persistHomeChat();
+  chat.live = { status: '正在思考…', tools: [], answer: '' };
   renderHomeChatMain();
   const controller = new AbortController();
   chat._abort = controller;
   try {
-    const resp = await fetch('/api/chat-clarify', {
+    const resp = await fetch('/api/assistant/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify({
-        projectId: project.id,
-        repositoryId: project.defaultRepositoryId || '',
-        title: (users[0] || text).slice(0, 80),
-        description: users.join('\n\n'),
-        message: text,
-        model: typeof selectedClarifyModel === 'function' ? selectedClarifyModel() : undefined,
+        projectId: project?.id || '',
         sessionId: chat.sessionId,
-        jobId: chat.jobId,
-        history,
+        model: typeof selectedClarifyModel === 'function' ? selectedClarifyModel() : undefined,
+        approvalMode: 'confirm',
+        scene: 'home',
+        messages: homeChatServerMessages(),
       }),
       signal: controller.signal,
     });
@@ -405,67 +694,36 @@ async function homeChatClarify(text, project) {
       try { const d = await resp.json(); em = d.error || em; } catch (e) {}
       throw new Error(em);
     }
-    homeChatApply(await homeChatReadStream(resp));
+    const reply = resp.headers.get('Content-Type')?.includes('text/event-stream') ? await homeChatReadStream(resp) : await resp.json();
+    if (reply?.error) throw new Error(reply.error);
+    chat.sessionId = reply.sessionId || chat.sessionId;
+    homeChatPush({
+      role: 'assistant', kind: 'reply', text: reply.message || '',
+      questions: reply.questions || [], answers: {}, launch: reply.launch || null,
+      files: (reply.files || []).map(f => ({ id: f.id, name: f.name, mime: f.mimeType || f.mime, size: f.size })),
+      drafts: reply.drafts || [], trace: (chat.live?.tools || []).map(t => t.text).slice(-12),
+    });
+    if ((reply.drafts || []).some(d => d.saved)) refreshAfterHomeWrite();
   } catch (err) {
-    homeChatFail(err);
+    if (err?.name !== 'AbortError') {
+      const message = err?.message || '请求失败';
+      const credential = /401|API Key|CodeBuddy|凭据|Unauthorized/i.test(message);
+      homeChatPush({
+        role: 'assistant', kind: 'error', text: `这一轮没回答成：${message}`,
+        actions: credential ? [{ id: 'settings-models', label: '去个人设置检查 Key', primary: true }, { id: 'retry', label: '重试' }] : [{ id: 'retry', label: '重试', primary: true }],
+      });
+    }
   } finally {
-    homeChatSettle(controller);
-  }
-}
-
-async function homeChatAttach(jobId) {
-  const chat = ensureHomeChatState();
-  const controller = new AbortController();
-  chat._abort = controller;
-  chat.busy = true;
-  chat.thinking = [{ kind: 'status', text: '正在接上刚才的分析…' }];
-  renderHomeChatMain();
-  try {
-    const resp = await fetch('/api/chat-clarify?jobId=' + encodeURIComponent(jobId), { headers: { Accept: 'text/event-stream' }, signal: controller.signal });
-    if (resp.status === 404) { chat.jobId = ''; return; }
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    homeChatApply(await homeChatReadStream(resp));
-  } catch (err) {
-    homeChatFail(err);
-  } finally {
-    homeChatSettle(controller);
-  }
-}
-
-function homeChatApply(data) {
-  const chat = ensureHomeChatState();
-  if (data?.error) throw new Error(data.error);
-  const result = parseClarifyPayload(data);
-  chat.sessionId = data?.sessionId || data?.repository?.sessionId || chat.sessionId;
-  if (!result.ready && !(result.questions || []).length && !String(result.summary || '').trim()) throw new Error('这一轮没有拿到澄清结论，请再试一次');
-  homeChatPush({
-    role: 'assistant', kind: 'clarify',
-    summary: result.summary || '', questions: result.questions || [], ready: !!result.ready,
-    assessment: result.assessment || null, suggestedTitle: result.suggestedTitle || '', answers: {},
-  });
-}
-
-function homeChatFail(err) {
-  if (err?.name === 'AbortError') return;
-  const message = err?.message || '澄清失败';
-  const credential = /401|API Key|网络环境|Unauthorized/i.test(message);
-  homeChatPush({
-    role: 'assistant', kind: 'error', text: `这一轮没分析成：${message}`,
-    actions: credential ? [{ id: 'settings-models', label: '去个人设置检查 Key', primary: true }, { id: 'retry', label: '重试' }] : [{ id: 'retry', label: '重试', primary: true }],
-  });
-}
-
-function homeChatSettle(controller) {
-  const chat = ensureHomeChatState();
-  if (chat._abort !== controller) return;
-  chat._abort = null;
-  chat.busy = false;
-  chat.jobId = '';
-  chat.thinking = [];
-  persistHomeChat();
-  if (activeViewName() === 'chat') {
-    renderHomeChatMain();
-    $('#homeChatInput')?.focus();
+    if (chat._abort === controller) {
+      chat._abort = null;
+      chat.busy = false;
+      chat.live = null;
+      persistHomeChat();
+      if (activeViewName() === 'chat') {
+        renderHomeChatMain();
+        $('#homeChatInput')?.focus();
+      }
+    }
   }
 }
 
@@ -473,7 +731,7 @@ async function homeChatReadStream(resp) {
   const chat = ensureHomeChatState();
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '', done = null;
+  let buffer = '', result = null, error = null;
   for (;;) {
     const next = await reader.read();
     if (next.done) break;
@@ -485,34 +743,136 @@ async function homeChatReadStream(resp) {
       let event = 'message', data = '';
       chunk.split('\n').forEach(line => {
         if (line.startsWith('event:')) event = line.slice(6).trim();
-        else if (line.startsWith('data:')) data += line.slice(5).trim();
+        else if (line.startsWith('data:')) data += (data ? '\n' : '') + line.slice(5).trimStart();
       });
       if (!data) continue;
       let payload = {};
       try { payload = JSON.parse(data); } catch (e) { continue; }
-      if (event === 'job' && payload.jobId) { chat.jobId = payload.jobId; persistHomeChat(); }
-      else if (event === 'thought') {
-        if (payload.kind !== 'tool' && payload.kind !== 'status' && typeof clarifyThoughtShouldHide === 'function' && clarifyThoughtShouldHide(payload.text)) continue;
-        chat.thinking.push(payload);
-        homeChatPaintThinking();
-      } else if (event === 'done') done = payload;
-      else if (event === 'error') done = { error: payload.error || '分析失败' };
+      if (event === 'result') result = payload;
+      else if (event === 'error') error = payload.error || '生成失败';
+      else if (event === 'thought') homeChatThought(payload);
     }
   }
-  return done || { error: '分析没有返回结果' };
+  if (error) throw new Error(error);
+  if (!result) throw new Error('回答中断了，请重试');
+  return result;
 }
 
-function homeChatStop() {
+function homeChatThought(ev) {
+  const live = ensureHomeChatState().live;
+  if (!live) return;
+  const tool = String(ev.tool || '').replace(/^mcp__loopforge_session__/, '');
+  switch (ev.kind) {
+    case 'answer':
+      live.answer += ev.text || '';
+      break;
+    case 'tool':
+      if (tool === 'submit_assistant_reply') { live.status = '正在整理回答…'; break; }
+      live.tools.push({ id: ev.id || '', text: ev.text || (typeof clarifyToolLabel === 'function' ? clarifyToolLabel(tool) : tool) || '调用工具' });
+      live.status = '正在查…';
+      break;
+    case 'toolDone':
+      live.tools.forEach(t => { if (t.id && t.id === ev.id) t.done = true; });
+      break;
+    case 'thinking': case 'thinkingStart':
+      live.status = '正在思考…';
+      break;
+    default:
+      if (ev.text) live.status = ev.text;
+  }
+  homeChatPaintLive();
+}
+
+function homeChatStop(silent) {
   const chat = ensureHomeChatState();
-  const jobId = chat.jobId;
-  if (jobId) api('/api/chat-clarify/cancel', { method: 'POST', silent: true, body: JSON.stringify({ jobId }) }).catch(() => {});
   chat._abort?.abort();
   chat._abort = null;
   chat.busy = false;
-  chat.jobId = '';
-  chat.thinking = [];
-  homeChatPush({ role: 'assistant', kind: 'notice', text: '已停止。改一下说法再发，或点重试。', actions: [{ id: 'retry', label: '重试' }] });
+  chat.live = null;
+  if (!silent) {
+    homeChatPush({ role: 'assistant', kind: 'notice', text: '已停止。改一下说法再发，或点重试。', actions: [{ id: 'retry', label: '重试' }] });
+    renderHomeChatMain();
+  }
+}
+
+// ---- 草稿、开跑、演示 ----
+
+async function homeChatConfirmDraft(button) {
+  const [mi, di] = button.dataset.draft.split(':').map(Number);
+  const chat = ensureHomeChatState();
+  const draft = chat.messages[mi]?.drafts?.[di];
+  if (!draft || draft.saved) return;
+  const kind = homeDraftKind(draft.tool);
+  if (kind.danger && !await afConfirm({ title: kind.label, message: `将执行 ${draft.tool}。这会立即改动平台上的运行或资源。`, danger: true, confirmText: '确认执行' })) return;
+  button.disabled = true;
+  button.textContent = '正在执行…';
+  try {
+    const args = {};
+    if (draft.path && Object.keys(draft.path).length) args.path = draft.path;
+    if (draft.query && Object.keys(draft.query).length) args.query = draft.query;
+    if (draft.body !== undefined && draft.body !== null) args.body = draft.body;
+    const res = await api('/mcp', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name: draft.tool, arguments: args } }) });
+    if (res.error || res.result?.isError) throw new Error(res.error?.message || res.result?.content?.[0]?.text || '执行失败');
+    const saved = res.result?.structuredContent?.data || {};
+    draft.saved = true;
+    draft.saveError = '';
+    homeChatNote(`用户已确认执行 ${draft.tool}${saved.id ? '（' + saved.id + '）' : ''}`);
+    refreshAfterHomeWrite();
+  } catch (err) {
+    draft.saveError = String(err.message || '').slice(0, 200);
+  }
+  persistHomeChat();
   renderHomeChatMain();
+}
+
+async function refreshAfterHomeWrite() {
+  try { await Promise.all([refreshRuns(true), refreshIssues()]); } catch (e) {}
+  renderHomeRunsPanel();
+}
+
+async function homeChatLaunch(card) {
+  if (!card) return;
+  const chat = ensureHomeChatState();
+  const m = chat.messages[Number(card.dataset.launch)];
+  const l = m?.launch;
+  const project = currentProject() || (state.data.projects || [])[0];
+  if (!l || !project) return toast('请先选择项目');
+  const workflowId = card.querySelector('[data-launch-workflow]')?.value || homeChatSelectedWorkflow()?.id;
+  const workflow = homeChatWorkflows().find(w => w.id === workflowId);
+  if (!workflowId) return toast('这个项目还没有可用的 SOP');
+  const button = card.querySelector('[data-launch-go]');
+  if (button) { button.disabled = true; button.textContent = l.issueId ? '正在派发…' : '正在建单…'; }
+  let issue = l.issueId ? (state.data.issues || []).find(i => i.id === l.issueId) : null;
+  try {
+    if (!issue) {
+      const title = (card.querySelector('[data-launch-title]')?.value || '').trim() || l.title || homeChatTitle();
+      issue = await api('/api/issues', {
+        method: 'POST',
+        body: JSON.stringify({ projectId: project.id, title, description: l.description || title, kind: 'requirement', priority: 'medium', status: 'todo', syncTarget: 'local', workflowId, assigneeUserId: Number(state.currentUser?.id) || 0 }),
+      });
+      rememberIssue(issue);
+    }
+  } catch (err) {
+    if (button) { button.disabled = false; button.textContent = '建单并开跑'; }
+    return toast('建单失败：' + err.message, 'err');
+  }
+  try {
+    const task = await api(`/api/issues/${issue.id}/dispatch`, { method: 'POST', body: JSON.stringify({ workflowId }) });
+    rememberIssue({ ...issue, latestTaskId: task.id, status: 'in_progress' });
+    (state.data.tasks || (state.data.tasks = [])).unshift(task);
+    l.done = true;
+    l.title = issue.title;
+    l.issueId = issue.id;
+    homeChatPush({ role: 'assistant', kind: 'launched', title: issue.title, issueId: issue.id, runId: task.runId || '', workflowId, workflowName: workflow?.name || workflowId });
+    homeChatNote(`用户已开跑需求「${issue.title}」（${issue.id}），SOP ${workflowId}，运行 ${task.runId || task.id}`);
+  } catch (err) {
+    l.issueId = issue.id;
+    const credential = /Token|API Key|个人设置/.test(err.message);
+    homeChatPush({ role: 'assistant', kind: 'error', text: `需求已建好，但没能开跑：${err.message}`, actions: credential ? [{ id: /Token/.test(err.message) ? 'settings-git' : 'settings-models', label: '去个人设置', primary: true }] : [] });
+  }
+  persistHomeChat();
+  renderHomeChatMain();
+  await refreshAfterHomeWrite();
 }
 
 async function homeChatRunDemo() {
@@ -530,49 +890,54 @@ async function homeChatRunDemo() {
   renderHomeRunsPanel();
 }
 
-async function homeChatCreateAndDispatch() {
-  const chat = ensureHomeChatState();
-  const project = currentProject() || (state.data.projects || [])[0];
-  if (!project) return toast('请先创建项目');
-  const latest = homeChatLatestClarify();
-  const workflowId = $('#homeLaunchWorkflow')?.value || chat.workflowId;
-  const workflow = homeChatWorkflows().find(w => w.id === workflowId);
-  const title = ($('#homeLaunchTitle')?.value || '').trim() || homeChatTitle();
-  const said = homeChatTurns().filter(m => m.role === 'user').map(m => m.text).join('\n\n');
-  const description = latest?.summary ? `${said}\n\n## 澄清结论\n\n${latest.summary}` : said;
-  const button = $('#homeChatDispatch');
-  if (button) { button.disabled = true; button.textContent = '正在建单…'; }
-  let issue;
+// ---- 历史对话（和 AI 助手共用会话存储） ----
+
+async function homeChatToggleHistory() {
+  const menu = $('#homeChatHistoryMenu');
+  if (!menu) return;
+  if (!menu.hidden) { menu.hidden = true; return; }
+  menu.hidden = false;
+  menu.innerHTML = '<div class="hc-history-empty">正在读取…</div>';
+  const close = e => { if (!menu.contains(e.target)) { menu.hidden = true; document.removeEventListener('click', close); } };
+  document.addEventListener('click', close);
   try {
-    issue = await api('/api/issues', {
-      method: 'POST',
-      body: JSON.stringify({
-        projectId: project.id, title, description, kind: 'requirement', priority: 'medium', status: 'todo', syncTarget: 'local', workflowId,
-        assigneeUserId: Number(state.currentUser?.id) || 0,
-        clarification: latest?.assessment ? {
-          summary: latest.summary || '', dimensions: latest.assessment.dimensions, missing: latest.assessment.missing || [],
-          questions: latest.questions || [], status: 'ready', passed: true, gated: true,
-        } : undefined,
-      }),
-    });
-    rememberIssue(issue);
+    const items = await api('/api/assistant/sessions', { silent: true });
+    const chat = ensureHomeChatState();
+    menu.innerHTML = items?.length
+      ? items.slice(0, 30).map(it => `<button type="button" class="hc-history-item${it.id === chat.sessionId ? ' is-active' : ''}" data-home-session="${escapeHTML(it.id)}"><b>${escapeHTML(it.title || '未命名对话')}</b><small>${escapeHTML(homeRunAgo(it.updatedAt))}</small></button>`).join('')
+      : '<div class="hc-history-empty">还没有历史对话</div>';
+    menu.querySelectorAll('[data-home-session]').forEach(b => b.onclick = () => { menu.hidden = true; homeChatOpenSession(b.dataset.homeSession); });
   } catch (err) {
-    if (button) { button.disabled = false; button.textContent = '建单并开跑'; }
-    return toast('建单失败：' + err.message, 'err');
+    menu.innerHTML = `<div class="hc-history-empty">${escapeHTML(err.message || '读取失败')}</div>`;
   }
+}
+
+async function homeChatOpenSession(id) {
   try {
-    const task = await api(`/api/issues/${issue.id}/dispatch`, { method: 'POST', body: JSON.stringify({ workflowId }) });
-    rememberIssue({ ...issue, latestTaskId: task.id, status: 'in_progress' });
-    (state.data.tasks || (state.data.tasks = [])).unshift(task);
-    chat.sessionId = '';
-    homeChatPush({ role: 'assistant', kind: 'launched', title, issueId: issue.id, runId: task.runId || '', workflowId, workflowName: workflow?.name || workflowId });
+    const item = await api('/api/assistant/sessions/' + encodeURIComponent(id), { silent: true });
+    const chat = ensureHomeChatState();
+    if (chat.busy) homeChatStop(true);
+    const messages = [];
+    for (const m of item.messages || []) {
+      if (m.role === 'user') {
+        if (/^(已通过 MCP 执行 |上一个草稿已确认保存成功|刚才的草稿保存失败：)/.test(m.content || '')) continue;
+        const text = String(m.content || '').replace(/^（平台记录：[\s\S]*?）\n\n/, '');
+        messages.push({ role: 'user', text: text === '（见附件）' ? '' : text, content: m.content, attachments: m.attachments || [], refs: m.refs || [] });
+        continue;
+      }
+      let parsed = null;
+      try { parsed = JSON.parse(m.content); } catch (e) {}
+      if (!parsed || typeof parsed.message !== 'string') parsed = { message: m.content || '', drafts: [] };
+      messages.push({ role: 'assistant', kind: 'reply', text: parsed.message, questions: parsed.questions || [], answers: {}, answered: true, launch: parsed.launch || null, files: (parsed.files || []).map(f => ({ id: f.id, name: f.name, mime: f.mimeType || f.mime, size: f.size })), drafts: parsed.drafts || [] });
+    }
+    Object.assign(chat, { messages, sessionId: item.id || id, draft: '', notes: [], files: [], refs: [] });
+    const last = homeChatLatestReply();
+    if (last) last.answered = false;
+    persistHomeChat();
+    renderHomeChatMain();
   } catch (err) {
-    const credential = /Token|API Key|个人设置/.test(err.message);
-    homeChatPush({ role: 'assistant', kind: 'error', text: `需求已建好，但没能开跑：${err.message}`, actions: credential ? [{ id: /Token/.test(err.message) ? 'settings-git' : 'settings-models', label: '去个人设置', primary: true }] : [] });
+    toast('打不开这段对话：' + err.message, 'err');
   }
-  renderHomeChatMain();
-  try { await refreshRuns(true); await refreshIssues(); } catch (e) {}
-  renderHomeRunsPanel();
 }
 
 // ---- 右侧：本项目正在跑的 SOP ----

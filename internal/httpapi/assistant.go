@@ -33,16 +33,30 @@ type assistantDraft struct {
 	SaveError string          `json:"saveError,omitempty"`
 }
 type assistantReply struct {
-	Message   string            `json:"message"`
-	Drafts    []assistantDraft  `json:"drafts"`
-	Sources   []assistantSource `json:"sources,omitempty"`
-	SessionID string            `json:"sessionId,omitempty"`
+	Message   string                         `json:"message"`
+	Drafts    []assistantDraft               `json:"drafts"`
+	Questions []domain.ClarificationQuestion `json:"questions,omitempty"`
+	Launch    *assistantLaunch               `json:"launch,omitempty"`
+	Files     []assistantGeneratedFile       `json:"files,omitempty"`
+	Sources   []assistantSource              `json:"sources,omitempty"`
+	SessionID string                         `json:"sessionId,omitempty"`
+}
+
+// assistantLaunch proposes running an SOP: either a new requirement
+// (title + description) or an existing one (issueId). The user confirms it
+// on a launch card; the assistant never dispatches by itself through it.
+type assistantLaunch struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	WorkflowID  string `json:"workflowId,omitempty"`
+	IssueID     string `json:"issueId,omitempty"`
 }
 type assistantRequest struct {
 	ProjectID    string             `json:"projectId"`
 	SessionID    string             `json:"sessionId"`
 	Model        string             `json:"model"`
 	ApprovalMode string             `json:"approvalMode"`
+	Scene        string             `json:"scene,omitempty"` // home: the chat page acting as the project PM
 	Messages     []assistantMessage `json:"messages"`
 }
 type assistantHandlers struct {
@@ -73,7 +87,7 @@ func (h *assistantHandlers) chat(c *gin.Context) {
 		return
 	}
 	for _, m := range req.Messages {
-		if (m.Role != "user" && m.Role != "assistant") || strings.TrimSpace(m.Content) == "" {
+		if (m.Role != "user" && m.Role != "assistant") || (strings.TrimSpace(m.Content) == "" && len(m.Attachments) == 0) {
 			c.JSON(400, gin.H{"error": "消息角色或内容无效"})
 			return
 		}
@@ -88,6 +102,15 @@ func (h *assistantHandlers) chat(c *gin.Context) {
 			return
 		}
 	}
+	last := &req.Messages[len(req.Messages)-1]
+	attachBlock, attachments, err := stageAssistantAttachments(user.ID, last.Attachments)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	last.Attachments = attachments
+	last.Refs = h.resolveAssistantRefs(req.ProjectID, last.Refs)
+	req.Scene = strings.TrimSpace(req.Scene)
 	catalog := loadAssistantModels(c.Request.Context(), user.CodeBuddyInternetEnvironment)
 	req.Model = assistantAllowedModel(req.Model, catalog)
 	req.SessionID = strings.TrimSpace(req.SessionID)
@@ -103,7 +126,8 @@ func (h *assistantHandlers) chat(c *gin.Context) {
 	}
 	defer h.active.Delete(current.ID)
 	sourceRoot := h.resolvedSourceRoot()
-	fullPrompt := h.turnPrompt(req, sourceRoot, false)
+	turnExtra := strings.TrimSpace(strings.Join([]string{h.assistantSceneContext(req), h.assistantRefsContext(last.Refs), attachBlock}, "\n\n"))
+	fullPrompt := h.turnPrompt(req, sourceRoot, false) + assistantTurnExtra(turnExtra)
 	turn := fullPrompt
 	ctx, cancel := context.WithTimeout(c.Request.Context(), assistantChatTimeout)
 	defer cancel()
@@ -153,10 +177,10 @@ func (h *assistantHandlers) chat(c *gin.Context) {
 		resume := false
 		if _, err := loadAssistantConversation(h.repo, user.ID, req.SessionID); err == nil && len(req.Messages) > 1 {
 			resume = true
-			turn = h.turnPrompt(req, sourceRoot, true)
+			turn = h.turnPrompt(req, sourceRoot, true) + assistantTurnExtra(turnExtra)
 		}
 		generate = func(ctx context.Context, prompt string, u domain.User) (string, error) {
-			cliReq := assistantCLIRequest{Prompt: prompt, Model: req.Model, SessionID: req.SessionID, Resume: resume, UserID: u.ID, Native: true, MCPConfig: toolFiles.MCPConfig, Settings: toolFiles.Settings, SystemPrompt: assistantSystemPromptForMode(approvalMode)}
+			cliReq := assistantCLIRequest{Prompt: prompt, Model: req.Model, SessionID: req.SessionID, Resume: resume, UserID: u.ID, Native: true, MCPConfig: toolFiles.MCPConfig, Settings: toolFiles.Settings, SystemPrompt: assistantSystemPromptForScene(approvalMode, req.Scene)}
 			raw, _, err := runAssistantCLI(ctx, cliReq, u, func(ev assistantStreamEvent) {
 				if streaming {
 					emit("thought", ev)
@@ -228,9 +252,13 @@ func (h *assistantHandlers) chat(c *gin.Context) {
 		if len(reply.Drafts) > 0 {
 			reply.Drafts = h.resolveAssistantDrafts(ctx, user, req.ProjectID, reply.Drafts, approvalMode)
 		}
+		reply.Launch = h.resolveAssistantLaunch(req.ProjectID, reply.Launch)
+		if len(reply.Files) > 0 {
+			reply.Files = storeAssistantGeneratedFiles(user.ID, reply.Files)
+		}
 		if h.generate == nil {
 			stored := append([]assistantMessage{}, req.Messages...)
-			stored = append(stored, assistantMessage{Role: "assistant", Content: jsonObject(gin.H{"message": reply.Message, "drafts": reply.Drafts})})
+			stored = append(stored, assistantMessage{Role: "assistant", Content: jsonObject(assistantStoredReply(reply))})
 			_ = saveAssistantConversation(h.repo, user.ID, assistantConversation{ID: req.SessionID, ProjectID: req.ProjectID, Model: req.Model, Messages: stored})
 		}
 		if streaming {

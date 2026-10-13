@@ -2,8 +2,8 @@ const { test, expect } = require('@playwright/test');
 const { watchErrors, login, visibleButton } = require('./helpers');
 
 async function createRequirement(page, workflowId, title) {
-  await page.locator('.nav[data-view="dashboard"]').click();
-  await page.locator('#dashNewRequirement').click();
+  await page.locator('.nav[data-view="issues"]').click();
+  await page.locator('#newIssue').click();
   await page.locator('#reqWorkflow').selectOption(workflowId);
   await page.locator('#chatInput').fill(title);
   await page.locator('#chatCreateDirect').click();
@@ -34,7 +34,7 @@ test('a copied built-in template resolves its roles and explains missing credent
   expect(copied).toBeTruthy();
 
   const drawer = await createRequirement(page, copied.id, '模板：给 README 增加安装说明');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
 
   const failure = drawer.locator('.node-progress-error').first();
   await expect(failure).toContainText('API Key', { timeout: 30_000 });
@@ -52,7 +52,7 @@ test('a dispatch that fails to start shows the reason and can be retried', async
   const drawer = await createRequirement(page, 'generic-backend-delivery', '模板：没有仓库时派发');
   const toast = page.locator('#toastContainer');
   for (let attempt = 0; attempt < 2; attempt++) {
-    await visibleButton(page, '触发').click();
+    await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
     await expect(toast).toContainText('仓库', { timeout: 10_000 });
     await expect(toast).not.toContainText('已经跑过');
     await expect(drawer).toBeVisible();

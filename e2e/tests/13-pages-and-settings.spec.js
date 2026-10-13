@@ -1,34 +1,44 @@
 const { test, expect } = require('@playwright/test');
 const { ADMIN, watchErrors, login } = require('./helpers');
 
-test('the dashboard and the requirement chat are separate pages', async ({ page }) => {
+test('the home page is the chat: no dashboard, attachments, @ mentions and no surprise runs', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
-  await expect(page.locator('#pageTitle')).toHaveText('工作总览');
-  await expect(page.locator('#dashboardView #homeChat')).toHaveCount(0);
-  await expect(page.locator('#homeChat')).toBeHidden();
-
-  await page.locator('#dashNewRun').click();
-  await expect(page.locator('#pageTitle')).toHaveText('发起需求');
-  await expect(page).toHaveURL(/#\/chat$/);
+  await expect(page.locator('#pageTitle')).toHaveText('首页');
+  await expect(page.locator('#dashboardView')).toHaveCount(0);
   const home = page.locator('#homeChat');
   await expect(home.locator('.hc-brand')).toHaveText('LoopForge');
   await expect(page.locator('#homeChatInput')).toBeVisible();
   await expect(home.locator('#hcRuns')).toContainText('正在运行');
+  await page.goto('/#/dashboard');
+  await expect(page.locator('#pageTitle')).toHaveText('首页');
 
   const cards = home.locator('[data-home-sop]');
   expect(await cards.count()).toBeGreaterThan(1);
   await cards.nth(1).click();
   await expect(home.locator('[data-home-sop]').nth(1)).toHaveClass(/is-selected/);
-  const picked = await home.locator('[data-home-sop]').nth(1).getAttribute('data-home-sop');
-  await expect(page.locator('#homeChatWorkflow')).toHaveValue(picked);
+
+  // Attach a file through the picker; it uploads right away and shows in the tray.
+  await page.locator('#homeChatFile').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# 备注\n导出要带表头') });
+  await expect(home.locator('.hc-file-chip')).toContainText('notes.md');
+  await expect(home.locator('.hc-file-chip')).not.toHaveClass(/is-uploading/);
+
+  // @ opens the requirement picker; picking one adds a reference chip.
+  await page.locator('#homeChatInput').fill('看下 @');
+  await expect(home.locator('#homeMention')).toBeVisible();
+  const first = home.locator('#homeMention [data-mention]').first();
+  if (await first.count()) {
+    await page.locator('#homeChatInput').press('Enter');
+    await expect(home.locator('.hc-tray .hc-ref-chip')).toHaveCount(1);
+  }
 
   // Without a model key a message gets an explanation, never a surprise run.
   const runsBefore = await page.evaluate(() => (state.data.runs || []).length);
   await page.locator('#homeChatInput').fill('你好');
   await page.locator('#homeChatInput').press('Enter');
-  await expect(home.locator('.hc-msg.is-user')).toHaveText('你好');
-  await expect(home.locator('.hc-msg.is-bot').last()).toContainText('还没配置模型 Key');
+  await expect(home.locator('.hc-msg.is-user .hc-bubble')).toHaveText('你好');
+  await expect(home.locator('.hc-msg.is-user .hc-file')).toContainText('notes.md');
+  await expect(home.locator('.hc-msg.is-bot').last()).toContainText('还没配置 CodeBuddy Key');
   await expect(home.locator('.hc-msg.is-bot').last().locator('[data-chat-action="settings-models"]')).toBeVisible();
   expect(await page.evaluate(() => (state.data.runs || []).length)).toBe(runsBefore);
   await expect(page.locator('#issueDetailDrawer')).toBeHidden();
@@ -37,10 +47,11 @@ test('the dashboard and the requirement chat are separate pages', async ({ page 
   await expect(home.locator('.hc-brand')).toBeVisible();
   await expect(page.locator('.nav[data-view="chat"]')).toHaveClass(/active/);
 
-  await page.reload();
-  await expect(page.locator('#homeChat')).toBeVisible();
-  await page.locator('.nav[data-view="dashboard"]').click();
-  await expect(page.locator('#homeChat')).toBeHidden();
+  // The top-bar AI assistant button lands here too.
+  await page.locator('.nav[data-view="issues"]').click();
+  await page.locator('.ai-launch').click();
+  await expect(page.locator('#pageTitle')).toHaveText('首页');
+  await expect(page.locator('#aiAssistant')).toBeHidden();
   expect(errors).toEqual([]);
 });
 
@@ -71,7 +82,7 @@ test('personal settings split into tabs that keep unsaved input and survive a re
 
   // Tabs replace the history entry, so Back leaves settings instead of stepping through tabs.
   await page.goBack();
-  await expect(page.locator('#pageTitle')).toHaveText('工作总览');
+  await expect(page.locator('#pageTitle')).toHaveText('首页');
   expect(errors).toEqual([]);
 });
 

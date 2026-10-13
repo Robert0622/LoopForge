@@ -42,7 +42,7 @@ function registerPluginView(def){
   btn.onclick=()=>switchView(id);
   pluginNavGroup().appendChild(btn);
   pluginViews.set(id,view);
-  if(initialPluginRoute===id&&state.currentView==='dashboard')switchView(id);
+  if(initialPluginRoute===id&&state.currentView==='chat')switchView(id);
   return view;
 }
 window.LoopForge=Object.freeze({

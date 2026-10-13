@@ -1,4 +1,4 @@
-// 工作总览顶部的「快速开始」清单：按真实状态打勾，每一项都有直达按钮。
+// 接入指南顶部的「快速开始」清单：按真实状态打勾，每一项都有直达按钮。
 // 正式使用的几步全部完成后自动消失；手动收起后，重看引导时会再打开。
 const QUICKSTART_HIDDEN_KEY = 'loopforge.quickstart.hidden';
 const QUICKSTART_DEMO_WORKFLOW = 'demo-delivery';
@@ -70,7 +70,7 @@ function quickstartStepHTML(step, index) {
 }
 
 function renderQuickstart() {
-  const host = $('#dashQuickstart');
+  const host = $('#quickstartCard');
   if (!host) return;
   const user = state.currentUser;
   const plan = user && !user.isGuest ? quickstartSteps(quickstartContext()) : null;
@@ -133,7 +133,7 @@ async function startDemoRequirement(button, opts = {}) {
       } catch (e) {}
     }
     renderIssues();
-    renderDashboard();
+    renderQuickstart();
     if (!opts.stay) {
       await openIssueDetail(issue.id, 'sop');
       toast('演示需求已开跑。几秒后会停在「确认方案」，点「确认通过，继续下游」放行', 'ok');

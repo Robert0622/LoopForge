@@ -50,7 +50,7 @@ test('a shell SOP designed in the editor runs in the local sandbox and keeps its
   const workflowId = await publish(page);
 
   const drawer = await createRequirement(page, workflowId, '浏览器：脚本 SOP 真跑');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
   await expect(drawer).toContainText('已完成', { timeout: 30_000 });
 
   const run = await page.evaluate(async title => {
@@ -94,7 +94,7 @@ test('an approval gate stops a real run until 待我确认 lets it continue', as
   const workflowId = await publish(page);
 
   const drawer = await createRequirement(page, workflowId, '浏览器：审批后继续');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
   await expect(drawer).toContainText('待审批', { timeout: 30_000 });
   const issue = (await api(page, '/api/issues')).find(item => item.title === '浏览器：审批后继续');
   const task = (await api(page, '/api/tasks')).find(item => item.issueId === issue.id);
@@ -118,7 +118,7 @@ test('a script that exits non-zero fails the run and can be cancelled while slee
   await writeScript(page, 'echo e2e-browser-failed; exit 1\n');
   const failId = await publish(page);
   const drawer = await createRequirement(page, failId, '浏览器：脚本失败');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
   await expect(drawer).toContainText('失败', { timeout: 30_000 });
   const failedIssue = (await api(page, '/api/issues')).find(item => item.title === '浏览器：脚本失败');
   const failedTask = (await api(page, '/api/tasks')).find(item => item.issueId === failedIssue.id);
@@ -132,7 +132,7 @@ test('a script that exits non-zero fails the run and can be cancelled while slee
   await writeScript(page, 'sleep 30\n');
   const cancelId = await publish(page);
   await createRequirement(page, cancelId, '浏览器：取消睡眠');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
   const issue = (await api(page, '/api/issues')).find(item => item.title === '浏览器：取消睡眠');
   const task = (await api(page, '/api/tasks')).find(item => item.issueId === issue.id);
   await waitForRun(page, task.runId, /running/);
@@ -148,8 +148,8 @@ test('a script that exits non-zero fails the run and can be cancelled while slee
 
 async function createRequirement(page, workflowId, title) {
   const { visibleButton } = require('./helpers');
-  await page.locator('.nav[data-view="dashboard"]').click();
-  await page.locator('#dashNewRequirement').click();
+  await page.locator('.nav[data-view="issues"]').click();
+  await page.locator('#newIssue').click();
   await page.locator('#reqWorkflow').selectOption(workflowId);
   await page.locator('#chatInput').fill(title);
   await page.locator('#chatCreateDirect').click();

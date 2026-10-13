@@ -700,7 +700,7 @@ global.state = { currentUser: { isGuest: true } };
 global.isPlatformAdmin = () => false;
 global.openLoginModal = () => {};
 const fnStart = appCode.indexOf("function renderUserProfilePopover()");
-const fnEnd = appCode.indexOf("function renderDashboard()");
+const fnEnd = appCode.indexOf("async function verifyCodeBuddyKey(");
 eval(appCode.slice(fnStart, fnEnd));
 
 // Guest mode
@@ -934,7 +934,7 @@ assert.deepEqual(approvalItems().map(r => r.id), ['run-afp']);
 state.data.runs[1].executionContext = {responsibleUserId:7};
 assert.equal(runProjectId(state.data.runs[1]), 'platform');
 assert.ok(code.includes('renderApprovals(true);'));
-assert.ok(code.includes('value:approvalItems().length'));
+assert.ok(code.includes('function updateApprovalBadge('));
 `
 	out, err := exec.Command(node, "-e", script).CombinedOutput()
 	if err != nil {
@@ -1122,15 +1122,10 @@ func TestIssueImportUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := string(html)
-	for _, want := range []string{`id="importIssueButton"`, `id="dashImportIssue"`, `id="importIssueModal"`, `id="importIssueURL"`, `id="importIssueWorkflow"`, `id="importIssueRepository"`, `代码仓库（可多选）`, `repo-picker`} {
+	for _, want := range []string{`id="importIssueButton"`, `id="importIssueModal"`, `id="importIssueURL"`, `id="importIssueWorkflow"`, `id="importIssueRepository"`, `代码仓库（可多选）`, `repo-picker`} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("UI is missing %q", want)
 		}
-	}
-	dashImport := strings.Index(page, `id="dashImportIssue"`)
-	dashNew := strings.Index(page, `id="dashNewRequirement"`)
-	if dashImport < 0 || dashNew < 0 || dashImport > dashNew {
-		t.Fatal("工作总览 must place 导入 GitHub Issue to the left of 新建需求")
 	}
 	daily := strings.Index(page, `>日常工作<`)
 	runsNav := strings.Index(page, `data-view="runs"`)
@@ -1148,7 +1143,7 @@ func TestIssueImportUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := string(js)
-	for _, want := range []string{`/api/issues/import`, `openImportIssueModal`, `fillImportIssueWorkflow`, `fillImportIssueRepository`, `selectedImportIssueRepositoryIds`, `renderImportIssueRepositoryPicker`, `repositoryIds`, `请至少选择一个代码仓库`, `importIssueFromURL`, `requirementNeedsClarification`, `clarificationNeedsConfirm`, `data-dtab="clarify"`, `确认结论`, `clarification?.gated`, `autoStartClarify`, `issueClarifyJobs`, `attachIssueClarifyStream`, `关闭网页也不会中断`, `clarifyOptionLabel`, `clarifyQuestionOptions`, `createIssueDirect`, `projectGitHubReady`, `chatCreateDirect`, `chatCreateLocal`, `pushIssueToGitHubFromDetail`, `dashImportIssue`, `run-id-copy`, `data-export-logs`, `从这里重跑`, `重新触发`, `data-retrigger-issue`, `data-rerun-from-here`, `canRetriggerIssue`, `openRerunFromNode`, `executionContext?.issueId`, `run?.status==='succeeded'`, `/api/issues/${encodeURIComponent(issueId)}/requirement`, `inferSOPLane`, `req-lane-card`, `issueLaneDots`, `.filter(l=>!l.orphan)`, `lanes.length<2`, `collapseSingleSOPLane`, `issueSOPLabel`, `actionWorkflow`, `data-workflow`, `workflowSOPLane`, `需求开发`, `saveIssueSOPS`, `/sops`, `effectiveIssueSOPBindings`, `projectSOPBindings`, `fillReqWorkflow`, `plannedSOPNodes`, `sopWorkflowId`, `sopWorkflowChoices`, `syncReqComposerLayout`} {
+	for _, want := range []string{`/api/issues/import`, `openImportIssueModal`, `fillImportIssueWorkflow`, `fillImportIssueRepository`, `selectedImportIssueRepositoryIds`, `renderImportIssueRepositoryPicker`, `repositoryIds`, `请至少选择一个代码仓库`, `importIssueFromURL`, `requirementNeedsClarification`, `clarificationNeedsConfirm`, `data-dtab="clarify"`, `确认结论`, `clarification?.gated`, `autoStartClarify`, `issueClarifyJobs`, `attachIssueClarifyStream`, `关闭网页也不会中断`, `clarifyOptionLabel`, `clarifyQuestionOptions`, `createIssueDirect`, `projectGitHubReady`, `chatCreateDirect`, `chatCreateLocal`, `pushIssueToGitHubFromDetail`, `run-id-copy`, `data-export-logs`, `从这里重跑`, `重新触发`, `data-retrigger-issue`, `data-rerun-from-here`, `canRetriggerIssue`, `openRerunFromNode`, `executionContext?.issueId`, `run?.status==='succeeded'`, `/api/issues/${encodeURIComponent(issueId)}/requirement`, `inferSOPLane`, `req-lane-card`, `issueLaneDots`, `.filter(l=>!l.orphan)`, `lanes.length<2`, `collapseSingleSOPLane`, `issueSOPLabel`, `actionWorkflow`, `data-workflow`, `workflowSOPLane`, `需求开发`, `saveIssueSOPS`, `/sops`, `effectiveIssueSOPBindings`, `projectSOPBindings`, `fillReqWorkflow`, `plannedSOPNodes`, `sopWorkflowId`, `sopWorkflowChoices`, `syncReqComposerLayout`} {
 		if !strings.Contains(code, want) {
 			t.Fatalf("app.js is missing %q", want)
 		}
@@ -1959,7 +1954,7 @@ func TestPlatformAdminLivesOnItsOwnView(t *testing.T) {
 	if !strings.Contains(source, "group.hidden=!canAccessPlatformManagement()") {
 		t.Fatal("the platform nav entry is rendered for non-admins")
 	}
-	if !strings.Contains(source, "if(name==='platform'&&!isPlatformAdmin())name='dashboard'") {
+	if !strings.Contains(source, "if(name==='platform'&&!isPlatformAdmin())name='chat'") {
 		t.Fatal("a hand-typed #/platform is not blocked for non-admins")
 	}
 	if strings.Contains(source, "state.sopScope==='generic'&&isPlatformAdmin()") {

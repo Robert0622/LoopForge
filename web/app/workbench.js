@@ -691,37 +691,6 @@ function renderUserBadge(){
   }
   renderUserProfilePopover();
 }
-function renderDashboard(){
-  const issues=state.data.issues||[];
-  const projectIssues=issues.filter(i=>!state.projectFilter||i.projectId===state.projectFilter);
-  const attention=projectIssues.filter(i=>issueRunHealth(i)==='attention');
-  const waiting=projectIssues.filter(i=>issueCurrentStage(i).key==='waiting');
-  const confirm=projectIssues.filter(i=>issueCurrentStage(i).key==='confirm');
-  const active=projectIssues.filter(i=>issueRunHealth(i)==='active'&&issueCurrentStage(i).key!=='waiting');
-  const closed=projectIssues.filter(i=>issueRunHealth(i)==='closed');
-  updateApprovalBadge();
-  renderQuickstart();
-  const needMe=[...waiting,...confirm,...attention.filter(i=>!waiting.includes(i)&&!confirm.includes(i))];
-  const statCards=[
-    {label:'需要介入',value:attention.length,foot:'澄清未达标、失败或已中断',color:'#c63c4b',filter:'attention'},
-    {label:'待我确认',value:approvalItems().length,foot:'批准后才会继续跑',color:'#fbbf24',to:'approvals'},
-    {label:'正在推进',value:active.length,foot:'Agent 正在执行',color:'#5b8cff',filter:'active'},
-    {label:'已经完成',value:closed.length,foot:'本项目已闭环',color:'#34d399',filter:'closed'},
-  ];
-  const statsHost=$('#dashStats');
-  statsHost.innerHTML=statCards.map(c=>`<div class="stat-card" ${c.filter!=null?`data-issue-filter="${c.filter}"`:`data-jump="${c.to}"`} style="--accent:${c.color}"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="foot">${c.foot}</div></div>`).join('');
-  jumpBind(statsHost);jumpBind($('#dashboardView'));
-  const row=(i)=>{
-    const p=(state.data.projects||[]).find(x=>x.id===i.projectId),out=issueOutcome(i),stage=issueCurrentStage(i);
-    return `<div class="row-item ${out.key}" data-issue="${escapeHTML(i.id)}"><span class="dot ${out.key}"></span><div style="flex:1;min-width:0"><div class="strong ellipsis">${escapeHTML(i.title)}</div><div class="muted">${escapeHTML(issueKeyLabel(i))} · ${escapeHTML(stage.label)}</div></div><span class="status ${out.key}">${escapeHTML(out.short)}</span></div>`;
-  };
-  const bindIssueRows=host=>{host.querySelectorAll('[data-issue]').forEach(el=>el.onclick=()=>openIssueDetail(el.dataset.issue))};
-  $('#dashAttention').innerHTML=needMe.length?needMe.slice(0,8).map(row).join(''):'<div class="empty-box">没有需要你处理的需求</div>';
-  $('#dashActive').innerHTML=active.length?active.slice(0,8).map(row).join(''):'<div class="empty-box">当前没有进行中的需求</div>';
-  const results=closed.filter(i=>!issueManuallyClosed(i)&&!issueTrackerClosed(i)).sort((a,b)=>new Date(b.updatedAt||0)-new Date(a.updatedAt||0)).slice(0,8);
-  $('#dashResults').innerHTML=results.length?results.map(row).join(''):'<div class="empty-box">还没有跑完的需求</div>';
-  bindIssueRows($('#dashAttention'));bindIssueRows($('#dashActive'));bindIssueRows($('#dashResults'));
-}
 
 
 // Checks a saved CodeBuddy key against both network environments; the server

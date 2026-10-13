@@ -242,6 +242,8 @@ func New(s *repo.Store, e *engine.Engine, syncSvc *tracker.Service, basicUser, b
 
 	asst := &assistantHandlers{deps: d, sourceRoot: assistantSourceRoot()}
 	g.POST("/api/assistant/chat", asst.chat)
+	g.POST("/api/assistant/files", asst.uploadFiles)
+	g.GET("/api/assistant/files/:id", asst.file)
 	g.GET("/api/assistant/models", asst.models)
 	g.GET("/api/assistant/sessions", asst.listSessions)
 	g.GET("/api/assistant/sessions/:id", asst.session)

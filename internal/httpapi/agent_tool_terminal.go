@@ -16,7 +16,7 @@ const (
 	agentToolMaxOptionLen   = 200
 	agentToolMaxSummaryLen  = 4000
 	agentToolMaxMessageLen  = 20000
-	agentToolMaxPayload     = 256 << 10
+	agentToolMaxPayload     = 1 << 20
 	agentToolMaxDrafts      = assistantMaxBatch
 )
 
@@ -120,6 +120,48 @@ func submitAssistantReplySchema() map[string]any {
 		"required":             []string{"message", "drafts"},
 		"properties": map[string]any{
 			"message": map[string]any{"type": "string", "description": "展示给用户的 Markdown 文本"},
+			"questions": map[string]any{
+				"type":        "array",
+				"maxItems":    agentToolMaxQuestions,
+				"description": "需要用户拍板时的追问，界面渲染成可点选的选项。选择题至少两个不同选项；开放填写题 freeText=true、options=[]。不需要追问时省略",
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"id", "question", "options", "multiSelect"},
+					"properties": map[string]any{
+						"id":          map[string]any{"type": "string", "minLength": 1},
+						"question":    map[string]any{"type": "string", "minLength": 1},
+						"options":     map[string]any{"type": "array", "items": map[string]any{"type": "string", "minLength": 1}, "maxItems": agentToolMaxOptions},
+						"multiSelect": map[string]any{"type": "boolean"},
+						"freeText":    map[string]any{"type": "boolean"},
+					},
+				},
+			},
+			"launch": map[string]any{
+				"type":                 "object",
+				"additionalProperties": false,
+				"description":          "需求已经说清、建议按 SOP 开跑时提供，界面会出一张开跑卡片让用户确认。新需求填 title + description（完整的澄清结论）；跑已有需求填 issueId。workflowId 选当前项目里最合适的 SOP",
+				"properties": map[string]any{
+					"title":       map[string]any{"type": "string"},
+					"description": map[string]any{"type": "string"},
+					"workflowId":  map[string]any{"type": "string"},
+					"issueId":     map[string]any{"type": "string"},
+				},
+			},
+			"files": map[string]any{
+				"type":        "array",
+				"maxItems":    assistantGeneratedMax,
+				"description": "需要交付文件或画图时提供：图用 .svg（完整 SVG 源码），文档用 .md，表格用 .csv，其他文本类同理。界面会内联展示图片并提供下载",
+				"items": map[string]any{
+					"type":                 "object",
+					"additionalProperties": false,
+					"required":             []string{"name", "content"},
+					"properties": map[string]any{
+						"name":    map[string]any{"type": "string", "description": "带扩展名的文件名"},
+						"content": map[string]any{"type": "string"},
+					},
+				},
+			},
 			"drafts": map[string]any{
 				"type":     "array",
 				"maxItems": agentToolMaxDrafts,
@@ -289,6 +331,24 @@ func parseSubmitAssistantReplyArgs(raw json.RawMessage, projectID string) (assis
 	if payload.Drafts == nil {
 		payload.Drafts = []assistantDraft{}
 	}
+	if len(payload.Questions) > 0 {
+		payload.Questions = sanitizeClarificationQuestions(payload.Questions)
+		if err := validateSubmitClarification(clarifyModelResult{Questions: payload.Questions}); err != nil {
+			return assistantReply{}, fmt.Errorf("questions 无效：%s", strings.ReplaceAll(err.Error(), "submit_clarification", "submit_assistant_reply"))
+		}
+	}
+	if payload.Launch != nil {
+		l := payload.Launch
+		l.Title, l.Description, l.WorkflowID, l.IssueID = strings.TrimSpace(l.Title), strings.TrimSpace(l.Description), strings.TrimSpace(l.WorkflowID), strings.TrimSpace(l.IssueID)
+		if l.IssueID == "" && (l.Title == "" || l.Description == "") {
+			return assistantReply{}, fmt.Errorf("launch 需要 issueId（已有需求），或者同时提供 title 和 description（新需求）")
+		}
+	}
+	files, err := validateAssistantGeneratedFiles(payload.Files)
+	if err != nil {
+		return assistantReply{}, err
+	}
+	payload.Files = files
 	if err := validateAssistantBatch(payload); err != nil {
 		return assistantReply{}, err
 	}

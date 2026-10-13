@@ -30,10 +30,10 @@ test('first login tours the sidebar and ends on the settings page that still nee
   await expect(card).toBeVisible();
   await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
   await expect(page.locator('.nav[data-view="chat"]')).toHaveClass(/onboarding-target/);
-  await expect(page.locator('#onboardingBody')).toContainText('发起需求');
+  await expect(page.locator('#onboardingBody')).toContainText('首页');
   await page.locator('#onboardingNext').click();
-  await expect(page.locator('#dashQuickstart')).toHaveClass(/onboarding-target/);
-  await expect(page.locator('#onboardingBody')).toContainText(/一键开跑|一键演示/);
+  await expect(page.locator('#homeChatForm')).toHaveClass(/onboarding-target/);
+  await expect(page.locator('#onboardingBody')).toContainText('先跑一遍演示');
   await page.locator('#onboardingNext').click();
   await expect(page.locator('.nav[data-view="issues"]')).toHaveClass(/onboarding-target/);
   await page.locator('#onboardingNext').click();
@@ -97,7 +97,8 @@ test('the chat page demo shows progress in the side panel', async ({ page }) => 
 test('the quick-start demo button runs the demo SOP end to end', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
-  const quickstart = page.locator('#dashQuickstart');
+  await page.locator('.nav[data-view="guide"]').click();
+  const quickstart = page.locator('#quickstartCard');
   await expect(quickstart).toBeVisible();
   await expect(quickstart).toContainText('先体验一遍');
   await quickstart.locator('[data-qs-step="demo-run"]').click();
@@ -109,7 +110,8 @@ test('the quick-start demo button runs the demo SOP end to end', async ({ page }
   await expect(drawer).toContainText('已完成', { timeout: 30_000 });
   await closeDrawer(page);
 
-  await page.locator('#refreshDashboard').click();
+  await page.locator('.nav[data-view="issues"]').click();
+  await page.locator('.nav[data-view="guide"]').click();
   await expect(quickstart.locator('.qs-demo .qs-step.is-done')).toHaveCount(2, { timeout: 15_000 });
   expect(errors).toEqual([]);
 });

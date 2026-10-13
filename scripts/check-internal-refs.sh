@@ -48,6 +48,7 @@ matches=$(git grep --untracked -nIiE "${args[@]}" -- . \
   ':!scripts/check-internal-refs.sh' \
   ':(exclude)cli' \
   ':!web/monaco/**' \
+  ':!web/vendor/**' \
   ':!**/*.svg' \
   ':!e2e/package-lock.json' || true)
 filtered=""

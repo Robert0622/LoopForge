@@ -5,7 +5,8 @@ test('a requirement runs through the demo SOP: dispatch, approval gate, artifact
   const errors = watchErrors(page);
   await login(page);
 
-  await page.locator('#dashNewRequirement').click();
+  await page.locator('.nav[data-view="issues"]').click();
+  await page.locator('#newIssue').click();
   await expect(page.locator('#reqWorkflow')).toHaveValue('demo-delivery');
   await page.locator('#chatInput').fill('演示：需求列表支持导出 CSV');
   await page.locator('#chatCreateDirect').click();
@@ -14,7 +15,7 @@ test('a requirement runs through the demo SOP: dispatch, approval gate, artifact
 
   const drawer = page.locator('#issueDetailDrawer');
   await expect(drawer).toContainText('演示：需求列表支持导出 CSV');
-  await visibleButton(page, '触发').click();
+  await visibleButton(page.locator('#issueDetailDrawer'), '触发').click();
 
   await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
   await expect(drawer).toContainText('待审批');

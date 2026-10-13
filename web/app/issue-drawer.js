@@ -268,7 +268,7 @@ async function applyIssueClarifyDone(issueId,data){
   if(state.drawerOpen&&state.issueDetailData?.issue?.id===issueId)renderIssueDetailTab();
   else{
     renderIssues();
-    if($('#dashboardView')?.classList.contains('active'))renderDashboard();
+    if($('#chatView')?.classList.contains('active')&&typeof renderHomeRunsPanel==='function')renderHomeRunsPanel();
   }
   const result=parseClarifyPayload(data);
   if(result.ready){

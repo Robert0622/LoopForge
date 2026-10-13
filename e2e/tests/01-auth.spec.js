@@ -24,11 +24,13 @@ test('a wrong password shows an error and keeps the form open', async ({ page })
   await expect(page.locator('#loginModal')).toHaveClass(/open/);
 });
 
-test('the admin can sign in and lands on the dashboard', async ({ page }) => {
+test('the admin can sign in and lands on the home chat', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
   await expect(page.locator('#userName')).toContainText('Administrator');
-  await expect(page.locator('#dashboardView')).toBeVisible();
+  await expect(page.locator('#chatView')).toBeVisible();
+  await expect(page.locator('#pageTitle')).toHaveText('首页');
+  await expect(page.locator('.nav[data-view="dashboard"]')).toHaveCount(0);
   await expect(page.locator('#sidebarSyncState')).toHaveText('本地 SQLite');
   expect(errors).toEqual([]);
 });
