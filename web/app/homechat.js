@@ -848,6 +848,7 @@ async function homeChatLaunch(card) {
   const button = card.querySelector('[data-launch-go]');
   if (button) { button.disabled = true; button.textContent = l.issueId ? '正在派发…' : '正在建单…'; }
   let issue = l.issueId ? (state.data.issues || []).find(i => i.id === l.issueId) : null;
+  const origin = { title: l.title || '', description: l.description || '', issueId: l.issueId || '' };
   try {
     if (!issue) {
       const title = (card.querySelector('[data-launch-title]')?.value || '').trim() || l.title || homeChatTitle();
@@ -870,6 +871,7 @@ async function homeChatLaunch(card) {
     l.issueId = issue.id;
     homeChatPush({ role: 'assistant', kind: 'launched', title: issue.title, issueId: issue.id, runId: task.runId || '', workflowId, workflowName: workflow?.name || workflowId });
     homeChatNote(`用户已开跑需求「${issue.title}」（${issue.id}），SOP ${workflowId}，运行 ${task.runId || task.id}`);
+    homeChatMarkLaunchDone(chat.sessionId, origin, issue);
   } catch (err) {
     l.issueId = issue.id;
     const credential = /Token|API Key|个人设置/.test(err.message);
@@ -878,6 +880,28 @@ async function homeChatLaunch(card) {
   persistHomeChat();
   renderHomeChatMain();
   await refreshAfterHomeWrite();
+}
+
+// 开跑状态只在浏览器里会丢：写回服务端会话，从历史重新打开时卡片不会再次可点、重复建单。
+async function homeChatMarkLaunchDone(sessionId, origin, issue) {
+  if (!sessionId) return;
+  try {
+    const conv = await api('/api/assistant/sessions/' + encodeURIComponent(sessionId), { silent: true });
+    const messages = conv.messages || [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== 'assistant') continue;
+      let reply = null;
+      try { reply = JSON.parse(messages[i].content); } catch (e) { continue; }
+      const l = reply?.launch;
+      if (!l || l.done) continue;
+      const same = origin.issueId ? l.issueId === origin.issueId : (l.title || '') === origin.title && (l.description || '') === origin.description;
+      if (!same) continue;
+      reply.launch = { ...l, done: true, issueId: issue.id, title: issue.title };
+      messages[i] = { ...messages[i], content: JSON.stringify(reply) };
+      await api('/api/assistant/sessions/' + encodeURIComponent(sessionId), { method: 'PUT', silent: true, body: JSON.stringify({ ...conv, messages }) });
+      return;
+    }
+  } catch (e) {}
 }
 
 async function homeChatRunDemo() {

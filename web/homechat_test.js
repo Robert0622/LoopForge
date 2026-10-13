@@ -11,6 +11,9 @@ assert.match(source, /\/api\/assistant\/files/, 'images and files can be attache
 assert.match(source, /onpaste/);
 assert.match(source, /ondrop/);
 assert.match(source, /homeMentionPick/, 'requirements can be @-mentioned');
+assert.match(source, /homeChatMarkLaunchDone\(chat\.sessionId/, 'a launched card is written back so reopening the session cannot launch it twice');
+assert.match(source, /method: 'PUT'/);
+assert.match(source, /\[\^A-Za-z0-9_\.@\]\)@/, '@ works right after CJK punctuation but not inside emails');
 assert.match(source, /refs:/);
 assert.match(source, /建单并开跑/);
 assert.match(source, /\/mcp/, 'write drafts are confirmed through the MCP endpoint');
