@@ -344,11 +344,13 @@ async function homeChatCreateAndDispatch() {
     (state.data.tasks || (state.data.tasks = [])).unshift(task);
     if (task.runId && typeof startLiveRun === 'function') startLiveRun(task.runId);
     chat.messages = chat.messages.filter(m => m.role !== 'status');
+    chat.messages.forEach(m => { if (m.actions && m.actions.includes('homeChatDispatchInline')) m.actions = '<div class="home-chat-cta"><span>已建单</span></div>'; });
     homeChatPush('assistant', '已建单并开跑', {
       html: `已创建需求并进入 SOP。<button type="button" class="button primary small" data-open-created="${escapeHTML(issue.id)}">打开需求</button>`,
     });
     chat.result = null;
     chat.sessionId = '';
+    homeChatSetBusy(false);
     try { await refreshRuns(true); await refreshIssues(); } catch (e) {}
     renderHomeChat();
     const btn = document.querySelector(`[data-open-created="${issue.id}"]`);

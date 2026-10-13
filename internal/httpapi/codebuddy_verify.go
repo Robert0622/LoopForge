@@ -89,8 +89,11 @@ func (h *usersHandlers) verifyCodeBuddyKey(c *gin.Context) {
 		}
 	}
 	var lastErr string
+	// Finish and store the working environment even if the user closes the
+	// tab right after saving the key.
+	base := context.WithoutCancel(c.Request.Context())
 	for _, env := range candidates {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(base, 60*time.Second)
 		passed, detail := codeBuddyProbe(ctx, bin, key, env)
 		cancel()
 		if !passed {
