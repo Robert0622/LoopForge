@@ -74,6 +74,9 @@ func applyPromptPlaceholders(st *repo.Store, wf domain.WorkflowDefinition, node 
 	if current := run.Nodes[node.ID]; current != nil {
 		feedback = current.Feedback
 	}
+	if strings.TrimSpace(feedback) != "" && !strings.Contains(prompt, "{{feedback}}") {
+		prompt += "\n\n## 上一轮退回意见\n\n审核人把这一步退回重做，请按以下意见修改后再提交：\n\n" + feedback + "\n"
+	}
 	prompt = strings.ReplaceAll(prompt, "{{feedback}}", feedback)
 	humanNote := strings.TrimSpace(run.HumanContext)
 	prompt = strings.ReplaceAll(prompt, "{{humanContext}}", humanNote)

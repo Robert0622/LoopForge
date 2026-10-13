@@ -3854,3 +3854,17 @@ func TestRenderPromptWithoutTaskBriefStillCarriesRequirement(t *testing.T) {
 		t.Fatalf("a brief without {{input}} must get the requirement once:\n%s", briefed)
 	}
 }
+
+func TestRenderPromptCarriesRejectFeedbackWithoutTaskBrief(t *testing.T) {
+	wf := domain.WorkflowDefinition{}
+	node := domain.WorkflowNode{ID: "implement"}
+	run := domain.Run{Input: "README 增加 Usage", Nodes: map[string]*domain.NodeRun{"implement": {Feedback: "再加一句私有仓库要配 Token"}}}
+	got := renderPrompt(wf, node, run)
+	if !strings.Contains(got, "## 上一轮退回意见") || !strings.Contains(got, "再加一句私有仓库要配 Token") {
+		t.Fatalf("reject feedback must reach an agent without a task brief:\n%s", got)
+	}
+	briefed := renderPromptSpec(wf, node, domain.TaskPromptSpec{Objective: "实现改动"}, run)
+	if strings.Count(briefed, "再加一句私有仓库要配 Token") != 1 {
+		t.Fatalf("a brief with {{feedback}} must carry the feedback exactly once:\n%s", briefed)
+	}
+}
