@@ -307,17 +307,18 @@ func rebindMissingProductionSOPs(s *Store) error {
 // summary. Prefer this over the full generic templates when users want a
 // first real run without learning the whole studio.
 func seedQuickFix(s *Store, now time.Time) error {
-	if _, ok := s.Workflow(QuickFixWorkflowID); ok {
+	const version = 2
+	if stored, ok := s.Workflow(QuickFixWorkflowID); ok && (stored.Version >= version || stored.Revision > 1) {
 		return nil
 	}
 	return s.PutWorkflow(domain.WorkflowDefinition{
-		ID: QuickFixWorkflowID, Name: "快速修复", Version: 1, Revision: 1, Status: "published", ProjectID: PlatformProjectID,
+		ID: QuickFixWorkflowID, Name: "快速修复", Version: version, Revision: 1, Status: "published", ProjectID: PlatformProjectID,
 		Owner: "平台", Tags: []string{"快速", "短链路"}, SandboxProfileID: TemplateSandbox(),
 		Description: "短链路：实现改动 → 人工确认 → 写出小结。适合第一张真实需求；需要模型 API Key 和（可选）GitHub 仓库。",
 		Nodes: []domain.WorkflowNode{
 			{ID: "implement", Name: "实现改动", Type: "agent", AgentID: "developer", ExecutorID: "claude", MaxAttempts: 2, Position: domain.Position{X: 80, Y: 160},
 				ArtifactOutputs: []domain.ArtifactContract{{Name: "change-notes", Path: "change-notes.md", Required: true}}},
-			{ID: "approve", Name: "确认改动", Type: "approval", MaxAttempts: 1, Position: domain.Position{X: 340, Y: 160}},
+			{ID: "approve", Name: "确认改动", Type: "approval", MaxAttempts: 1, RejectTo: "implement", MaxReworks: 3, Position: domain.Position{X: 340, Y: 160}},
 			{ID: "summary", Name: "交付小结", Type: "script", ScriptLanguage: "shell", MaxAttempts: 1, Position: domain.Position{X: 600, Y: 160},
 				Script:          `printf '# 快速修复小结\n\n- 实现改动：完成\n- 人工确认：已通过\n' > quick-fix-summary.md; if [ -f change-notes.md ]; then printf '\n## 改动说明\n\n' >> quick-fix-summary.md; cat change-notes.md >> quick-fix-summary.md; fi`,
 				ArtifactOutputs: []domain.ArtifactContract{{Name: "小结", Path: "quick-fix-summary.md", Required: true}},

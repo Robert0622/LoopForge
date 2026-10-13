@@ -267,3 +267,38 @@ func TestBootstrapRebindsIssuesOffMissingProductionSOPs(t *testing.T) {
 		t.Fatalf("stale production SOP binding should move to quick-fix, got %q", bug.WorkflowID)
 	}
 }
+
+func TestSeedQuickFixUpgradesUntouchedCopyWithReworkTarget(t *testing.T) {
+	s, err := OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.PutWorkflow(domain.WorkflowDefinition{ID: QuickFixWorkflowID, Name: "快速修复", Version: 1, Revision: 1, SandboxProfileID: "local",
+		Nodes: []domain.WorkflowNode{{ID: "implement", Type: "agent"}, {ID: "approve", Type: "approval"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedQuickFix(s, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	wf, _ := s.Workflow(QuickFixWorkflowID)
+	var approve domain.WorkflowNode
+	for _, n := range wf.Nodes {
+		if n.ID == "approve" {
+			approve = n
+		}
+	}
+	if approve.RejectTo != "implement" || wf.Version != 2 {
+		t.Fatalf("untouched quick-fix should upgrade so its gate can send work back, got version %d rejectTo %q", wf.Version, approve.RejectTo)
+	}
+	wf.Name = "我的快速修复"
+	if err := s.PutWorkflow(wf); err != nil {
+		t.Fatal(err)
+	}
+	if err := seedQuickFix(s, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Workflow(QuickFixWorkflowID); got.Name != "我的快速修复" {
+		t.Fatalf("a user-edited quick-fix must be kept, got %q", got.Name)
+	}
+}

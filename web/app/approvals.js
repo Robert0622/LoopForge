@@ -23,7 +23,8 @@ function waitingActionButtons(runId,nodeId,nr,node,nodes){
   if(turnsExhausted(nr))return `<button class="button primary small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">重试本节点</button><button class="button danger-outline small" data-decline-retry="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">不重试</button>`;
   const target=reworkTarget(node,nodes);
   const rework=target?`<button class="button ghost small" data-reject="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}" data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`:'';
-  return `<button class="button primary small" data-approve="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">确认通过，继续下游</button><button class="button ghost small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">补充信息，重跑当前节点</button>${rework}`;
+  const retry=node?.type==='approval'?'':`<button class="button ghost small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">补充信息，重跑当前节点</button>`;
+  return `<button class="button primary small" data-approve="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">确认通过，继续下游</button>${retry}${rework}`;
 }
 function humanGateSectionsHTML(nr,node){
   if(turnsExhausted(nr)){
@@ -201,7 +202,7 @@ function approvalCalloutHTML(node,nr,nodes){
   const rework=turnsExhausted(nr)?'':(target?`<button class="button ghost" data-reject="${node.id}" data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`:'');
   const buttons=turnsExhausted(nr)
     ? `<button class="button primary" data-retry-node="${node.id}">重试本节点</button><button class="button ghost" data-decline-retry="${node.id}">不重试</button>`
-    : `<button class="button primary" data-approve="${node.id}">确认通过，继续下游</button><button class="button ghost" data-retry-node="${node.id}">补充信息，重跑当前节点</button>${rework}`;
+    : `<button class="button primary" data-approve="${node.id}">确认通过，继续下游</button>${node?.type==='approval'?'':`<button class="button ghost" data-retry-node="${node.id}">补充信息，重跑当前节点</button>`}${rework}`;
   const title=turnsExhausted(nr)?'对话轮次已用尽':(gate?.decision==='human'?'等待人工确认':'需要人工判断');
   return `<div class="approval-callout human" data-human-context-root><div class="callout-head"><div class="callout-title-row"><span class="callout-badge human">待确认</span><b class="callout-title">${title}</b><span class="callout-node-name">步骤：<b>${nodeTitle}</b></span></div></div><div class="callout-content">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="ap-buttons">${buttons}</div></div>`;
 }
