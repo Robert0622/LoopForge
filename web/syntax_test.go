@@ -2427,7 +2427,8 @@ const code = require('node:fs').readFileSync('` + appBundlePath(t) + `', 'utf8')
 const workflows = [{id:'demo-delivery'},{id:'quick-fix'},{id:'generic-backend-delivery', generic:true}];
 const state = {projectFilter:'platform', data:{projects:[{id:'platform', workflowId:'demo-delivery'}], workflows}};
 const runnableWorkflowOptions = () => workflows;
-const projectPlaybook = () => null;
+let playbook = null;
+const projectPlaybook = () => playbook;
 let hasKey = false;
 const homeChatHasModelKey = () => hasKey;
 eval(code.slice(code.indexOf('function defaultSOPForIssue('), code.indexOf('function bindIssueTriggers(')));
@@ -2435,6 +2436,10 @@ assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'de
 assert.equal(defaultSOPForIssue({projectId:'platform', source:'github', kind:'issue'}), 'quick-fix');
 hasKey = true;
 assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'quick-fix');
+playbook = {bindings:[{workflowId:'demo-delivery'}]};
+assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'quick-fix');
+playbook = {bindings:[{workflowId:'generic-backend-delivery'}]};
+assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'generic-backend-delivery');
 `
 	out, err := exec.Command(node, "-e", script).CombinedOutput()
 	if err != nil {

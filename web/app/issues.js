@@ -591,11 +591,13 @@ function defaultSOPForIssue(issue){
     if(inRunnable('quick-fix')||knownSOP('quick-fix'))return 'quick-fix';
     return runnable[0]?.id||'issue-fix-production';
   }
+  // The demo SOP only simulates work; once a model key exists, start real runs.
+  const realOverDemo=id=>id==='demo-delivery'&&homeChatHasModelKey()&&knownSOP('quick-fix')?'quick-fix':id;
   const playbook=projectPlaybook(project);
-  if(playbook?.bindings?.[0]&&(inRunnable(playbook.bindings[0].workflowId)||knownSOP(playbook.bindings[0].workflowId)))return playbook.bindings[0].workflowId;
-  const demoWithKey=projectSOP==='demo-delivery'&&homeChatHasModelKey()&&knownSOP('quick-fix');
-  if(!demoWithKey&&inRunnable(projectSOP))return projectSOP;
-  if(!demoWithKey&&projectSOP&&knownSOP(projectSOP))return projectSOP;
+  const bound=playbook?.bindings?.[0]?.workflowId;
+  if(bound&&(inRunnable(bound)||knownSOP(bound)))return realOverDemo(bound);
+  if(inRunnable(projectSOP))return realOverDemo(projectSOP);
+  if(projectSOP&&knownSOP(projectSOP))return realOverDemo(projectSOP);
   if(inRunnable('quick-fix')||knownSOP('quick-fix'))return 'quick-fix';
   return inRunnable('requirement-development-production')?'requirement-development-production':(runnable[0]?.id||'requirement-development-production');
 }
