@@ -136,7 +136,7 @@ function renderHomeChatMain() {
     <header class="hc-head">
       <div><b>${escapeHTML(homeChatTitle())}</b><span>${escapeHTML(homeChatSubtitle())}</span></div>
       <div class="hc-head-actions">
-        <div class="hc-history-wrap"><button type="button" class="button ghost small" id="homeChatHistory" aria-haspopup="menu">历史</button><div class="hc-history" id="homeChatHistoryMenu" hidden></div></div>
+        ${homeChatHistoryHTML()}
         <button type="button" class="button ghost small" id="homeChatNew">＋ 新对话</button>
       </div>
     </header>
@@ -146,6 +146,10 @@ function renderHomeChatMain() {
   renderHomeMermaid(main);
   const thread = $('#homeChatThread');
   if (thread) thread.scrollTop = thread.scrollHeight;
+}
+
+function homeChatHistoryHTML() {
+  return '<div class="hc-history-wrap"><button type="button" class="button ghost small" id="homeChatHistory" aria-haspopup="menu">历史</button><div class="hc-history" id="homeChatHistoryMenu" hidden></div></div>';
 }
 
 function homeChatTitle() {
@@ -172,7 +176,8 @@ function homeChatHeroHTML() {
       ${tag ? `<span class="hc-sop-tag">${escapeHTML(tag)}</span>` : ''}
     </button>`;
   }).join('');
-  return `<div class="hc-hero">
+  return `<div class="hc-hero-tools">${homeChatHistoryHTML()}</div>
+  <div class="hc-hero">
     <h1 class="hc-brand">LoopForge</h1>
     <p class="hc-sub">提需求、问进度、处理待确认、画图出文档，都在这里说。需求说清了，我按 SOP 帮你开跑。</p>
     ${homeChatComposerHTML()}

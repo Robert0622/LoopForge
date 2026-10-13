@@ -61,7 +61,8 @@ body.onboarding-open{overflow:hidden}
 .home-chat{flex:1;min-height:0;display:flex}
 .hc-layout{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;transition:grid-template-columns .2s ease}
 .hc-layout.runs-collapsed{grid-template-columns:minmax(0,1fr) 48px}
-.hc-main{min-width:0;min-height:0;display:flex;flex-direction:column}
+.hc-main{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column}
+.hc-hero-tools{position:absolute;top:14px;right:18px;z-index:5}
 .hc-main.is-empty{overflow:auto}
 .hc-hero{width:min(760px,100%);margin:auto;padding:48px 24px 40px;display:flex;flex-direction:column;align-items:stretch}
 .hc-brand{margin:0;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:44px;font-weight:600;letter-spacing:-.02em;color:var(--text-strong,var(--text))}
