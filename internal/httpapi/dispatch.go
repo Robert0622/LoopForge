@@ -50,9 +50,9 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 	workflowID := strings.TrimSpace(req.WorkflowID)
 	if workflowID == "" {
 		workflowID = issue.WorkflowID
-		if _, ok := d.repo.Workflow(workflowID); !ok && repo.IsProductionDefaultWorkflowID(workflowID) {
-			workflowID = ""
-		}
+	}
+	if _, ok := d.repo.Workflow(workflowID); !ok && repo.IsProductionDefaultWorkflowID(workflowID) {
+		workflowID = ""
 	}
 	if workflowID == "" {
 		if playbook := domain.ResolveSOPBindings(issue, project); len(playbook) > 0 {

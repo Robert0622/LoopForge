@@ -144,6 +144,9 @@ func Bootstrap(s *Store, ownerID int64) error {
 	if err := seedQuickFix(s, now); err != nil {
 		return err
 	}
+	if err := rebindMissingProductionSOPs(s); err != nil {
+		return err
+	}
 	if len(s.Projects()) == 0 {
 		project := domain.Project{
 			ID: PlatformProjectID, Key: "LF", Name: "My first project", Description: "Default project created on first start. Rename it or add more projects.",
@@ -280,6 +283,25 @@ const (
 	DemoWorkflowID     = "demo-delivery"
 	QuickFixWorkflowID = "quick-fix"
 )
+
+// rebindMissingProductionSOPs moves issues off production SOP ids this
+// install does not ship, so they can be triggered instead of failing with
+// "workflow not found".
+func rebindMissingProductionSOPs(s *Store) error {
+	for _, issue := range s.Issues() {
+		if !IsProductionDefaultWorkflowID(issue.WorkflowID) {
+			continue
+		}
+		if _, ok := s.Workflow(issue.WorkflowID); ok {
+			continue
+		}
+		issue.WorkflowID = ""
+		if err := s.PutIssue(issue); err != nil {
+			return fmt.Errorf("rebind issue %s: %w", issue.ID, err)
+		}
+	}
+	return nil
+}
 
 // seedQuickFix installs a short delivery path: implement → human gate →
 // summary. Prefer this over the full generic templates when users want a

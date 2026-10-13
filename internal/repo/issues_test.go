@@ -247,3 +247,23 @@ func TestPutIssueNeverBindsToAMissingProductionSOP(t *testing.T) {
 		t.Fatalf("synced bug should fall back to the built-in quick-fix SOP, got %q", bug.WorkflowID)
 	}
 }
+
+func TestBootstrapRebindsIssuesOffMissingProductionSOPs(t *testing.T) {
+	s, err := OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.PutWorkflow(domain.WorkflowDefinition{ID: QuickFixWorkflowID, Name: "快速修复", SandboxProfileID: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutIssue(domain.Issue{ID: "old-bug", Source: "github", Title: "synced before upgrade", WorkflowID: issueFixWorkflowID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rebindMissingProductionSOPs(s); err != nil {
+		t.Fatal(err)
+	}
+	if bug, _ := s.Issue("old-bug"); bug.WorkflowID != QuickFixWorkflowID {
+		t.Fatalf("stale production SOP binding should move to quick-fix, got %q", bug.WorkflowID)
+	}
+}
