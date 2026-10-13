@@ -95,7 +95,7 @@ func main() {
 	selfTest := flag.Bool("self-test", false, "check a running instance end to end (health, login, doctor, demo run with share-link approval), then exit")
 	selfTestURL := flag.String("self-test-url", "", "instance URL for --self-test (default http://127.0.0.1:$LOOPFORGE_HTTP_PORT)")
 	selfTestUser := flag.String("self-test-user", "", "admin login for --self-test (default $LOOPFORGE_ADMIN_USER or admin)")
-	selfTestPassword := flag.String("self-test-password", "", "admin password for --self-test (default $LOOPFORGE_ADMIN_PASSWORD, or the demo password in demo mode)")
+	selfTestPassword := flag.String("self-test-password", "", "admin password for --self-test (default $LOOPFORGE_ADMIN_PASSWORD; inside the deployment an admin session is signed instead)")
 	selfTestTimeout := flag.Duration("self-test-timeout", 3*time.Minute, "overall --self-test timeout")
 	flag.Parse()
 	loadDotEnv()
@@ -112,6 +112,14 @@ func main() {
 		}
 		if opts.password == "" {
 			opts.password = defaultSelfTestPassword()
+		}
+		if opts.password == "" {
+			cookie, login, err := selfTestSession(*dataDir, *database)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "自检失败：%v\n", err)
+				os.Exit(1)
+			}
+			opts.session, opts.user = cookie, login
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		err := runSelfTest(ctx, opts, os.Stdout)

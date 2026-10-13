@@ -55,18 +55,23 @@ body.onboarding-open{overflow:hidden}
 .credential-savebar.is-dirty b{color:var(--text-strong)}
 .credential-savebar.is-dirty .button{box-shadow:0 0 0 3px color-mix(in srgb,var(--blue) 30%,transparent)}
 
-/* Grasp-style home chatbot on the dashboard */
-.home-chat{margin:0 0 18px}
-.home-chat-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.9fr);gap:16px}
-@media(max-width:1100px){.home-chat-layout{grid-template-columns:1fr}}
+/* 「发起需求」页的对话 */
+.home-chat{margin:0 auto 18px;max-width:960px}
+.home-chat-layout{display:grid;grid-template-columns:minmax(0,1fr)}
 .home-chat-main,.home-chat-side{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 28px color-mix(in srgb,var(--text) 5%,transparent)}
-.home-chat-main{display:flex;flex-direction:column;min-height:420px;overflow:hidden}
+.home-chat-main{display:flex;flex-direction:column;min-height:min(640px,calc(100vh - 230px));overflow:hidden}
 .home-chat-hero{padding:22px 22px 8px}
 .home-chat-kicker{margin:0;color:var(--blue);font-size:12px;font-weight:650;letter-spacing:.04em}
 .home-chat-hero h2{margin:6px 0 4px;font-size:22px;color:var(--text-strong)}
 .home-chat-hero p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
-.home-chat-thread{flex:1;overflow:auto;padding:8px 22px 12px;display:grid;gap:10px;align-content:start}
-.home-chat-empty{padding:28px 8px;color:var(--muted);font-size:13.5px;line-height:1.6}
+.home-chat-thread{flex:1;overflow:auto;padding:18px 22px 12px;display:grid;gap:10px;align-content:start}
+.home-chat-thread:has(> .home-chat-empty){align-content:center}
+.home-chat-empty{margin:0 auto;max-width:560px;padding:32px 8px;text-align:center;color:var(--muted);font-size:13.5px;line-height:1.6}
+.home-chat-empty h2{margin:0 0 8px;font-size:22px;color:var(--text-strong)}
+.home-chat-empty p{margin:0}
+.home-chat-examples{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:18px}
+.home-chat-example{padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg-soft);color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.home-chat-example:hover{border-color:var(--blue);color:var(--blue)}
 .home-chat-bubble{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg-soft) 55%,var(--panel))}
 .home-chat-bubble.is-user{background:color-mix(in srgb,var(--blue) 8%,var(--panel));border-color:color-mix(in srgb,var(--blue) 28%,var(--line))}
 .home-chat-bubble.is-status{border-style:dashed;color:var(--muted);font-size:12.5px}

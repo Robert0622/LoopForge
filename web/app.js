@@ -771,32 +771,80 @@ function runIssueTitle(r){const task=(state.data.tasks||[]).find(t=>t.runId===r.
 function isLoopbackHost(hostname){
   return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='[::1]'||hostname==='0.0.0.0';
 }
-function openLoginModal({forced=false}={}){
+// 登录框有两种模式：登录，以及开放注册时的注册。首次启动（还没有任何账号）
+// 则是创建管理员，见 openSetupScreen。
+function openLoginModal({forced=false,mode='login'}={}){
   let modal=$('#loginModal');
   if(!modal){
     modal=document.createElement('div');
     modal.id='loginModal';modal.className='modal';
-    modal.innerHTML=`<form id="loginForm" class="modal-card login-modal-card"><button type="button" class="modal-close login-close">×</button><p class="eyebrow">SIGN IN</p><h2>登录 LoopForge</h2><p class="modal-hint">${state.demoLogin?'演示模式默认账号：<code>admin</code> / <code>demo1234</code>（改过密码后以新密码为准；共享部署前请修改）。':'使用平台管理员为你创建的账号登录。首次启动时会创建 <code>admin</code> 账号，初始密码只在服务日志里打印一次（也可用 <code>LOOPFORGE_ADMIN_PASSWORD</code> 指定）。'}</p><label>登录名</label><input name="loginName" class="input" autocomplete="username" required><label>密码</label><input name="password" class="input" type="password" autocomplete="current-password" required><p class="login-error" hidden></p><div class="modal-actions"><button type="button" class="button ghost login-close">取消</button><button type="submit" class="button primary">登录</button></div></form>`;
+    modal.innerHTML=`<form id="loginForm" class="modal-card login-modal-card"><button type="button" class="modal-close login-close">×</button><p class="eyebrow">LOOPFORGE</p><h2 class="login-title">登录</h2><p class="modal-hint login-hint"></p><label>登录名</label><input name="loginName" class="input" autocomplete="username" required><div class="login-register-only"><label>显示名（可选）</label><input name="displayName" class="input" autocomplete="name"></div><label>密码</label><input name="password" class="input" type="password" autocomplete="current-password" required><p class="login-error" hidden></p><div class="modal-actions"><button type="button" class="button ghost login-close">取消</button><button type="submit" class="button primary login-submit">登录</button></div><p class="login-switch"></p></form>`;
     document.body.appendChild(modal);
     modal.querySelectorAll('.login-close').forEach(b=>b.onclick=()=>modal.classList.remove('open'));
     modal.querySelector('#loginForm').onsubmit=async e=>{
       e.preventDefault();
       const form=e.currentTarget,err=form.querySelector('.login-error'),button=form.querySelector('[type=submit]');
+      const register=modal.dataset.mode==='register';
       err.hidden=true;button.disabled=true;
       try{
-        const result=await api('/api/auth/login',{method:'POST',silent:true,body:JSON.stringify({loginName:form.loginName.value.trim(),password:form.password.value})});
+        const body={loginName:form.loginName.value.trim(),password:form.password.value};
+        if(register)body.displayName=form.displayName.value.trim();
+        const result=await api(register?'/api/auth/register':'/api/auth/login',{method:'POST',silent:true,body:JSON.stringify(body)});
         state.currentUser=result.user||null;
         location.reload();
-      }catch(ex){err.textContent=ex.message||'登录失败';err.hidden=false}
+      }catch(ex){err.textContent=loginErrorText(ex.message);err.hidden=false}
       finally{button.disabled=false}
     };
   }
-  if(modal.classList.contains('open')&&modal.dataset.forced==='true')return;
+  if(modal.classList.contains('open')&&modal.dataset.forced==='true'&&modal.dataset.mode===mode)return;
+  const register=mode==='register'&&state.signupOpen;
   modal.dataset.forced=String(forced);
+  modal.dataset.mode=register?'register':'login';
   modal.querySelectorAll('.login-close').forEach(b=>b.hidden=forced);
   modal.querySelector('#loginForm').reset();
   modal.querySelector('.login-error').hidden=true;
+  modal.querySelector('.login-title').textContent=register?'注册账号':'登录';
+  modal.querySelector('.login-hint').textContent=register?'注册后可以在项目里提需求、被指派为负责人，并配置自己的模型 Key。':'使用你的 LoopForge 账号登录。';
+  modal.querySelector('.login-register-only').hidden=!register;
+  modal.querySelector('[name=password]').autocomplete=register?'new-password':'current-password';
+  modal.querySelector('[name=password]').minLength=register?8:0;
+  modal.querySelector('.login-submit').textContent=register?'注册并登录':'登录';
+  const sw=modal.querySelector('.login-switch');
+  sw.innerHTML=register?'已有账号？<button type="button" class="link-button" data-login-mode="login">去登录</button>':state.signupOpen?'还没有账号？<button type="button" class="link-button" data-login-mode="register">注册</button>':'没有账号？请联系平台管理员创建。';
+  sw.querySelectorAll('[data-login-mode]').forEach(b=>b.onclick=()=>openLoginModal({forced,mode:b.dataset.loginMode}));
   modal.classList.add('open');
+  setTimeout(()=>modal.querySelector('[name=loginName]')?.focus(),50);
+}
+function loginErrorText(message){
+  const known={'invalid login name or password':'登录名或密码不对','too many failed attempts; try again in a minute':'失败次数太多，请一分钟后再试','loginName and password are required':'请填写登录名和密码'};
+  if(known[message])return known[message];
+  if(/password must be at least/i.test(message||''))return '密码至少 8 位';
+  if(/loginName must be/i.test(message||''))return '登录名为 1-64 个字符，不能含空格或斜杠';
+  return message||'操作失败';
+}
+// 全新实例还没有任何账号：第一个打开页面的人创建管理员。
+function openSetupScreen(){
+  let modal=$('#setupModal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='setupModal';modal.className='modal open';
+    modal.innerHTML=`<form id="setupForm" class="modal-card login-modal-card"><p class="eyebrow">欢迎使用 LOOPFORGE</p><h2>创建管理员账号</h2><p class="modal-hint">这是这个实例的第一个账号，拥有全部管理权限，默认项目也归它。之后队友可以自己注册，开关在「平台管理」里。</p><label>登录名</label><input name="loginName" class="input" autocomplete="username" required placeholder="例如 alice"><label>显示名（可选）</label><input name="displayName" class="input" autocomplete="name"><label>密码</label><input name="password" class="input" type="password" autocomplete="new-password" required minlength="8" placeholder="至少 8 位"><label>确认密码</label><input name="confirm" class="input" type="password" autocomplete="new-password" required minlength="8"><p class="login-error" hidden></p><div class="modal-actions"><button type="submit" class="button primary">创建并进入</button></div></form>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#setupForm').onsubmit=async e=>{
+      e.preventDefault();
+      const form=e.currentTarget,err=form.querySelector('.login-error'),button=form.querySelector('[type=submit]');
+      err.hidden=true;
+      if(form.password.value!==form.confirm.value){err.textContent='两次输入的密码不一致';err.hidden=false;return}
+      button.disabled=true;
+      try{
+        await api('/api/auth/setup',{method:'POST',silent:true,body:JSON.stringify({loginName:form.loginName.value.trim(),displayName:form.displayName.value.trim(),password:form.password.value})});
+        location.reload();
+      }catch(ex){
+        if(/管理员已创建/.test(ex.message||'')){location.reload();return}
+        err.textContent=loginErrorText(ex.message);err.hidden=false;
+      }finally{button.disabled=false}
+    };
+  }
   setTimeout(()=>modal.querySelector('[name=loginName]')?.focus(),50);
 }
 
@@ -811,15 +859,17 @@ async function boot(){
       state.currentUser = curRes.user || null;
       state.authRequired = !!curRes.authRequired;
       state.proxyAuth = !!curRes.proxyAuth;
-      state.demoLogin = !!curRes.demoLogin;
+      state.needsSetup = !!curRes.needsSetup;
+      state.signupOpen = !!curRes.signupOpen;
     } catch (err) {
       console.warn('[auth] get current user failed:', err);
     }
   }
 
-  // 2. 强制登录的部署里，访客直接看到登录框
+  // 2. 强制登录的部署里，访客直接看到登录框；全新实例先创建管理员
   if ((!state.currentUser || state.currentUser.isGuest) && state.authRequired && !state.proxyAuth) {
-    openLoginModal({forced:true});
+    if(state.needsSetup)openSetupScreen();
+    else openLoginModal({forced:true});
     return;
   }
   renderUserBadge();
@@ -856,12 +906,12 @@ async function boot(){
       return;
     }
     if(name==='flow')applyFlowRoute();
+    if(name==='settings'&&typeof openSettings==='function'&&routePart(1)&&routePart(1)!==state.settingsTab)openSettings(routePart(1));
   });
   renderAll();
   switchView(view);
   restoreRequirementComposer();
   if(typeof maybeStartOnboarding==='function')maybeStartOnboarding();
-  setTimeout(()=>{if(typeof maybeStartSetupWizard==='function')maybeStartSetupWizard()},900);
 }
 const savedTheme=localStorage.getItem('loopforge.theme.v3')||'light';document.documentElement.dataset.theme=savedTheme;
 
@@ -873,7 +923,7 @@ function bind(){
     if(wizard){e.stopPropagation();e.preventDefault();if(typeof reopenSetupWizardFromGuide==='function')reopenSetupWizardFromGuide();return}
     const jump=e.target.closest('[data-view]:not(.nav)');
     if(jump&&jump.dataset.view&&!jump.closest('.platform-sidebar')){e.stopPropagation();closeIssueDrawer();switchView(jump.dataset.view);return}
-    if(!e.target.closest('[data-goto-settings]'))return;e.stopPropagation();closeIssueDrawer();switchView('settings');
+    const gotoSettings=e.target.closest('[data-goto-settings]');if(!gotoSettings)return;e.stopPropagation();closeIssueDrawer();openSettings(gotoSettings.dataset.gotoSettings);
   });
   const capabilityToggle=$('#capabilityNavToggle');if(capabilityToggle)capabilityToggle.onclick=()=>setCapabilityNavExpanded(capabilityToggle.getAttribute('aria-expanded')!=='true');
   setCapabilityNavExpanded(localStorage.getItem('loopforge.capabilityNavExpanded')==='true');
@@ -1162,7 +1212,6 @@ function bind(){
   $('.platform-sidebar .brand').onclick=()=>switchView('dashboard');
   $('#dashImportIssue')&&($('#dashImportIssue').onclick=openImportIssueModal);
   $('#dashNewRequirement').onclick=openRequirementWizard;
-  $('#dashNewRun').onclick=()=>switchView('issues');
   $$('[data-jump]').forEach(el=>el.onclick=()=>switchView(el.dataset.jump));
   $('#refreshApprovals').onclick=()=>renderApprovals(false);
   $('#refreshObs').onclick=refreshObs;
@@ -1310,7 +1359,7 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),dashboard:'工作总览',issues:'需求列表',rooms:'协作群聊',runs:'运行记录',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色定义',mcp:'MCP 管理',rules:'规则管理',skills:'技能管理',dockerfiles:'Dockerfile',environments:'环境安装脚本',sandboxes:'沙箱管理',observability:'用量分析',projects:'项目配置',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),dashboard:'工作总览',chat:'发起需求',issues:'需求列表',rooms:'协作群聊',runs:'运行记录',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色定义',mcp:'MCP 管理',rules:'规则管理',skills:'技能管理',dockerfiles:'Dockerfile',environments:'环境安装脚本',sandboxes:'沙箱管理',observability:'用量分析',projects:'项目配置',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
 function activeViewName(){if(state.currentView)return state.currentView;const el=document.querySelector('.view.active');return el?el.id.replace(/View$/,''):''}
 function setCapabilityNavExpanded(expanded){const toggle=$('#capabilityNavToggle'),group=$('#capabilityNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.capabilityNavExpanded',String(expanded))}
 function setEnvironmentNavExpanded(expanded){const toggle=$('#environmentNavToggle'),group=$('#environmentNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.environmentNavExpanded',String(expanded))}
@@ -1384,6 +1433,7 @@ function persistView(name,push=false){
     if(linked)next=runViewHash(linked);
   }
   if(name==='flow')next=flowViewHash();
+  if(name==='settings'&&state.settingsTab)next=`#/settings/${state.settingsTab}`;
   if(location.hash===next)return;
   // push=true 时压入新历史记录，让浏览器「后退」能在平台页面间回退；
   // 否则原地替换，避免 boot 时把首个视图压栈。
@@ -1402,6 +1452,7 @@ function switchView(name){
   if(name==='platform'&&!isPlatformAdmin())name='dashboard';
   if(name==='businessDomainManagement'&&!canAccessPlatformManagement())name='dashboard';
   const target=assetViews.includes(name)?'assets':name;
+  if(name==='settings'&&typeof currentSettingsTab==='function')state.settingsTab=currentSettingsTab();
   const staying=activeViewName()===name;
   const prevView=state.currentView;
   state.currentView=name;
@@ -1421,7 +1472,7 @@ function switchView(name){
   persistView(name,!staying&&!!prevView);
   const nav=$('.platform-sidebar nav');
   if(nav){
-    if(['dashboard','issues','approvals','sops'].includes(name)){
+    if(['dashboard','chat','issues','approvals','sops'].includes(name)){
       nav.scrollTop=0;
     }else{
       const activeBtn=$(`.platform-sidebar .nav[data-view="${name}"]`);
@@ -1445,6 +1496,7 @@ function switchView(name){
   if(name==='issues'){refreshIssues();renderSync()}
   if(name==='sops')refreshWorkflowMetrics()
   if(name==='dashboard')refreshDashboard()
+  if(name==='chat'&&typeof renderHomeChat==='function')renderHomeChat()
   if(name==='metrics'){const key=metricsQueryKey();if(state.metricsDataKey!==key&&metricsPendingKey!==key)refreshMetrics();else renderMetricsDashboard()}
   if(name==='approvals')renderApprovals(false)
   if(name==='observability')refreshObs()

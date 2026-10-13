@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Starts a throwaway LoopForge instance for the browser tests: fresh SQLite
-# database, demo executor enabled, host-process sandbox, known admin password,
+# database, demo executor enabled, host-process sandbox, known admin password
+# (or none at all with E2E_NO_ADMIN=1),
 # and the example extensions from examples/extensions.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,7 +9,11 @@ data="$(mktemp -d "${TMPDIR:-/tmp}/loopforge-e2e.XXXXXX")"
 trap 'rm -rf "$data"' EXIT
 export LOOPFORGE_DATA_DIR="$data"
 export LOOPFORGE_HTTP_PORT="${E2E_PORT:-18499}"
-export LOOPFORGE_ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-e2e-admin-pass}"
+if [ -z "${E2E_NO_ADMIN:-}" ]; then
+  export LOOPFORGE_ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-e2e-admin-pass}"
+else
+  unset LOOPFORGE_ADMIN_PASSWORD
+fi
 export LOOPFORGE_DEMO_MODE=true
 export LOOPFORGE_TEMPLATE_SANDBOX=local
 export LOOPFORGE_MCP_MARKET="$root/examples/extensions/mcp-market.json"

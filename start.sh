@@ -464,11 +464,11 @@ wait_for_health() {
 print_ready() {
   local password_hint
   if [[ -n "${LOOPFORGE_ADMIN_PASSWORD:-}" ]]; then
-    password_hint="admin / (LOOPFORGE_ADMIN_PASSWORD from .env)"
-  elif [[ "${LOOPFORGE_DEMO_MODE}" == "true" ]]; then
-    password_hint="admin / demo1234"
+    password_hint="${LOOPFORGE_ADMIN_USER:-admin} / (LOOPFORGE_ADMIN_PASSWORD from .env)"
+  elif [[ "$HAD_DATA" == "1" ]]; then
+    password_hint="your existing account"
   else
-    password_hint="admin / see: ./start.sh logs | grep 'Created admin account'"
+    password_hint="open the UI and create the admin account (first visitor)"
   fi
   cat <<EOF
 
@@ -478,7 +478,7 @@ print_ready() {
    login   ${password_hint}
 ==============================================
  Try it:      工作总览 → 快速开始 → 「一键开跑」(no API key needed)
- Real work:   follow the credential wizard, then dispatch with SOP「快速修复」
+ Real work:   个人设置 → paste a model key, then 发起需求
  Self-test:   ./start.sh doctor
  Logs / stop: ./start.sh logs | ./start.sh down
 

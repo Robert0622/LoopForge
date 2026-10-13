@@ -1,21 +1,30 @@
-// 第一次登录先指向工作总览的快速开始清单，再沿侧栏逐项说明。看完或跳过之后不再自动出现，
-// 可从接入指南重开。演示模式最后回到清单去「一键开跑」，否则打开个人设置去配凭据。
+// 第一次登录沿侧栏逐项说明，中间指一下工作总览的快速开始清单。看完或跳过之后
+// 不再自动出现，可从接入指南重开。结束时打开个人设置里还没配好的那一页。
 const ONBOARDING_KEY = 'loopforge.onboarding.v3';
 
 function onboardingSteps(demo) {
   const start = demo
-    ? '演示模式已开启，什么都不用配：上面的对话框可以直接「一键演示」，或点清单里的「一键开跑」。跑起来后右侧能看到运行进度，停在审批节点时去批准，就能看到交付报告。'
-    : '先看上面的对话框：用一句话说清需求，平台会澄清、建单并开跑。也可以照着清单配模型 Key、GitHub Token 和仓库，每项都有直达按钮。';
+    ? '演示模式已开启，什么都不用配：点清单里的「一键开跑」，或到「发起需求」点「一键演示」。停在审批节点时去「待我确认」批准，就能看到交付报告。'
+    : '照着清单配模型 Key、GitHub Token 和仓库，每项都有直达按钮；做完一项自动打勾。';
+  const last = demo
+    ? { title: '跑真实需求前配凭据', body: '演示不需要凭据。跑真实需求前要配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）和能读写目标仓库的 GitHub Token。点「去配置」打开个人设置。', next: '去配置' }
+    : { title: '先把凭据配齐', body: '没配齐就派不出去。先配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选），再填能读写目标仓库的 GitHub Token（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。GitHub MCP 会自动复用这个 Token。', next: '去填写' };
   return [
-    { target: '#homeChat', title: '从对话开始', body: '在工作总览用对话描述需求。澄清完成后可以建单开跑；右侧能看到正在运行和待确认的工作流。' },
+    { target: '.nav[data-view="chat"]', title: '从对话发起需求', body: '在「发起需求」用一句话描述要改什么。平台会追问澄清，说清后一键建单开跑。' },
     { target: '#dashQuickstart', title: '或照着清单一步步来', body: start },
-    { target: '.nav[data-view="issues"]', title: '需求从这里进', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
+    { target: '.nav[data-view="issues"]', title: '需求都在这里', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
     { target: '.nav[data-view="approvals"]', title: '要你拍板时来这里', body: '运行停下来等你决定，会出现在「待我确认」。先看清问题，再同意或退回。没有待办时，这里是空的。' },
     { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },
-    demo
-      ? { target: '.nav[data-view="settings"]', title: '跑真实需求前配凭据', body: '演示不需要凭据。跑真实需求前，在个人设置里填 GitHub Token（要能读写目标仓库）和一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）。现在先回到清单，点「一键开跑」看一遍完整流程。', view: 'dashboard', finish: true, next: '开始体验' }
-      : { target: '.nav[data-view="settings"]', title: '先把凭据配齐', body: '没配齐就派不出去。先填 GitHub Token，要能读写目标仓库（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。再配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）。GitHub MCP 会自动复用 GitHub Token，不用再填一遍。', view: 'settings', finish: true, next: '去填写' },
+    { target: '.nav[data-view="settings"]', ...last, finish: true },
   ];
+}
+
+// 引导结束后要去配的那一页：先模型 Key，再 GitHub Token；都配好了就留在原地。
+function onboardingSettingsTab() {
+  const stored = (typeof userById === 'function' ? userById(state.currentUser?.id) : null) || {};
+  if (!(stored.codeBuddyApiKeyConfigured || stored.codexApiKeyConfigured || stored.claudeCodeApiKeyConfigured)) return 'models';
+  if (!stored.gitTokenConfigured) return 'git';
+  return '';
 }
 
 function onboardingDemo() {
@@ -105,19 +114,17 @@ function moveOnboarding(delta) {
 function onboardingAdvance() {
   const step = onboardingSteps(onboardingDemo())[onboardingIndex];
   if (step && step.finish) {
-    finishOnboarding(step.view || 'settings');
+    finishOnboarding();
     return;
   }
   moveOnboarding(1);
 }
 
-function finishOnboarding(view) {
+function finishOnboarding() {
   onboardingMarkDone();
   closeOnboarding();
-  if (view && typeof switchView === 'function') switchView(view);
-  setTimeout(() => {
-    if (typeof maybeStartSetupWizard === 'function') maybeStartSetupWizard();
-  }, 400);
+  const tab = onboardingSettingsTab();
+  if (tab && typeof openSettings === 'function') openSettings(tab);
 }
 
 function closeOnboarding() {
@@ -133,7 +140,7 @@ function closeOnboarding() {
 function showOnboardingStep() {
   const steps = onboardingSteps(onboardingDemo());
   const step = steps[onboardingIndex];
-  if (!step) return finishOnboarding(steps[steps.length - 1].view);
+  if (!step) return finishOnboarding();
   const root = onboardingRoot();
   root.hidden = false;
   document.body.classList.add('onboarding-open');
@@ -149,7 +156,7 @@ function showOnboardingStep() {
   if (onboardingTarget && (onboardingTarget.hidden || !onboardingTarget.getClientRects().length)) onboardingTarget = null;
   if (step.target && !onboardingTarget) {
     onboardingIndex += 1;
-    if (onboardingIndex >= steps.length) return finishOnboarding(steps[steps.length - 1].view);
+    if (onboardingIndex >= steps.length) return finishOnboarding();
     showOnboardingStep();
     return;
   }

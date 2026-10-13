@@ -23,14 +23,14 @@ async function useProject(page, id, name) {
   await switcher.selectOption(id);
 }
 
-test('first login points at the home chat and ends back on the checklist in demo mode', async ({ page }) => {
+test('first login tours the sidebar and ends on the settings page that still needs a key', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page, { ...ADMIN, onboarding: true });
   const card = page.locator('#onboarding .onboarding-card');
   await expect(card).toBeVisible();
   await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
-  await expect(page.locator('#homeChat')).toHaveClass(/onboarding-target/);
-  await expect(page.locator('#homeChat')).toBeVisible();
+  await expect(page.locator('.nav[data-view="chat"]')).toHaveClass(/onboarding-target/);
+  await expect(page.locator('#onboardingBody')).toContainText('发起需求');
   await page.locator('#onboardingNext').click();
   await expect(page.locator('#dashQuickstart')).toHaveClass(/onboarding-target/);
   await expect(page.locator('#onboardingBody')).toContainText(/一键开跑|一键演示/);
@@ -39,33 +39,34 @@ test('first login points at the home chat and ends back on the checklist in demo
   await page.locator('#onboardingNext').click();
   await page.locator('#onboardingNext').click();
   await page.locator('#onboardingNext').click();
-  await expect(page.locator('#onboardingNext')).toHaveText('开始体验');
+  await expect(page.locator('#onboardingNext')).toHaveText('去配置');
   await expect(page.locator('#onboardingBody')).toContainText('GitHub Token');
   await page.locator('#onboardingNext').click();
   await expect(page.locator('#onboarding')).toBeHidden();
-  await expect(page.locator('#pageTitle')).toHaveText('工作总览');
-  await expect(page.locator('#homeChat')).toBeVisible();
-  await expect(page.locator('#dashQuickstart')).toBeVisible();
+  await expect(page.locator('#pageTitle')).toHaveText('个人设置');
+  await expect(page).toHaveURL(/#\/settings\/models$/);
+  await expect(page.locator('#settingsView .settings-tab.active')).toHaveText('模型 Key');
+  await expect(page.locator('#userCredentialForm [name=codeBuddyApiKey]')).toBeVisible();
 
   await page.reload();
   await expect(page.locator('#userName')).toBeVisible();
   await page.waitForTimeout(1200);
   await expect(page.locator('#onboarding')).toBeHidden();
+  await expect(page.locator('#setupWizard')).toHaveCount(0);
 
-  await page.locator('#dashQuickstart [data-qs-close]').click();
-  await expect(page.locator('#dashQuickstart')).toBeHidden();
   await page.locator('.nav[data-view="guide"]').click();
   await page.locator('#replayOnboarding').click();
   await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
-  await expect(page.locator('#homeChat')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#onboarding')).toBeHidden();
+  await expect(page.locator('#pageTitle')).toHaveText('个人设置');
   expect(errors).toEqual([]);
 });
 
-test('home chat one-click demo launches a run visible in the live strip', async ({ page }) => {
+test('the chat page one-click demo launches a run', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
+  await page.locator('.nav[data-view="chat"]').click();
   const home = page.locator('#homeChat');
   await expect(home).toBeVisible();
   await expect(home.locator('#homeChatDemo')).toBeVisible();
@@ -74,8 +75,6 @@ test('home chat one-click demo launches a run visible in the live strip', async 
   await expect(drawer).toContainText('演示：需求列表支持导出 CSV');
   await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
   await closeDrawer(page);
-  await page.locator('#refreshDashboard').click();
-  await expect(home.locator('#homeChatRuns .home-run-card, #homeChatApprovals .home-run-card').first()).toBeVisible({ timeout: 15_000 });
   expect(errors).toEqual([]);
 });
 
@@ -103,6 +102,7 @@ test('personal settings keep the save bar in view and flag unsaved edits', async
   const errors = watchErrors(page);
   await login(page);
   await page.locator('.nav[data-view="settings"]').click();
+  await page.locator('[data-settings-tab="models"]').click();
   const bar = page.locator('#userCredentialForm .credential-savebar');
   await expect(bar).toBeInViewport();
   await expect(bar).not.toHaveClass(/is-dirty/);

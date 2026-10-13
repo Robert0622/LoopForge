@@ -108,12 +108,9 @@ Or without cloning first:
 curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
 ```
 
-Then open the URL it prints (normally <http://localhost:8080>):
+Then open the URL it prints (normally <http://localhost:8080>). The first visitor creates the admin account; after that, teammates register from the login page (an admin can turn sign-up off under **平台管理**). A short tour ends on **个人设置**, where you paste a model key and a GitHub token.
 
-- user: `admin`
-- password: `demo1234`
-
-(Fixed when demo mode is on and `LOOPFORGE_ADMIN_PASSWORD` is unset — change it before any shared deploy.) Click **一键演示** on the dashboard, approve the gate, and open `delivery-report.md` under **产物**. No model is called.
+To try it without any key, open **工作总览**, click **一键演示**, approve the gate, and open `delivery-report.md` under **产物**. No model is called.
 
 Helpers:
 
@@ -210,11 +207,12 @@ Everything is optional; see [.env.example](.env.example) for the full list. The 
 | --- | --- |
 | `LOOPFORGE_DATA_DIR` | Data directory (SQLite, session secret, workspaces). Default `~/.loopforge`. |
 | `LOOPFORGE_DATABASE_URL` | `sqlite:///path/loopforge.db` or `mysql://user:pass@tcp(host:3306)/loopforge`. |
-| `LOOPFORGE_ADMIN_USER` / `LOOPFORGE_ADMIN_PASSWORD` | First-boot admin account. |
+| `LOOPFORGE_ADMIN_USER` / `LOOPFORGE_ADMIN_PASSWORD` | Create the admin at boot instead of in the browser (useful for scripted installs). |
+| `LOOPFORGE_SIGNUP` | `closed` turns off self-registration by default; admins can still toggle it under 平台管理. |
 | `LOOPFORGE_GITHUB_TOKEN` | Server-side fallback token for issue sync and PR delivery. |
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | Accept `X-Forwarded-User` from a trusted proxy (oauth2-proxy, Authelia, ...). |
 | `LOOPFORGE_ROLE` | `all` (default), `api`, or `worker` for split deployments. |
-| `LOOPFORGE_DEMO_MODE` | Seed the scripted demo executor and SOP; fixed `admin` / `demo1234` when admin password unset. |
+| `LOOPFORGE_DEMO_MODE` | Seed the scripted demo executor and SOP. |
 | `LOOPFORGE_NOTIFY_WEBHOOK` | Group-chat robot webhook for waiting/failed alerts. |
 | `LOOPFORGE_PUBLIC_URL` | Public base URL for notify links and approval share links. |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | Sandbox for the built-in SOPs: `generic-docker`, `linux-bwrap`, `macos-seatbelt` or `local`. Auto-detected when unset. |

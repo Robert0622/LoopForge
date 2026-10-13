@@ -108,12 +108,9 @@ git clone https://github.com/Tencent/LoopForge.git && cd LoopForge
 curl -fsSL https://raw.githubusercontent.com/Tencent/LoopForge/main/install.sh | bash -s -- -y
 ```
 
-启动后打开它打印的地址（一般是 <http://localhost:8080>）：
+启动后打开它打印的地址（一般是 <http://localhost:8080>）。第一个打开页面的人创建管理员账号；之后队友在登录页自己注册（管理员可以在「平台管理」里关掉注册）。新手引导结束后会停在「个人设置」，在那里填模型 Key 和 GitHub Token。
 
-- 用户名：`admin`
-- 密码：`demo1234`
-
-（演示模式且未设 `LOOPFORGE_ADMIN_PASSWORD` 时固定；共享/生产请改掉。）点工作总览 **一键演示**，批准后在「产物」打开 `delivery-report.md`，全程不调模型。
+不填 Key 也能先体验：在「工作总览」点 **一键演示**，批准后在「产物」打开 `delivery-report.md`，全程不调模型。
 
 常用命令：
 
@@ -210,11 +207,12 @@ web/                   内嵌的 Studio 界面
 | --- | --- |
 | `LOOPFORGE_DATA_DIR` | 数据目录（SQLite、会话密钥、工作区），默认 `~/.loopforge`。 |
 | `LOOPFORGE_DATABASE_URL` | `sqlite:///path/loopforge.db` 或 `mysql://user:pass@tcp(host:3306)/loopforge`。 |
-| `LOOPFORGE_ADMIN_USER` / `LOOPFORGE_ADMIN_PASSWORD` | 首次启动创建的管理员。 |
+| `LOOPFORGE_ADMIN_USER` / `LOOPFORGE_ADMIN_PASSWORD` | 启动时直接创建管理员，不走浏览器创建（适合脚本化安装）。 |
+| `LOOPFORGE_SIGNUP` | 设为 `closed` 时默认关闭自助注册；管理员仍可在「平台管理」里切换。 |
 | `LOOPFORGE_GITHUB_TOKEN` | 服务端兜底令牌，用于 Issue 同步和 PR 交付。 |
 | `LOOPFORGE_TRUST_IDENTITY_HEADERS` | 信任反向代理（oauth2-proxy、Authelia 等）注入的 `X-Forwarded-User`。 |
 | `LOOPFORGE_ROLE` | `all`（默认）、`api` 或 `worker`，用于拆分部署。 |
-| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP；未设管理员密码时固定为 `admin` / `demo1234`。 |
+| `LOOPFORGE_DEMO_MODE` | 写入演示执行器和演示 SOP。 |
 | `LOOPFORGE_NOTIFY_WEBHOOK` | 群聊机器人 Webhook；待确认/失败时推送文本。 |
 | `LOOPFORGE_PUBLIC_URL` | 对外访问根 URL，用于通知与审批分享链接。 |
 | `LOOPFORGE_TEMPLATE_SANDBOX` | 内置 SOP 使用的沙箱：`generic-docker`、`linux-bwrap`、`macos-seatbelt` 或 `local`。不设置时自动检测。 |

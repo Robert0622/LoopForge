@@ -79,7 +79,7 @@ test('a project, a custom MCP and the personal pages render their working contro
   await expect(page.locator('#mcpMarketGrid')).toContainText('浏览器 MCP');
 
   await page.locator('.nav[data-view="settings"]').click();
-  await expect(page.locator('#settingsView')).toContainText('密码');
+  await expect(page.locator('#settingsView .settings-tab.active')).toHaveText('模型 Key');
   await page.locator('.nav[data-view="runners"]').click();
   await expect(page.locator('#bindToken')).not.toHaveText('生成中…', { timeout: 15_000 });
   await page.locator('.nav[data-view="guide"]').click();

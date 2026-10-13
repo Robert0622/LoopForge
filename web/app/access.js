@@ -94,7 +94,7 @@ function renderGuideSetup(){
   renderGuideSetupBody(body,user,isGuest);
 }
 function gotoCredential(name){
-  switchView('settings');
+  openSettings(name==='gitToken'?'git':name==='personalMcpToken'?'mcp':'models');
   setTimeout(()=>{
     const el=document.querySelector(`#personalSettingsContent input[name="${name}"]`);
     if(!el)return;

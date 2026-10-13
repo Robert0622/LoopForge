@@ -5,7 +5,7 @@ const path = require('path');
 const source = fs.readFileSync(path.join(__dirname, 'app/homechat.js'), 'utf8');
 assert.match(source, /function renderHomeChat/);
 assert.match(source, /\/api\/chat-clarify/);
-assert.match(source, /homeChatActiveRuns/);
+assert.doesNotMatch(source, /home-chat-side/, 'running / waiting runs live in their own pages, not beside the chat');
 assert.match(source, /一键演示|HOME_CHAT_DEMO/);
 assert.match(source, /建单并开跑/);
 console.log('homechat ok');

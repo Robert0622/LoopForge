@@ -18,7 +18,7 @@ function updateApprovalBadge(){
 }
 
 function credentialClearAction(name,configured,label='API Key'){
-  return `<div class="credential-actions"><button type="button" class="button small credential-clear" data-clear-credential="${name}" data-clear-label="${label}" data-pending-clear="false">清除 ${label}</button><span data-credential-status="${name}" data-configured="${configured?'true':'false'}" role="status">${configured?'当前已配置':'尚未配置'}</span></div>`;
+  return `<div class="credential-actions"${configured?'':' hidden'}><button type="button" class="button small credential-clear" data-clear-credential="${name}" data-clear-label="${label}" data-pending-clear="false">清除 ${label}</button><span data-credential-status="${name}" data-configured="${configured?'true':'false'}" role="status">${configured?'当前已配置':'尚未配置'}</span></div>`;
 }
 function bindCredentialClearButtons(form){
   form.querySelectorAll('[data-clear-credential]').forEach(button=>{
@@ -49,6 +49,45 @@ function bindCredentialDirtyState(form){
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')window.addEventListener('beforeunload',e=>{if(state.credentialsDirty){e.preventDefault();e.returnValue=''}});
 function credentialClearPending(form,name){return form.querySelector(`[data-clear-credential="${name}"]`).dataset.pendingClear==='true'}
 function credentialBadge(configured){return `<span class="credential-badge ${configured?'is-ready':'is-empty'}">${configured?'已配置':'未配置'}</span>`}
+// 个人设置按用途分成子页，每页只放一类内容；凭证三页共用一个表单和保存栏。
+const SETTINGS_TABS=[
+  {id:'models',label:'模型 Key',hint:'Agent 执行任务用的模型 API Key'},
+  {id:'git',label:'代码仓库',hint:'克隆、推送和创建 PR 用的 GitHub Token'},
+  {id:'mcp',label:'MCP 令牌',hint:'「个人令牌」认证的 MCP 服务用'},
+  {id:'account',label:'账号',hint:'登录信息与密码'},
+];
+function settingsTabValid(id){return SETTINGS_TABS.some(t=>t.id===id)}
+// 没配模型 Key 时先去模型页，否则停在上次打开的子页。
+function defaultSettingsTab(){
+  const stored=userById(state.currentUser?.id)||{};
+  if(!(stored.codeBuddyApiKeyConfigured||stored.codexApiKeyConfigured||stored.claudeCodeApiKeyConfigured))return 'models';
+  return settingsTabValid(state.settingsTab)?state.settingsTab:'models';
+}
+function currentSettingsTab(){
+  const routed=routePart(0)==='settings'?routePart(1):'';
+  if(settingsTabValid(routed))return routed;
+  return settingsTabValid(state.settingsTab)?state.settingsTab:defaultSettingsTab();
+}
+function openSettings(tab){
+  state.settingsTab=settingsTabValid(tab)?tab:defaultSettingsTab();
+  if(activeViewName()==='settings'&&showSettingsTab(state.settingsTab)){persistView('settings');return}
+  switchView('settings');
+}
+// 只切换显示，不重绘：别的子页里还没保存的输入要留着。
+function showSettingsTab(tab){
+  const host=$('#personalSettingsContent');
+  if(!host||!host.querySelector('[data-settings-tab]'))return false;
+  host.querySelectorAll('[data-settings-tab]').forEach(b=>{const on=b.dataset.settingsTab===tab;b.classList.toggle('active',on);b.setAttribute('aria-selected',String(on))});
+  host.querySelectorAll('[data-settings-panel]').forEach(p=>p.hidden=p.dataset.settingsPanel!==tab);
+  const form=host.querySelector('#userCredentialForm');if(form)form.hidden=tab==='account';
+  return true;
+}
+function settingsTabStatus(id,stored){
+  if(id==='models')return stored.codeBuddyApiKeyConfigured||stored.codexApiKeyConfigured||stored.claudeCodeApiKeyConfigured;
+  if(id==='git')return stored.gitTokenConfigured;
+  if(id==='mcp')return stored.personalMcpTokenConfigured;
+  return null;
+}
 async function renderPersonalSettings(){
   const host=$('#personalSettingsContent');if(!host)return;
   const user=state.currentUser;
@@ -58,23 +97,12 @@ async function renderPersonalSettings(){
     return;
   }
   const storedUser=userById(user.id)||{};
-  host.innerHTML=`<section class="personal-settings-card personal-account-card"><div class="personal-account-avatar">${userAvatarHTML(user, 150)}</div><div><span class="credential-eyebrow">当前账号</span><h2>${escapeHTML(userDisplay(user))}</h2><p>凭证按用户隔离，仅在你负责的任务运行时注入。</p></div></section><section class="personal-settings-card credential-settings-card"><form id="userCredentialForm" class="upp-credentials">
-        <header class="credential-settings-head"><div><span class="credential-eyebrow">凭证</span><h2>个人凭证</h2><p>SOP 使用需求责任人（未指定时为项目 Owner）的个人凭证。</p></div><div class="credential-security-note"><span>⌁</span>任务级注入，不写入 Agent 资产</div></header>
-        <div class="credential-grid">
-        <fieldset class="provider-credentials credential-card-featured"><legend><span class="credential-card-logo"><img src="/images/credentials/github.svg" alt=""></span><span>个人 MCP 令牌<small>GitHub MCP 等</small></span>${credentialBadge(storedUser.personalMcpTokenConfigured)}</legend>
-          <p class="credential-description">用于认证方式为「个人令牌」的 HTTP MCP（如 GitHub MCP）。令牌会自动拼成 Bearer 请求头，只在你负责的任务里注入。</p>
-          <label>个人 MCP 令牌<input name="personalMcpToken" type="password" autocomplete="new-password" placeholder="${storedUser.personalMcpTokenConfigured?'已配置，留空则不改':'留空则 GitHub MCP 复用上面的 GitHub Token'}"></label>
-          ${credentialClearAction('personalMcpToken',storedUser.personalMcpTokenConfigured,'MCP 令牌')}
-          <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
-        </fieldset>
-        <fieldset class="provider-credentials"><legend><span class="credential-card-logo"><img src="/images/credentials/github.svg" alt=""></span><span>代码仓库<small>GitHub 访问</small></span>${credentialBadge(storedUser.gitTokenConfigured)}</legend>
-          <div class="upp-alert-warn git-token-pat-warning"${storedUser.gitTokenConfigured?' hidden':''}>请填 GitHub <b>个人访问令牌</b>。Classic token 勾选 <b>repo</b>；Fine-grained token 需要目标仓库的 <b>Contents</b>、<b>Pull requests</b>、<b>Issues</b> 读写权限，否则克隆 / 推送 / 建 PR 会失败。</div>
-          <p class="credential-description">用于克隆私有仓库、创建任务分支及推送交付产物。</p>
-          <label>GitHub Git Token<input name="gitToken" type="password" autocomplete="new-password" placeholder="${storedUser.gitTokenConfigured?'已配置，留空则不改':'ghp_xxx / github_pat_xxx'}"></label>
-          ${credentialClearAction('gitToken',storedUser.gitTokenConfigured,'Git Token')}
-          <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
-          <div class="git-token-verify-row"><button type="button" class="button ghost small" id="verifyGitToken">校验 Token 有效性</button><span id="gitTokenVerifyStatus" class="git-token-verify-status"></span></div>
-        </fieldset>
+  const tab=currentSettingsTab();
+  state.settingsTab=tab;
+  const tabs=`<nav class="settings-tabs" role="tablist" aria-label="个人设置">${SETTINGS_TABS.map(t=>{const ok=settingsTabStatus(t.id,storedUser);return `<button type="button" role="tab" class="settings-tab${t.id===tab?' active':''}" data-settings-tab="${t.id}" aria-selected="${t.id===tab}"><span>${t.label}</span>${ok==null?'':`<i class="settings-tab-dot ${ok?'is-ready':'is-empty'}" title="${ok?'已配置':'未配置'}"></i>`}</button>`}).join('')}</nav>`;
+  const panel=(id,body)=>`<div class="settings-panel" data-settings-panel="${id}"${id===tab?'':' hidden'}>${body}</div>`;
+  const panelHead=id=>{const t=SETTINGS_TABS.find(x=>x.id===id);return `<header class="settings-panel-head"><h2>${t.label}</h2><p>${t.hint}</p></header>`};
+  const models=`${panelHead('models')}<p class="settings-panel-note">至少配一个。任务用需求责任人（未指定时为项目 Owner）的 Key，只在运行时注入，不写进 Agent 资产。</p><div class="credential-grid">
         <fieldset class="provider-credentials"><legend><span class="credential-card-logo"><img src="/images/credentials/codebuddy.svg" alt=""></span><span>CodeBuddy<small>模型与执行</small></span>${credentialBadge(storedUser.codeBuddyApiKeyConfigured)}</legend>
           <p class="credential-description">用于调用 CodeBuddy Code 执行 Agent 任务；网络环境按账号所属站点配置。</p>
           <label>CodeBuddy API Key<input name="codeBuddyApiKey" type="password" autocomplete="new-password" placeholder="${storedUser.codeBuddyApiKeyConfigured?'已配置，留空则不改':'请输入 CodeBuddy API Key'}"></label>
@@ -82,7 +110,6 @@ async function renderPersonalSettings(){
           <label>CodeBuddy 网络环境<input name="codeBuddyInternetEnvironment" value="${escapeHTML(storedUser.codeBuddyInternetEnvironment||'')}" placeholder="留空为国际站；internal 为中国站"></label>
           <a class="credential-help-link" href="https://www.codebuddy.ai/" target="_blank" rel="noopener noreferrer">前往 CodeBuddy 获取 API Key ↗</a>
         </fieldset>
-
         <fieldset class="provider-credentials"><legend><span class="credential-card-logo monochrome"><img src="/images/credentials/codex.svg" alt=""></span><span>Codex<small>Responses API</small></span>${credentialBadge(storedUser.codexApiKeyConfigured)}</legend>
           <p class="credential-description">用于调用 OpenAI Responses API 兼容服务；具体模型名称在角色定义中设置。</p>
           <label>Codex API Key<input name="codexApiKey" type="password" autocomplete="new-password" placeholder="${storedUser.codexApiKeyConfigured?'已配置，留空则不改':'请输入 Codex API Key'}"></label>
@@ -96,10 +123,33 @@ async function renderPersonalSettings(){
           ${credentialClearAction('claudeCodeApiKey',storedUser.claudeCodeApiKeyConfigured)}
           <label>Claude Code Base URL<input name="claudeCodeBaseUrl" type="url" value="${escapeHTML(storedUser.claudeCodeBaseUrl||'')}" placeholder="https://api.anthropic.com"></label>
           <small>填写提供商地址；留空使用官方地址。</small>
-        </fieldset>
-        </div>
-        <footer class="credential-savebar"><div><b>保存后对下一次任务生效</b><span>留空不会覆盖已经配置的密钥。</span></div><button class="button primary" type="submit">保存个人凭证</button></footer>
-      </form></section>${state.proxyAuth?'':`<section class="personal-settings-card"><form id="userPasswordForm" class="upp-credentials"><header class="credential-settings-head"><div><span class="credential-eyebrow">Password</span><h2>修改登录密码</h2><p>至少 8 位。修改后当前会话保持登录。</p></div></header><div class="credential-grid"><fieldset class="provider-credentials"><label>当前密码<input name="currentPassword" type="password" autocomplete="current-password"></label><label>新密码<input name="newPassword" type="password" autocomplete="new-password" required minlength="8"></label></fieldset></div><footer class="credential-savebar"><div></div><button class="button primary" type="submit">修改密码</button></footer></form></section>`}`;
+        </fieldset></div>`;
+  const git=`${panelHead('git')}<div class="credential-grid credential-grid-single">
+        <fieldset class="provider-credentials"><legend><span class="credential-card-logo"><img src="/images/credentials/github.svg" alt=""></span><span>GitHub<small>代码仓库访问</small></span>${credentialBadge(storedUser.gitTokenConfigured)}</legend>
+          <div class="upp-alert-warn git-token-pat-warning"${storedUser.gitTokenConfigured?' hidden':''}>请填 GitHub <b>个人访问令牌</b>。Classic token 勾选 <b>repo</b>；Fine-grained token 需要目标仓库的 <b>Contents</b>、<b>Pull requests</b>、<b>Issues</b> 读写权限，否则克隆 / 推送 / 建 PR 会失败。</div>
+          <p class="credential-description">用于克隆私有仓库、创建任务分支及推送交付产物。</p>
+          <label>GitHub Git Token<input name="gitToken" type="password" autocomplete="new-password" placeholder="${storedUser.gitTokenConfigured?'已配置，留空则不改':'ghp_xxx / github_pat_xxx'}"></label>
+          ${credentialClearAction('gitToken',storedUser.gitTokenConfigured,'Git Token')}
+          <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
+          <div class="git-token-verify-row"><button type="button" class="button ghost small" id="verifyGitToken">校验 Token 有效性</button><span id="gitTokenVerifyStatus" class="git-token-verify-status"></span></div>
+        </fieldset></div>`;
+  const mcp=`${panelHead('mcp')}<div class="credential-grid credential-grid-single">
+        <fieldset class="provider-credentials"><legend><span class="credential-card-logo"><img src="/images/credentials/github.svg" alt=""></span><span>个人 MCP 令牌<small>GitHub MCP 等</small></span>${credentialBadge(storedUser.personalMcpTokenConfigured)}</legend>
+          <p class="credential-description">用于认证方式为「个人令牌」的 HTTP MCP（如 GitHub MCP）。令牌会自动拼成 Bearer 请求头，只在你负责的任务里注入。</p>
+          <label>个人 MCP 令牌<input name="personalMcpToken" type="password" autocomplete="new-password" placeholder="${storedUser.personalMcpTokenConfigured?'已配置，留空则不改':'留空则 GitHub MCP 复用「代码仓库」里的 GitHub Token'}"></label>
+          ${credentialClearAction('personalMcpToken',storedUser.personalMcpTokenConfigured,'MCP 令牌')}
+          <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
+        </fieldset></div>`;
+  const account=`${panelHead('account')}<div class="settings-account">
+      <section class="personal-settings-card personal-account-card"><div class="personal-account-avatar">${userAvatarHTML(user, 150)}</div><div><span class="credential-eyebrow">当前账号</span><h2>${escapeHTML(userDisplay(user))}</h2><p>登录名 <code>${escapeHTML(user.loginName||'')}</code>${isPlatformAdmin()?' · 平台管理员':''}</p></div>${state.proxyAuth?'':'<button type="button" class="button ghost upp-btn-danger" id="settingsLogout">退出登录</button>'}</section>
+      ${state.proxyAuth?'<p class="settings-panel-note">当前通过反向代理登录，密码由你们的身份系统管理。</p>':`<form id="userPasswordForm" class="personal-settings-card settings-password-form"><h3>修改密码</h3><p>至少 8 位，修改后当前登录保持有效。忘记密码请联系平台管理员重置。</p><label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>新密码<input name="newPassword" type="password" autocomplete="new-password" required minlength="8"></label><div class="settings-form-actions"><button class="button primary" type="submit">修改密码</button></div></form>`}
+    </div>`;
+  host.innerHTML=`${tabs}<form id="userCredentialForm" class="upp-credentials settings-credential-form"${tab==='account'?' hidden':''}>${panel('models',models)}${panel('git',git)}${panel('mcp',mcp)}
+        <footer class="credential-savebar"><div><b>保存后对下一次任务生效</b><span>留空不会覆盖已经配置的密钥。</span></div><button class="button primary" type="submit">保存</button></footer>
+      </form>${panel('account',account)}`;
+  host.querySelectorAll('[data-settings-tab]').forEach(b=>b.onclick=()=>openSettings(b.dataset.settingsTab));
+  const logout=host.querySelector('#settingsLogout');
+  if(logout)logout.onclick=async()=>{try{await api('/api/auth/logout',{method:'POST'})}catch(_){}location.reload()};
   const passwordForm=host.querySelector('#userPasswordForm');
   if(passwordForm)passwordForm.onsubmit=async e=>{
     e.preventDefault();
@@ -224,6 +274,11 @@ function renderPlatformAdminPanel(){
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             <span>授权后用户将获得全平台通用 SOP 模板及公共角色的修改与发布权限，请谨慎授予。</span>
           </div>
+        </div>
+
+        <div class="platform-add-box platform-signup-box">
+          <label class="toggle-row"><input type="checkbox" id="platformSignupOpen"> 允许新用户在登录页自行注册</label>
+          <div class="platform-add-hint"><span>注册的账号是普通成员，能看到项目、提需求、被指派为负责人。只在可信网络里打开；关闭后只能由管理员在下面创建账号。</span></div>
         </div>
 
         <div class="platform-add-box">
@@ -476,6 +531,16 @@ async function loadPlatformAdmins(host){
       if(submitBtn)submitBtn.disabled=false;
     }
   };
+  const signup=host.querySelector('#platformSignupOpen');
+  if(signup){
+    api('/api/auth/settings',{silent:true}).then(v=>{signup.checked=!!v.signupOpen}).catch(()=>{});
+    signup.onchange=async()=>{
+      signup.disabled=true;
+      try{const v=await api('/api/auth/settings',{method:'PUT',body:JSON.stringify({signupOpen:signup.checked})});signup.checked=!!v.signupOpen;state.signupOpen=signup.checked;toast(signup.checked?'已开放注册':'已关闭注册','ok')}
+      catch(err){signup.checked=!signup.checked;toast(err.message,'err')}
+      finally{signup.disabled=false}
+    };
+  }
   const accountForm=$('#platformAccountForm');
   if(accountForm)accountForm.onsubmit=async e=>{
     e.preventDefault();
@@ -558,7 +623,7 @@ function renderUserProfilePopover() {
         <button id="uppLogoutBtn" class="button small ghost upp-btn-danger" type="button" title="退出当前登录"${state.proxyAuth?' hidden':''}>退出登录</button>
       </div>
     `;
-    popover.querySelector('#openPersonalSettings').onclick=()=>{ $('#userProfileWrap').classList.remove('is-open'); switchView('settings') };
+    popover.querySelector('#openPersonalSettings').onclick=()=>{ $('#userProfileWrap').classList.remove('is-open'); openSettings() };
     popover.querySelector('#openOnboarding').onclick=()=>{ $('#userProfileWrap').classList.remove('is-open'); startOnboarding(); };
     const reAuthBtn = popover.querySelector('#uppReAuthBtn');
     if (reAuthBtn) {
@@ -657,10 +722,6 @@ function renderDashboard(){
   const results=closed.filter(i=>!issueManuallyClosed(i)&&!issueTrackerClosed(i)).sort((a,b)=>new Date(b.updatedAt||0)-new Date(a.updatedAt||0)).slice(0,8);
   $('#dashResults').innerHTML=results.length?results.map(row).join(''):'<div class="empty-box">还没有跑完的需求</div>';
   bindIssueRows($('#dashAttention'));bindIssueRows($('#dashActive'));bindIssueRows($('#dashResults'));
-  const cfg=state.data.syncConfig||{},logs=state.data.syncLogs||[];
-  $('#dashFeedHint').textContent=`最近同步 ${cfg.lastSyncAt&&new Date(cfg.lastSyncAt).getFullYear()>1?new Date(cfg.lastSyncAt).toLocaleString():'从未'} · ${logs[0]?.status==='success'?'成功':''}${logs[0]?.status==='failed'?'失败':''}`;
-  const feed=logs.slice(0,8).map(l=>`<div class="tl-item"><div><b>${l.direction==='pull'?'拉取':'推送'} · ${l.source==='github'?'GitHub':escapeHTML(l.source||'')}</b> <span class="muted">${escapeHTML(l.message||l.action)}</span></div><div class="muted" style="font-size:10.5px;margin-top:2px">${new Date(l.startedAt).toLocaleString()} · ${l.status==='success'?'成功':`失败 ${escapeHTML(l.message||'')}`}</div></div>`).join('');
-  $('#dashFeed').innerHTML=feed||'<div class="tl-item"><div class="muted">尚未配置外部同步。可在「需求列表」里同步 GitHub Issues。</div></div>';
 }
 
 

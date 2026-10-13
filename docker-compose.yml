@@ -30,8 +30,10 @@ services:
       # owner stable across upgrades, which recreate the container.
       LOOPFORGE_WORKSPACE_HOST: ${LOOPFORGE_WORKSPACE_HOST:-loopforge}
       LOOPFORGE_ADMIN_USER: ${LOOPFORGE_ADMIN_USER:-admin}
-      # Leave empty to have a random password printed once in `docker compose logs`.
+      # Leave empty to create the admin in the browser on first visit.
       LOOPFORGE_ADMIN_PASSWORD: ${LOOPFORGE_ADMIN_PASSWORD:-}
+      # closed: no self-registration until an admin opens it in 平台管理.
+      LOOPFORGE_SIGNUP: ${LOOPFORGE_SIGNUP:-}
       LOOPFORGE_GITHUB_TOKEN: ${LOOPFORGE_GITHUB_TOKEN:-}
       # true: seed a scripted executor and demo SOP that run without any API key.
       LOOPFORGE_DEMO_MODE: ${LOOPFORGE_DEMO_MODE:-}

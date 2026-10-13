@@ -1,5 +1,4 @@
-// Grasp-style home chatbot: one sentence on the dashboard → clarify → dispatch,
-// with a live strip of running / waiting workflows next to the conversation.
+// 「发起需求」页的对话：一句话 → 澄清 → 建单派发。进度在运行记录和待我确认里看，这里不重复展示。
 const HOME_CHAT_DEMO = 'demo-delivery';
 const HOME_CHAT_QUICK = 'quick-fix';
 
@@ -19,15 +18,6 @@ function homeChatWorkflows() {
   if (quick) list.push(quick);
   mine.forEach(w => { if (!list.some(x => x.id === w.id)) list.push(w); });
   return list;
-}
-
-function homeChatActiveRuns() {
-  const projectId = state.projectFilter || '';
-  const runs = (state.data.runs || []).filter(r => {
-    if (projectId && r.projectId && r.projectId !== projectId) return false;
-    return ['running', 'waiting', 'queued'].includes(r.status);
-  });
-  return runs.slice(0, 8);
 }
 
 function ensureHomeChatState() {
@@ -54,30 +44,15 @@ function renderHomeChat() {
   }
   const demoReady = workflows.some(w => w.id === HOME_CHAT_DEMO);
   const needsKey = !homeChatHasModelKey() && chat.workflowId !== HOME_CHAT_DEMO;
-  const runs = homeChatActiveRuns();
   const thread = chat.messages.map(m => {
     if (m.role === 'user') return `<div class="home-chat-bubble is-user"><b>你</b><p>${escapeHTML(m.content)}</p></div>`;
     if (m.role === 'status') return `<div class="home-chat-bubble is-status">${escapeHTML(m.content)}</div>`;
     return `<div class="home-chat-bubble is-bot"><b>LoopForge</b><div class="home-chat-md">${m.html || escapeHTML(m.content)}</div>${m.actions || ''}</div>`;
   }).join('');
-  const runCards = runs.length ? runs.map(r => {
-    const issueId = homeRunIssueId(r);
-    const issue = (state.data.issues || []).find(i => i.id === issueId);
-    const sop = r.workflowSnapshot?.name || r.workflowName || r.workflowId || '';
-    const title = issue?.title || sop || r.id;
-    const waiting = r.status === 'waiting';
-    return `<button type="button" class="home-run-card ${waiting ? 'is-waiting' : ''}" data-home-run="${escapeHTML(r.id)}" data-home-issue="${escapeHTML(issueId)}"><span class="home-run-status">${waiting ? '待确认' : '运行中'}</span><b>${escapeHTML(title)}</b><small>${escapeHTML(sop)} · ${escapeHTML(statusText(r.status) || r.status)}</small></button>`;
-  }).join('') : `<p class="home-runs-empty">还没有进行中的运行。发一条需求，或点快速开始里的「一键开跑」。</p>`;
-
   host.innerHTML = `
     <div class="home-chat-layout">
       <section class="home-chat-main">
-        <div class="home-chat-hero">
-          <p class="home-chat-kicker">Chat</p>
-          <h2>一句话说清，剩下的交给流程</h2>
-          <p>对话澄清 → 建单派发 → 在右侧看运行进度。演示模式不需要 API Key。</p>
-        </div>
-        <div class="home-chat-thread" id="homeChatThread">${thread || `<div class="home-chat-empty">试试：「给需求列表加导出 CSV」${demoReady ? '，或直接开跑演示 SOP' : ''}</div>`}</div>
+        <div class="home-chat-thread" id="homeChatThread">${thread || homeChatEmpty(demoReady)}</div>
         <form class="home-chat-composer" id="homeChatForm">
           <div class="home-chat-toolbar">
             <label>SOP<select id="homeChatWorkflow" class="select">${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === chat.workflowId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}${w.id === HOME_CHAT_DEMO ? '（演示）' : w.id === HOME_CHAT_QUICK ? '（短链路）' : ''}</option>`).join('')}</select></label>
@@ -93,24 +68,18 @@ function renderHomeChat() {
           </div>
         </form>
       </section>
-      <aside class="home-chat-side">
-        <header><b>正在运行</b><button type="button" class="button ghost small" id="homeChatRefreshRuns">刷新</button></header>
-        <div class="home-run-list" id="homeChatRuns">${runCards}</div>
-        <header class="home-side-second"><b>待我确认</b><button type="button" class="button ghost small" data-home-goto="approvals">全部</button></header>
-        <div class="home-run-list" id="homeChatApprovals">${renderHomeChatApprovals()}</div>
-      </aside>
     </div>`;
   bindHomeChat();
 }
 
-function renderHomeChatApprovals() {
-  const items = (typeof approvalItems === 'function' ? approvalItems() : []).slice(0, 6);
-  if (!items.length) return `<p class="home-runs-empty">没有等待你拍板的运行。</p>`;
-  return items.map(run => {
-    const issueId = homeRunIssueId(run);
-    const issue = (state.data.issues || []).find(i => i.id === issueId);
-    return `<button type="button" class="home-run-card is-waiting" data-home-run="${escapeHTML(run.id || '')}" data-home-issue="${escapeHTML(issueId)}"><span class="home-run-status">待确认</span><b>${escapeHTML(issue?.title || run.workflowSnapshot?.name || run.workflowId || run.id)}</b><small>批准后继续下游</small></button>`;
-  }).join('');
+const HOME_CHAT_EXAMPLES = ['给需求列表加导出 CSV', '登录失败时提示具体原因', '个人主页增加徽章，兼容现有成就体系'];
+
+function homeChatEmpty(demoReady) {
+  return `<div class="home-chat-empty">
+    <h2>想改点什么？</h2>
+    <p>用一句话说清目标，平台会追问验收标准和边界，说清后一键建单开跑。${demoReady ? '没配模型 Key 也可以先点「一键演示」看完整流程。' : ''}</p>
+    <div class="home-chat-examples">${HOME_CHAT_EXAMPLES.map(text => `<button type="button" class="home-chat-example" data-home-example="${escapeHTML(text)}">${escapeHTML(text)}</button>`).join('')}</div>
+  </div>`;
 }
 
 function homeRunIssueId(run) {
@@ -123,16 +92,16 @@ function bindHomeChat() {
   const input = $('#homeChatInput');
   const workflow = $('#homeChatWorkflow');
   if (workflow) workflow.onchange = () => { chat.workflowId = workflow.value; renderHomeChat(); };
+  document.querySelectorAll('[data-home-example]').forEach(b => b.onclick = () => { if (!input || input.disabled) return; input.value = b.dataset.homeExample; input.focus(); });
   $('#homeChatGoSettings') && ($('#homeChatGoSettings').onclick = () => {
     if (typeof reopenSetupWizardFromGuide === 'function') reopenSetupWizardFromGuide();
-    else switchView('settings');
+    else openSettings('models');
   });
   $('#homeChatDemo') && ($('#homeChatDemo').onclick = () => homeChatRunDemo());
-  $('#homeChatRefreshRuns') && ($('#homeChatRefreshRuns').onclick = async () => { try { await refreshRuns(true); await refreshIssues(); } catch (e) {} renderHomeChat(); });
   $('#homeChatStop') && ($('#homeChatStop').onclick = () => homeChatStop());
   $('#homeChatDispatch') && ($('#homeChatDispatch').onclick = () => homeChatCreateAndDispatch());
   $$('[data-home-goto]').forEach(b => b.onclick = () => switchView(b.dataset.homeGoto));
-  $$('#homeChatThread [data-goto-settings]').forEach(b => b.onclick = () => switchView('settings'));
+  $$('#homeChatThread [data-goto-settings]').forEach(b => b.onclick = () => openSettings(b.dataset.gotoSettings || 'models'));
   $$('#homeChatThread [data-open-created]').forEach(b => b.onclick = () => openIssueDetail(b.dataset.openCreated, 'sop'));
   $$('[data-home-run]').forEach(b => b.onclick = () => {
     if (b.dataset.homeIssue) openIssueDetail(b.dataset.homeIssue, 'sop');
@@ -168,7 +137,7 @@ async function homeChatRunDemo() {
   renderHomeChat();
   try {
     await startDemoRequirement(null);
-    homeChatPush('assistant', '演示需求已开跑。右侧「正在运行 / 待我确认」会更新；在需求详情里批准「确认方案」后看交付报告。', { html: '演示需求已开跑。右侧「正在运行 / 待我确认」会更新；在需求详情里批准「确认方案」后看交付报告。' });
+    homeChatPush('assistant', '演示需求已开跑。停在「确认方案」时到「待我确认」批准，然后在需求详情的「产物」里看交付报告。', { html: '演示需求已开跑。停在「确认方案」时到「待我确认」批准，然后在需求详情的「产物」里看交付报告。' });
   } catch (err) {
     homeChatPush('assistant', '开跑失败：' + err.message, { html: escapeHTML('开跑失败：' + err.message) });
   } finally {
@@ -190,7 +159,7 @@ async function homeChatSend() {
   }
   if (!homeChatHasModelKey()) {
     toast('请先在个人设置里配置模型 API Key');
-    return switchView('settings');
+    return openSettings('models');
   }
   const project = (typeof currentProject === 'function' ? currentProject() : null) || (state.data.projects || [])[0];
   if (!project) { toast('请先创建项目'); return switchView('projects'); }
@@ -257,7 +226,7 @@ async function homeChatSend() {
       const credential = /401|API Key|网络环境|Unauthorized/i.test(err.message);
       homeChatPush('assistant', '澄清失败：' + err.message, {
         html: escapeHTML('澄清失败：' + err.message),
-        actions: credential ? '<div class="home-chat-cta"><button type="button" class="button primary small" data-goto-settings>去个人设置检查 Key</button></div>' : '',
+        actions: credential ? '<div class="home-chat-cta"><button type="button" class="button primary small" data-goto-settings="models">去个人设置检查 Key</button></div>' : '',
       });
     } else {
       homeChatPush('status', '已停止');

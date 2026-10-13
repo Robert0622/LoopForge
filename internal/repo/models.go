@@ -575,6 +575,14 @@ type knowledgeSettingsRow struct {
 
 func (knowledgeSettingsRow) TableName() string { return "knowledge_settings" }
 
+type authSettingsRow struct {
+	ID      string     `gorm:"column:id;primaryKey;size:32"`
+	Payload []byte     `gorm:"column:payload;type:json"`
+	Updated *time.Time `gorm:"column:updated_at"`
+}
+
+func (authSettingsRow) TableName() string { return "auth_settings" }
+
 type knowledgeSubmissionRow struct {
 	ID         string     `gorm:"column:id;primaryKey;size:64"`
 	ProjectID  string     `gorm:"column:project_id;index:idx_knowledge_submissions_project;size:64"`
@@ -606,5 +614,6 @@ func allModels() []any {
 		engineInstanceRow{},
 		chatRoomRow{}, chatMessageRow{},
 		knowledgeSettingsRow{}, knowledgeSubmissionRow{},
+		authSettingsRow{},
 	}
 }

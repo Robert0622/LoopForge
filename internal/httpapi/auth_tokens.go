@@ -78,6 +78,7 @@ func protectedAccessPath(path string) bool {
 	}
 	switch path {
 	case "/api/health", "/api/auth/current", "/api/auth/login", "/api/auth/logout", "/api/auth/password",
+		"/api/auth/setup", "/api/auth/register",
 		"/api/share/gate/decide":
 		return false
 	default:

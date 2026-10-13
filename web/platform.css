@@ -2056,3 +2056,43 @@ html[data-theme="light"] body{color-scheme:light}html[data-theme="light"] .platf
 .pager-ellipsis{padding:0 4px;color:var(--muted-2);font-size:12px}
 .issue-board>.pager,.run-list>.pager,.approval-list>.pager,.agent-list>.pager,.sync-log-list>.pager{margin-top:12px}
 .obs-card>.pager{margin:10px 0 2px;border:0;background:transparent;padding:8px 0 0}
+/* 个人设置子页 */
+.settings-tabs{display:flex;gap:4px;margin:4px 0 18px;border-bottom:1px solid var(--line)}
+.settings-tab{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;margin-bottom:-1px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:14px;font-weight:600;cursor:pointer}
+.settings-tab:hover{color:var(--text)}
+.settings-tab.active{color:var(--text-strong);border-bottom-color:var(--blue)}
+.settings-tab-dot{width:7px;height:7px;border-radius:50%;background:var(--muted-2)}
+.settings-tab-dot.is-ready{background:var(--green)}
+.settings-tab-dot.is-empty{background:var(--amber)}
+.settings-credential-form,.settings-panel[data-settings-panel="account"]{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 28px color-mix(in srgb,var(--text) 5%,transparent);overflow:clip}
+.settings-credential-form[hidden],.settings-panel[hidden]{display:none!important}
+.settings-panel-head{padding:22px 26px 0}
+.settings-panel-head h2{margin:0 0 4px;font-size:19px}
+.settings-panel-head p,.settings-panel-note{margin:0;color:var(--muted);font-size:13px}
+.settings-panel-note{padding:8px 26px 0}
+.credential-grid.credential-grid-single{grid-template-columns:minmax(0,720px)}
+.credential-actions[hidden]{display:none}
+.settings-account{display:grid;gap:16px;padding:18px 26px 26px}
+.settings-account .personal-settings-card{margin:0;box-shadow:none}
+.personal-account-card{display:flex;align-items:center;gap:16px}
+.personal-account-card>div:nth-child(2){flex:1;min-width:0}
+.personal-account-card h2{margin:2px 0 4px}
+.personal-account-card p{margin:0;color:var(--muted);font-size:13px}
+.settings-password-form{display:grid;gap:12px;max-width:560px}
+.settings-password-form h3{margin:0;font-size:16px}
+.settings-password-form>p{margin:0;color:var(--muted);font-size:12.5px}
+.settings-password-form label{display:grid;gap:6px;font-weight:650;font-size:13px}
+.settings-password-form input{padding:10px 12px;font-size:14px;border:1px solid var(--line-strong);border-radius:10px;background:var(--bg-soft);color:var(--text)}
+.settings-form-actions{display:flex;justify-content:flex-end}
+/* 登录 / 注册 / 创建管理员 */
+.login-modal-card{display:grid;gap:8px;width:min(420px,calc(100vw - 32px))}
+.login-modal-card h2{margin:0 0 2px}
+.login-modal-card label{margin-top:6px;font-size:13px;font-weight:650}
+.login-modal-card .modal-actions{margin-top:10px}
+.login-register-only{display:grid;gap:8px}
+.login-register-only[hidden]{display:none}
+.login-error{margin:4px 0 0;color:var(--red,#c63c4b);font-size:13px}
+.login-switch{margin:6px 0 0;text-align:center;color:var(--muted);font-size:13px}
+.link-button{padding:0;border:0;background:none;color:var(--blue);font:inherit;font-weight:600;cursor:pointer}
+.link-button:hover{text-decoration:underline}
+#setupModal{z-index:1000}

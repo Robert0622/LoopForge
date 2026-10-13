@@ -48,3 +48,49 @@ test('an expired session brings the login form back instead of a broken page', a
   await expect(page.locator('#loginModal')).toHaveClass(/open/);
   await expect(page.locator('body')).not.toContainText('启动失败');
 });
+
+test('a visitor registers from the login form and lands as a regular member', async ({ page }) => {
+  const errors = watchErrors(page, { allow: [/HTTP 401 GET \/api\/auth\/current/] });
+  await page.addInitScript(() => localStorage.setItem('loopforge.onboarding.v3', 'done'));
+  await page.goto('/');
+  const form = page.locator('#loginForm');
+  await form.locator('[data-login-mode="register"]').click();
+  await expect(form.locator('.login-title')).toHaveText('注册账号');
+  await form.locator('[name=loginName]').fill('carol');
+  await form.locator('[name=displayName]').fill('Carol');
+  await form.locator('[name=password]').fill('short');
+  await form.locator('[type=submit]').click();
+  await expect(page.locator('#loginModal')).toHaveClass(/open/);
+  await form.locator('[name=password]').fill('carol-password-1');
+  await Promise.all([page.waitForNavigation(), form.locator('[type=submit]').click()]);
+  await expect(page.locator('#userName')).toContainText('Carol');
+  await expect(page.locator('.nav[data-view="platform"]')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('an admin closes sign-up and the login form stops offering it', async ({ page, browser }) => {
+  const errors = watchErrors(page);
+  await login(page);
+  await page.locator('[data-view="platform"]:visible').click();
+  const toggle = page.locator('#platformSignupOpen');
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect(page.locator('#toastContainer')).toContainText('已关闭注册');
+
+  const guest = await browser.newContext();
+  const guestPage = await guest.newPage();
+  await guestPage.goto('/');
+  await expect(guestPage.locator('#loginForm')).toBeVisible();
+  await expect(guestPage.locator('#loginForm .login-switch')).toContainText('联系平台管理员');
+  await expect(guestPage.locator('[data-login-mode="register"]')).toHaveCount(0);
+  const status = await guestPage.evaluate(() => fetch('/api/auth/register', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ loginName: 'mallory', password: 'mallory-password' }),
+  }).then(r => r.status));
+  expect(status).toBe(403);
+  await guest.close();
+
+  await toggle.check();
+  await expect(page.locator('#toastContainer')).toContainText('已开放注册');
+  expect(errors).toEqual([]);
+});

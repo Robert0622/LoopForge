@@ -123,8 +123,8 @@ function openGenericRequirementTarget(key){
     toast('在 MCP 市场安装 GitHub MCP，安装后回到通用模板查看状态');
     return;
   }
-  switchView('settings');
-  toast('在「个人凭证」中配置后，重新打开通用模板即可看到最新状态');
+  openSettings('mcp');
+  toast('在「MCP 令牌」里配置后，重新打开通用模板即可看到最新状态');
 }
 // 复制通用模板会在服务端同时复制角色、规则、技能和 MCP，画布要用最新目录才能解析节点角色。
 async function refreshRoleCatalog(){

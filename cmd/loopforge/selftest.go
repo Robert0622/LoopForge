@@ -11,9 +11,11 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Tencent/LoopForge/internal/httpapi"
+	"github.com/Tencent/LoopForge/internal/repo"
 )
 
 // selfTestOptions configures `loopforge --self-test`, the end-to-end check a
@@ -24,12 +26,11 @@ type selfTestOptions struct {
 	baseURL  string
 	user     string
 	password string
-	timeout  time.Duration
+	// session replaces the password login when the self-test runs inside the
+	// deployment and signs an admin session itself.
+	session *http.Cookie
+	timeout time.Duration
 }
-
-// demoAdminPassword is the fixed admin login seeded in demo mode so the README
-// and teammates can sign in without reading the logs.
-const demoAdminPassword = "demo1234"
 
 type selfTestClient struct {
 	base string
@@ -45,13 +46,31 @@ func defaultSelfTestURL() string {
 }
 
 func defaultSelfTestPassword() string {
-	if password := strings.TrimSpace(os.Getenv("LOOPFORGE_ADMIN_PASSWORD")); password != "" {
-		return password
+	return strings.TrimSpace(os.Getenv("LOOPFORGE_ADMIN_PASSWORD"))
+}
+
+// selfTestSession signs a session for the first platform admin from the
+// deployment's own database and session secret.
+func selfTestSession(dataDirFlag, databaseFlag string) (*http.Cookie, string, error) {
+	dir, err := resolveDataDir(dataDirFlag)
+	if err != nil {
+		return nil, "", err
 	}
-	if demo, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_DEMO_MODE"))); demo {
-		return demoAdminPassword
+	ensureSessionSecret(dir)
+	s, err := repo.Open(resolveDatabase(databaseFlag, dir))
+	if err != nil {
+		return nil, "", err
 	}
-	return ""
+	defer s.Close()
+	for _, u := range s.Users() {
+		stored, ok := s.User(u.ID)
+		if !ok || stored.PasswordHash == "" || !s.IsPlatformAdmin(stored.LoginName) {
+			continue
+		}
+		cookie, err := httpapi.SignSessionCookie(stored)
+		return cookie, stored.LoginName, err
+	}
+	return nil, "", errors.New("还没有管理员账号：先在浏览器打开 LoopForge 创建管理员，再运行自检")
 }
 
 func runSelfTest(ctx context.Context, opts selfTestOptions, out io.Writer) error {
@@ -66,11 +85,17 @@ func runSelfTest(ctx context.Context, opts selfTestOptions, out io.Writer) error
 	}
 	line("服务健康", "ok")
 
-	if opts.password == "" {
-		return errors.New("缺少管理员密码：设置 LOOPFORGE_ADMIN_PASSWORD，或用 --self-test-password 传入")
-	}
-	if err := c.do(ctx, http.MethodPost, "/api/auth/login", map[string]string{"loginName": opts.user, "password": opts.password}, nil); err != nil {
-		return fmt.Errorf("管理员 %s 登录失败：%w（数据卷是旧的？首次创建后密码不会被 .env 覆盖，用 ./start.sh reset 清空重来）", opts.user, err)
+	if opts.session != nil {
+		if base, err := url.Parse(c.base); err == nil {
+			jar.SetCookies(base, []*http.Cookie{opts.session})
+		}
+	} else {
+		if opts.password == "" {
+			return errors.New("缺少管理员密码：设置 LOOPFORGE_ADMIN_PASSWORD，或用 --self-test-password 传入")
+		}
+		if err := c.do(ctx, http.MethodPost, "/api/auth/login", map[string]string{"loginName": opts.user, "password": opts.password}, nil); err != nil {
+			return fmt.Errorf("管理员 %s 登录失败：%w", opts.user, err)
+		}
 	}
 	line("管理员登录", opts.user)
 

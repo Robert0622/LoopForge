@@ -1104,7 +1104,7 @@ async function loadRunEval(runId,background){
 }
 async function startRunEval(run){
   if(!['succeeded','failed','cancelled'].includes(run.status))return toast('请等 SOP 跑完后再评测');
-  if(!runEvalHasKey()){toast('请先在个人设置中配置自己的 CodeBuddy API Key','err');switchView('settings');return}
+  if(!runEvalHasKey()){toast('请先在个人设置中配置自己的 CodeBuddy API Key','err');openSettings('models');return}
   state.runEvalBusy=true;state.runEvalThoughts=['正在提交评测…'];
   const host=$('#runDetail'),pane=host?.querySelector('[data-run-pane="eval"]');
   if(pane){pane.innerHTML=runEvalPaneHTML(run);bindRunEvalPane(run,host)}

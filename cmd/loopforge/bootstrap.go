@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/Tencent/LoopForge/internal/auth"
@@ -60,10 +59,10 @@ func ensureSessionSecret(dataDir string) {
 	_ = os.Setenv("LOOPFORGE_SESSION_SECRET", secret)
 }
 
-// ensureAdmin guarantees a password account exists. LOOPFORGE_ADMIN_PASSWORD,
-// when set, is applied to LOOPFORGE_ADMIN_USER (default "admin") on every
-// start. Otherwise, if no password account exists yet, "admin" is created
-// with a random password printed once to the log.
+// ensureAdmin returns the account that owns the projects seeded at startup.
+// LOOPFORGE_ADMIN_PASSWORD, when set, is applied to LOOPFORGE_ADMIN_USER
+// (default "admin") on every start. Otherwise a fresh instance has no
+// account and returns 0: the first visitor creates the admin in the browser.
 func ensureAdmin(s *repo.Store) (int64, error) {
 	login := strings.TrimSpace(os.Getenv("LOOPFORGE_ADMIN_USER"))
 	if login == "" {
@@ -82,35 +81,16 @@ func ensureAdmin(s *repo.Store) (int64, error) {
 				}
 			}
 		}
-		if fallback != 0 {
-			return fallback, nil
+		if fallback == 0 {
+			log.Printf("no account yet: the first visitor creates the admin account in the browser")
 		}
-	}
-	generated := password == ""
-	demoMode, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("LOOPFORGE_DEMO_MODE")))
-	if generated {
-		if demoMode {
-			password = demoAdminPassword
-		} else {
-			password = auth.RandomSecret()[:20]
-		}
+		return fallback, nil
 	}
 	user, err := httpapi.EnsureLocalUser(s, login, "Administrator", password, true)
 	if err != nil {
 		return 0, fmt.Errorf("bootstrap admin: %w", err)
 	}
-	if generated {
-		log.Printf("============================================================")
-		log.Printf(" Created admin account  login: %s  password: %s", login, password)
-		if demoMode {
-			log.Printf(" Demo mode: this password is fixed. Change it before any shared deploy.")
-		} else {
-			log.Printf(" Change it after signing in (Settings -> Password).")
-		}
-		log.Printf("============================================================")
-	} else {
-		log.Printf("admin account %q is ready", login)
-	}
+	log.Printf("admin account %q is ready", login)
 	return user.ID, nil
 }
 
