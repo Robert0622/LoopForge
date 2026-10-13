@@ -222,7 +222,7 @@ func main() {
 			executeRuns = parsed
 		}
 	}
-	e.ConfigureExecution(instanceID, host, leaseTTL, executeRuns)
+	e.ConfigureExecution(instanceID, workspaceHostName(host), leaseTTL, executeRuns)
 	e.ConfigureCloudRunnerPool(engine.CloudRunnerPool{
 		Label:    os.Getenv("LOOPFORGE_CLOUD_RUNNER_LABEL"),
 		Projects: engine.ParseCloudRunnerProjects(os.Getenv("LOOPFORGE_CLOUD_RUNNER_PROJECTS")),
@@ -384,6 +384,16 @@ func resolveWorkspaceRoot(override string) (string, error) {
 		return "", fmt.Errorf("resolve default sandbox workspace root: user home is empty")
 	}
 	return filepath.Join(home, ".loopforge", "workspace"), nil
+}
+
+// workspaceHostName names the machine that owns run workspaces. In a container
+// the hostname is the container ID, which changes on every recreate while the
+// workspace volume stays, so deployments pin it with LOOPFORGE_WORKSPACE_HOST.
+func workspaceHostName(hostname string) string {
+	if pinned := strings.TrimSpace(os.Getenv("LOOPFORGE_WORKSPACE_HOST")); pinned != "" {
+		return pinned
+	}
+	return hostname
 }
 
 func attachPreviewStore(e *engine.Engine, s *repo.Store) {

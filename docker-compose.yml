@@ -26,6 +26,9 @@ services:
     environment:
       # Sandbox containers join this compose network and reach the API by name.
       LOOPFORGE_PLATFORM_MCP_URL: http://loopforge:8080
+      # Run workspaces live on the volume, not in the container: keep their
+      # owner stable across upgrades, which recreate the container.
+      LOOPFORGE_WORKSPACE_HOST: ${LOOPFORGE_WORKSPACE_HOST:-loopforge}
       LOOPFORGE_ADMIN_USER: ${LOOPFORGE_ADMIN_USER:-admin}
       # Leave empty to have a random password printed once in `docker compose logs`.
       LOOPFORGE_ADMIN_PASSWORD: ${LOOPFORGE_ADMIN_PASSWORD:-}

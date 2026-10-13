@@ -151,3 +151,14 @@ func TestResolveRole(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkspaceHostNamePinnedAcrossContainerRecreates(t *testing.T) {
+	t.Setenv("LOOPFORGE_WORKSPACE_HOST", "")
+	if got := workspaceHostName("070279bc96bf"); got != "070279bc96bf" {
+		t.Fatalf("unpinned host = %q, want the hostname", got)
+	}
+	t.Setenv("LOOPFORGE_WORKSPACE_HOST", " loopforge ")
+	if workspaceHostName("070279bc96bf") != "loopforge" || workspaceHostName("5d1e0a9c2f44") != "loopforge" {
+		t.Fatal("pinned workspace host must not follow the container hostname")
+	}
+}
