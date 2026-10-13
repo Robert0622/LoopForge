@@ -117,3 +117,22 @@ func TestApplyRecommendationUpdatesAgentGateAndWorkflowAttempts(t *testing.T) {
 		t.Fatal("instructions should be appended")
 	}
 }
+
+func TestBuildFactsCountsEachToolCallOnce(t *testing.T) {
+	read := &domain.ToolObservation{Name: "Read"}
+	stream := domain.TelemetrySource{Adapter: "anthropic-stream-v1"}
+	hooks := domain.TelemetrySource{Adapter: "agent-hooks-v1"}
+	run := domain.Run{ID: "run-dup", Telemetry: []domain.TelemetryEvent{
+		{NodeID: "implement", Category: "tool", Name: "tool.call", Phase: "start", Tool: read, Source: stream},
+		{NodeID: "implement", Category: "tool", Name: "tool.call", Phase: "start", Source: hooks, Attributes: map[string]any{"hook": "PreToolUse", "tool": "Read"}},
+		{NodeID: "implement", Category: "tool", Name: "tool.call", Phase: "finish", Source: hooks, Attributes: map[string]any{"hook": "PostToolUse", "tool": "Read"}},
+		{NodeID: "implement", Category: "tool", Name: "tool.call", Phase: "finish", Tool: read, Source: stream},
+	}}
+	facts := BuildFacts(run, domain.RunEvalCatalog{})
+	if len(facts.ToolRepeats) != 0 {
+		t.Fatalf("tool repeats = %+v", facts.ToolRepeats)
+	}
+	if len(facts.Digest) != 2 {
+		t.Fatalf("digest should keep only the stream start/finish, got %+v", facts.Digest)
+	}
+}

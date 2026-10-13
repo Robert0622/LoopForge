@@ -430,7 +430,7 @@ function overviewPane(issue,data){
 // Bug-style items are rated on reproduction quality; requirements use the
 // project's configurable policy. Mirrors clarificationRatingDimensions in Go.
 function issueClarifyDimensions(issue,project){
-  if(issue.source==='github'||issue.kind==='issue')return[
+  if(String(issue.kind||'').toLowerCase()!=='requirement'&&(issue.source==='github'||issue.kind==='issue'))return[
     {id:'phenomenon',name:'现象与复现'},{id:'impact',name:'影响范围'},{id:'expected',name:'期望行为'},
     {id:'acceptance',name:'验收标准'},{id:'constraints',name:'约束与依赖'}];
   return clarificationPolicy(project).dimensions||[];

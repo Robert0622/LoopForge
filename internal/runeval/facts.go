@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Tencent/LoopForge/internal/domain"
+	"github.com/Tencent/LoopForge/internal/observability"
 )
 
 const (
@@ -61,6 +62,9 @@ func BuildFacts(run domain.Run, catalog domain.RunEvalCatalog) domain.RunEvalFac
 	errorCounts := map[string]*domain.RunEvalErrorFact{}
 	var digest []domain.RunEvalDigestEvent
 	for _, ev := range run.Telemetry {
+		if ev.Category == "tool" && isSideChannel(ev) {
+			continue
+		}
 		switch ev.Category {
 		case "lifecycle":
 			if ev.Phase == "start" || strings.Contains(strings.ToLower(ev.Name), "start") {
@@ -82,7 +86,7 @@ func BuildFacts(run domain.Run, catalog domain.RunEvalCatalog) domain.RunEvalFac
 				item = &domain.RunEvalToolRepeat{NodeID: ev.NodeID, Tool: name}
 				toolCounts[key] = item
 			}
-			if ev.Phase == "" || ev.Phase == "start" || ev.Phase == "finish" {
+			if ev.Phase == "" || ev.Phase == "start" {
 				item.Count++
 			}
 			if ev.Error != nil || ev.Phase == "error" || ev.Level == "error" {
@@ -160,6 +164,11 @@ func BuildFacts(run domain.Run, catalog domain.RunEvalCatalog) domain.RunEvalFac
 	facts.Errors = rankedErrors(errorCounts)
 	facts.Digest = digest
 	return facts
+}
+
+// Hooks and OTLP re-report tool calls the stream adapter already emitted.
+func isSideChannel(ev domain.TelemetryEvent) bool {
+	return ev.Source.Adapter == observability.AdapterHooks || ev.Source.Adapter == observability.AdapterOTEL
 }
 
 func keepDigest(ev domain.TelemetryEvent) bool {

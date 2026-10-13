@@ -2367,3 +2367,22 @@ assert.match(planned, /预设的人工审批节点/);
 		t.Fatalf("human gate disclosure failed: %v\n%s", err, out)
 	}
 }
+
+func TestImportedGitHubRequirementUsesRequirementDimensions(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	script := `
+const assert = require('node:assert/strict');
+const code = require('node:fs').readFileSync('` + appBundlePath(t) + `', 'utf8');
+const clarificationPolicy = () => ({dimensions:[{id:'goal',name:'目标与价值'},{id:'scope',name:'范围与边界'}]});
+eval(code.slice(code.indexOf('function issueClarifyDimensions('), code.indexOf('function clarifyScoreLevel(')));
+assert.equal(issueClarifyDimensions({source:'github',kind:'requirement'},{})[0].id, 'goal');
+assert.equal(issueClarifyDimensions({source:'github',kind:'issue'},{})[0].id, 'phenomenon');
+`
+	out, err := exec.Command(node, "-e", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("clarification dimensions: %v\n%s", err, out)
+	}
+}
