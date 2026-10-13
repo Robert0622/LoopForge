@@ -2412,3 +2412,29 @@ assert.equal(defaultSandboxProfileId(), 'local');
 		t.Fatalf("new SOP defaults: %v\n%s", err, out)
 	}
 }
+
+func TestDefaultSOPPrefersRealSOPOnceAKeyIsSet(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	script := `
+const assert = require('node:assert/strict');
+const code = require('node:fs').readFileSync('` + appBundlePath(t) + `', 'utf8');
+const workflows = [{id:'demo-delivery'},{id:'quick-fix'},{id:'generic-backend-delivery', generic:true}];
+const state = {projectFilter:'platform', data:{projects:[{id:'platform', workflowId:'demo-delivery'}], workflows}};
+const runnableWorkflowOptions = () => workflows;
+const projectPlaybook = () => null;
+let hasKey = false;
+const homeChatHasModelKey = () => hasKey;
+eval(code.slice(code.indexOf('function defaultSOPForIssue('), code.indexOf('function bindIssueTriggers(')));
+assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'demo-delivery');
+assert.equal(defaultSOPForIssue({projectId:'platform', source:'github', kind:'issue'}), 'quick-fix');
+hasKey = true;
+assert.equal(defaultSOPForIssue({projectId:'platform', kind:'requirement'}), 'quick-fix');
+`
+	out, err := exec.Command(node, "-e", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("default SOP: %v\n%s", err, out)
+	}
+}

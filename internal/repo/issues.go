@@ -247,7 +247,7 @@ func (r *IssuesRepo) putIssueLocked(v domain.Issue) error {
 			v.AssigneeUserID = project.OwnerID
 		}
 	}
-	bindDefaultWorkflow(&v, r.projectWorkflowID(v.ProjectID), r.projectIssueWorkflowID(v.ProjectID))
+	bindDefaultWorkflow(&v, r.projectWorkflowID(v.ProjectID), r.projectIssueWorkflowID(v.ProjectID), r.workflowExists)
 	v.UpdatedAt = now
 	return r.writeIssue(v)
 }
@@ -296,6 +296,11 @@ func (r *IssuesRepo) projectWorkflowID(projectID string) string {
 		return strings.TrimSpace(p.WorkflowID)
 	}
 	return ""
+}
+
+func (r *IssuesRepo) workflowExists(id string) bool {
+	_, ok := payloadOne[domain.WorkflowDefinition](r.DB, "workflows", id)
+	return ok
 }
 
 func (r *IssuesRepo) projectIssueWorkflowID(projectID string) string {

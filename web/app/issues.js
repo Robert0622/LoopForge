@@ -587,12 +587,15 @@ function defaultSOPForIssue(issue){
   if(issue?.source==='github'||issue?.kind==='issue'){
     if(projectFix&&knownSOP(projectFix))return projectFix;
     if(genericSOP)return projectSOP;
-    return inRunnable('issue-fix-production')?'issue-fix-production':(runnable[0]?.id||'issue-fix-production');
+    if(inRunnable('issue-fix-production'))return 'issue-fix-production';
+    if(inRunnable('quick-fix')||knownSOP('quick-fix'))return 'quick-fix';
+    return runnable[0]?.id||'issue-fix-production';
   }
   const playbook=projectPlaybook(project);
   if(playbook?.bindings?.[0]&&(inRunnable(playbook.bindings[0].workflowId)||knownSOP(playbook.bindings[0].workflowId)))return playbook.bindings[0].workflowId;
-  if(inRunnable(projectSOP))return projectSOP;
-  if(projectSOP&&knownSOP(projectSOP))return projectSOP;
+  const demoWithKey=projectSOP==='demo-delivery'&&homeChatHasModelKey()&&knownSOP('quick-fix');
+  if(!demoWithKey&&inRunnable(projectSOP))return projectSOP;
+  if(!demoWithKey&&projectSOP&&knownSOP(projectSOP))return projectSOP;
   if(inRunnable('quick-fix')||knownSOP('quick-fix'))return 'quick-fix';
   return inRunnable('requirement-development-production')?'requirement-development-production':(runnable[0]?.id||'requirement-development-production');
 }

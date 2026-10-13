@@ -227,3 +227,23 @@ func TestRestoreTrackerBindingFromStableID(t *testing.T) {
 		t.Fatalf("existing snapshot should win: %+v", wiped)
 	}
 }
+
+func TestPutIssueNeverBindsToAMissingProductionSOP(t *testing.T) {
+	s, err := OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.PutWorkflow(domain.WorkflowDefinition{ID: QuickFixWorkflowID, Name: "快速修复", SandboxProfileID: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutProject(domain.Project{ID: "oss", Key: "OSS", Name: "oss", WorkflowID: DemoWorkflowID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutIssue(domain.Issue{ID: "bug-oss", ProjectID: "oss", Source: "github", Title: "synced bug"}); err != nil {
+		t.Fatal(err)
+	}
+	if bug, _ := s.Issue("bug-oss"); bug.WorkflowID != QuickFixWorkflowID {
+		t.Fatalf("synced bug should fall back to the built-in quick-fix SOP, got %q", bug.WorkflowID)
+	}
+}

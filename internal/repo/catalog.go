@@ -683,6 +683,34 @@ func DefaultWorkflowID(source, kind string) string {
 	return requirementWorkflowID
 }
 
+// IsProductionDefaultWorkflowID reports whether id is one of the production
+// SOP ids DefaultWorkflowID hands out; open-source installs do not ship them.
+func IsProductionDefaultWorkflowID(id string) bool {
+	return id == issueFixWorkflowID || id == requirementWorkflowID
+}
+
+// ResolveDefaultWorkflowID is DefaultWorkflowID for installs that may not
+// ship the production SOPs: bugs fall back to the built-in quick-fix SOP and
+// requirements to the project default, so an issue never binds to a SOP that
+// cannot start.
+func ResolveDefaultWorkflowID(source, kind, projectWorkflowID string, exists func(string) bool) string {
+	id := DefaultWorkflowID(source, kind)
+	if exists == nil || exists(id) {
+		return id
+	}
+	projectWorkflowID = strings.TrimSpace(projectWorkflowID)
+	if isRequirement(source, kind) && projectWorkflowID != "" && exists(projectWorkflowID) {
+		return projectWorkflowID
+	}
+	if exists(QuickFixWorkflowID) {
+		return QuickFixWorkflowID
+	}
+	if projectWorkflowID != "" && exists(projectWorkflowID) {
+		return projectWorkflowID
+	}
+	return id
+}
+
 // isRequirement reports whether an issue is a requirement (delivery) rather than
 // a defect/repair item.
 func isRequirement(source, kind string) bool {
@@ -693,7 +721,7 @@ func isRequirement(source, kind string) bool {
 }
 
 // bindDefaultWorkflow assigns the SOP an issue should run when it has none yet.
-func bindDefaultWorkflow(v *domain.Issue, projectWorkflowID, projectIssueWorkflowID string) {
+func bindDefaultWorkflow(v *domain.Issue, projectWorkflowID, projectIssueWorkflowID string, exists func(string) bool) {
 	if v.Source == "github" && v.Kind == "" {
 		v.Kind = "issue"
 	}
@@ -716,7 +744,7 @@ func bindDefaultWorkflow(v *domain.Issue, projectWorkflowID, projectIssueWorkflo
 		v.WorkflowID = wf
 		return
 	}
-	v.WorkflowID = DefaultWorkflowID(v.Source, v.Kind)
+	v.WorkflowID = ResolveDefaultWorkflowID(v.Source, v.Kind, projectWorkflowID, exists)
 }
 
 // isGenericWorkflowID reports whether the id is one of the platform generic

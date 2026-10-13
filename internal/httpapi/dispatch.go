@@ -50,6 +50,9 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 	workflowID := strings.TrimSpace(req.WorkflowID)
 	if workflowID == "" {
 		workflowID = issue.WorkflowID
+		if _, ok := d.repo.Workflow(workflowID); !ok && repo.IsProductionDefaultWorkflowID(workflowID) {
+			workflowID = ""
+		}
 	}
 	if workflowID == "" {
 		if playbook := domain.ResolveSOPBindings(issue, project); len(playbook) > 0 {
@@ -62,7 +65,10 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 		}
 	}
 	if workflowID == "" {
-		workflowID = repo.DefaultWorkflowID(issue.Source, issue.Kind)
+		workflowID = repo.ResolveDefaultWorkflowID(issue.Source, issue.Kind, project.WorkflowID, func(id string) bool {
+			_, ok := d.repo.Workflow(id)
+			return ok
+		})
 	}
 	if workflowID == "" {
 		workflowID = project.WorkflowID

@@ -49,10 +49,8 @@ function renderHomeChat() {
   const chat = ensureHomeChatState();
   const workflows = homeChatWorkflows();
   if (!chat.workflowId || !workflows.some(w => w.id === chat.workflowId)) {
-    // Prefer demo when present (no key); otherwise the short quick-fix SOP.
-    chat.workflowId = (workflows.find(w => w.id === HOME_CHAT_DEMO)
-      || workflows.find(w => w.id === HOME_CHAT_QUICK)
-      || workflows[0])?.id || '';
+    const preferred = homeChatHasModelKey() ? [HOME_CHAT_QUICK, HOME_CHAT_DEMO] : [HOME_CHAT_DEMO, HOME_CHAT_QUICK];
+    chat.workflowId = (preferred.map(id => workflows.find(w => w.id === id)).find(Boolean) || workflows[0])?.id || '';
   }
   const demoReady = workflows.some(w => w.id === HOME_CHAT_DEMO);
   const needsKey = !homeChatHasModelKey() && chat.workflowId !== HOME_CHAT_DEMO;

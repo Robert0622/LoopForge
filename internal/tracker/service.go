@@ -397,7 +397,7 @@ func (s *Service) pullIssues(provider Provider, store IssueStoreAdapter, repo do
 		count++
 	}
 	s.addLog(domain.SyncLog{Direction: "pull", Action: "sync_issues", Status: "success", Count: count,
-		Message: fmt.Sprintf("synced %d issues from %s", count, repo.RepoPath), ProjectID: repo.ProjectID, StartedAt: started})
+		Message: fmt.Sprintf("从 %[2]s 同步了 %[1]d 条 Issue", count, repo.RepoPath), ProjectID: repo.ProjectID, StartedAt: started})
 	return count, nil
 }
 
@@ -486,7 +486,7 @@ func (s *Service) CreateForgeIssue(store IssueStoreAdapter, issue domain.Issue) 
 	}
 	_ = store.PutIssue(issue)
 	s.addLog(domain.SyncLog{Direction: "push", Action: "create_issue", Status: "success", Count: 1,
-		Message: fmt.Sprintf("created %s#%d: %s", repo.RepoPath, ri.Number, ri.Title), ProjectID: issue.ProjectID, StartedAt: started})
+		Message: fmt.Sprintf("已在 GitHub 创建 %s#%d：%s", repo.RepoPath, ri.Number, ri.Title), ProjectID: issue.ProjectID, StartedAt: started})
 	return issue, nil
 }
 
@@ -555,7 +555,7 @@ func (s *Service) ImportIssueURL(store IssueStoreAdapter, projectID, rawURL stri
 		return domain.Issue{}, err
 	}
 	s.addLog(domain.SyncLog{Direction: "pull", Action: "import_issue", Status: "success", Count: 1,
-		Message: fmt.Sprintf("imported %s#%d: %s", ref.Repo, ref.Number, issue.Title), ProjectID: projectID, StartedAt: started})
+		Message: fmt.Sprintf("已导入 %s#%d：%s", ref.Repo, ref.Number, issue.Title), ProjectID: projectID, StartedAt: started})
 	return issue, nil
 }
 
@@ -583,7 +583,7 @@ func (s *Service) ResyncIssue(store IssueStoreAdapter, issue domain.Issue) (doma
 		return domain.Issue{}, err
 	}
 	s.addLog(domain.SyncLog{Direction: "pull", Action: "resync", Status: "success", Count: 1,
-		Message: fmt.Sprintf("resynced %s#%d", repoPath, number), ProjectID: issue.ProjectID, StartedAt: started})
+		Message: fmt.Sprintf("已重新同步 %s#%d", repoPath, number), ProjectID: issue.ProjectID, StartedAt: started})
 	return updated, nil
 }
 
