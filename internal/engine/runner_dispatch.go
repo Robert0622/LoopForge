@@ -181,10 +181,11 @@ func (e *Engine) dispatchRunnerTask(ctx context.Context, runnerID string, run do
 		invocation.Artifacts = append(invocation.Artifacts, gateResultContract(options.GateResultPath))
 	}
 	if runtime.RequiresPersonalMCPToken(assets) {
-		if strings.TrimSpace(sb.credentials.PersonalMCPToken) == "" {
+		token := runtime.PersonalMCPTokenFor(assets, sb.credentials.PersonalMCPToken, sb.credentials.GitToken)
+		if strings.TrimSpace(token) == "" {
 			return "", errors.New("当前责任人未配置个人 MCP 令牌：请先在个人凭证中配置")
 		}
-		invocation.PersonalMCPToken = sb.credentials.PersonalMCPToken
+		invocation.PersonalMCPToken = token
 	}
 	if authMode == domain.RuntimeAuthPersonal {
 		switch ex.Kind {

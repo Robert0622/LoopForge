@@ -14,7 +14,7 @@ function onboardingSteps(demo) {
     { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },
     demo
       ? { target: '.nav[data-view="settings"]', title: '跑真实需求前配凭据', body: '演示不需要凭据。跑真实需求前，在个人设置里填 GitHub Token（要能读写目标仓库）和一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）。现在先回到清单，点「一键开跑」看一遍完整流程。', view: 'dashboard', finish: true, next: '开始体验' }
-      : { target: '.nav[data-view="settings"]', title: '先把凭据配齐', body: '没配齐就派不出去。先填 GitHub Token，要能读写目标仓库（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。再配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）和个人 MCP 令牌，后者可以与 GitHub Token 共用。', view: 'settings', finish: true, next: '去填写' },
+      : { target: '.nav[data-view="settings"]', title: '先把凭据配齐', body: '没配齐就派不出去。先填 GitHub Token，要能读写目标仓库（classic PAT 勾选 repo；fine-grained 授予 Contents 和 Pull requests 读写）。再配一个模型 API Key（Claude Code、Codex 或 CodeBuddy 任选）。GitHub MCP 会自动复用 GitHub Token，不用再填一遍。', view: 'settings', finish: true, next: '去填写' },
   ];
 }
 

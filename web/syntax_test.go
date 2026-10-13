@@ -797,13 +797,16 @@ const workflow = {requirements: [
   {key: 'github-mcp', nodeId: 'mr', label: 'GitHub MCP', hint: '创建 PR'}
 ]};
 let rows = genericRequirementRows(workflow);
-assert.deepEqual(rows.map(r => r.ok), [true, false, false]);
+assert.deepEqual(rows.map(r => r.ok), [true, true, false]);
+state.data.users[0].gitTokenConfigured = false;
+assert.deepEqual(genericRequirementRows(workflow).map(r => r.ok), [false, false, false]);
+state.data.users[0].gitTokenConfigured = true;
 assert.equal(rows[0].fix, 'settings');
 assert.equal(rows[2].fix, 'mcp');
 assert.equal(rows[2].nodeId, 'mr');
 state.data.mcpServers = [{scope: 'project', projectId: 'alpha', marketId: 'github'}];
 rows = genericRequirementRows(workflow);
-assert.deepEqual(rows.map(r => r.ok), [true, false, true]);
+assert.deepEqual(rows.map(r => r.ok), [true, true, true]);
 // An install owned by another project must not satisfy the dependency.
 state.data.mcpServers = [{scope: 'project', projectId: 'beta', marketId: 'github'}];
 assert.equal(genericRequirementRows(workflow)[2].ok, false);

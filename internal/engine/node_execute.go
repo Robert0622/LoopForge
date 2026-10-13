@@ -656,7 +656,7 @@ func (e *Engine) executeNode(ctx context.Context, runID string, wf domain.Workfl
 				}
 				return result, dispatchErr
 			}
-			boundAssets, skipped, bindErr := runtime.PrepareMCPServers(assets, runtime.MCPTarget{PersonalMCPToken: sb.credentials.PersonalMCPToken, RequirePersonalMCPToken: true})
+			boundAssets, skipped, bindErr := runtime.PrepareMCPServers(assets, runtime.MCPTarget{PersonalMCPToken: runtime.PersonalMCPTokenFor(assets, sb.credentials.PersonalMCPToken, sb.credentials.GitToken), RequirePersonalMCPToken: true})
 			for _, warning := range skipped {
 				warnMCPSkipped(warning)
 			}

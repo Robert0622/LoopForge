@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/Tencent/LoopForge/internal/domain"
@@ -33,6 +34,41 @@ func BindPersonalMCPHeaders(assets domain.AgentAssetBundle, personalMCPToken str
 		m.Headers["Authorization"] = "Bearer " + token
 	}
 	return out, nil
+}
+
+// PersonalMCPTokenFor returns the token to bind into personal-token MCPs. When
+// the user set no dedicated MCP token and every such MCP is GitHub's own
+// server, their GitHub token serves both: it is never sent to another host.
+func PersonalMCPTokenFor(assets domain.AgentAssetBundle, personalMCPToken, gitHubToken string) string {
+	if strings.TrimSpace(personalMCPToken) != "" || strings.TrimSpace(gitHubToken) == "" {
+		return personalMCPToken
+	}
+	found := false
+	for _, m := range assets.MCPServers {
+		if strings.TrimSpace(m.AuthType) != MCPAuthPersonalToken {
+			continue
+		}
+		if !isGitHubMCPServer(m) {
+			return personalMCPToken
+		}
+		found = true
+	}
+	if !found {
+		return personalMCPToken
+	}
+	return gitHubToken
+}
+
+func isGitHubMCPServer(m domain.MCPServerDefinition) bool {
+	u, err := url.Parse(strings.TrimSpace(m.URL))
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "api.githubcopilot.com", "api.github.com", "github.com":
+		return true
+	}
+	return false
 }
 
 func RequiresPersonalMCPToken(assets domain.AgentAssetBundle) bool {

@@ -112,7 +112,7 @@ function renderGuideSetupBody(body,user,isGuest){
     return;
   }
   const stored=userById(user.id)||{};
-  const cbReady=!!(stored.claudeCodeApiKeyConfigured||stored.codexApiKeyConfigured||stored.codeBuddyApiKeyConfigured),gfReady=!!stored.gitTokenConfigured,thReady=!!stored.personalMcpTokenConfigured;
+  const cbReady=!!(stored.claudeCodeApiKeyConfigured||stored.codexApiKeyConfigured||stored.codeBuddyApiKeyConfigured),gfReady=!!stored.gitTokenConfigured,thReady=!!(stored.personalMcpTokenConfigured||stored.gitTokenConfigured);
   const credReady=cbReady&&gfReady&&thReady;
   // 第 2 步：就绪度按「用户所属项目」计算（负责人或成员包含自己）。
   // 只看平台项目列表会让未加入任何项目的新用户误显示"项目已就绪"。
@@ -134,7 +134,7 @@ function renderGuideSetupBody(body,user,isGuest){
     <div class="setup-steps">
       ${subItem('claudeCodeApiKey','模型 API Key',cbReady,'https://console.anthropic.com/settings/keys','Claude Code、Codex 或 CodeBuddy 任选其一，Agent 用它调模型执行任务')}
       ${subItem('gitToken','GitHub Git Token',gfReady,'https://github.com/settings/tokens','用于克隆与推送工作分支；Fine-grained token 需勾选 <b>Contents</b>、<b>Pull requests</b>、<b>Issues</b> 读写')}
-      ${subItem('personalMcpToken','个人 MCP 令牌',thReady,'https://github.com/settings/tokens','GitHub MCP 认证：读取 Issue、自动发起 PR；可与 Git Token 使用同一个 PAT')}
+      ${subItem('personalMcpToken','个人 MCP 令牌',thReady,'https://github.com/settings/tokens','GitHub MCP 认证：读取 Issue、自动发起 PR；不单独配置时自动复用 GitHub Token')}
     </div>
     <button type="button" class="button primary small" data-setup-cred="claudeCodeApiKey" style="margin-top:12px">打开个人设置 →</button></div>`;
   // 第 2 步：加入已有项目或新建项目

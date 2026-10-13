@@ -311,7 +311,7 @@ func (h *assistantHandlers) lookupAssistantMCP(projectID string, userID int64, r
 func bindAssistantMCP(server domain.MCPServerDefinition, user domain.User) (domain.MCPServerDefinition, error) {
 	bundle := domain.AgentAssetBundle{MCPServers: []domain.MCPServerDefinition{server}}
 	if strings.TrimSpace(server.AuthType) == runtime.MCPAuthPersonalToken {
-		bound, err := runtime.BindPersonalMCPHeaders(bundle, user.PersonalMCPToken)
+		bound, err := runtime.BindPersonalMCPHeaders(bundle, runtime.PersonalMCPTokenFor(bundle, user.PersonalMCPToken, user.GitToken))
 		if err != nil {
 			return domain.MCPServerDefinition{}, err
 		}

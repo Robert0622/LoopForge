@@ -41,3 +41,17 @@ func TestBindPersonalMCPHeadersRequiresPAT(t *testing.T) {
 		t.Fatalf("missing PAT error = %v", err)
 	}
 }
+
+func TestPersonalMCPTokenFallsBackToGitHubTokenOnlyForGitHub(t *testing.T) {
+	github := domain.MCPServerDefinition{ID: "gh", AuthType: MCPAuthPersonalToken, URL: "https://api.githubcopilot.com/mcp/"}
+	other := domain.MCPServerDefinition{ID: "other", AuthType: MCPAuthPersonalToken, URL: "https://mcp.example.com/"}
+	if got := PersonalMCPTokenFor(domain.AgentAssetBundle{MCPServers: []domain.MCPServerDefinition{github}}, "", "ghp_git"); got != "ghp_git" {
+		t.Fatalf("GitHub MCP should reuse the GitHub token, got %q", got)
+	}
+	if got := PersonalMCPTokenFor(domain.AgentAssetBundle{MCPServers: []domain.MCPServerDefinition{github, other}}, "", "ghp_git"); got != "" {
+		t.Fatalf("GitHub token must not reach a third-party MCP, got %q", got)
+	}
+	if got := PersonalMCPTokenFor(domain.AgentAssetBundle{MCPServers: []domain.MCPServerDefinition{github}}, "mcp_tok", "ghp_git"); got != "mcp_tok" {
+		t.Fatalf("a dedicated MCP token wins, got %q", got)
+	}
+}

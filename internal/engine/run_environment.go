@@ -204,7 +204,8 @@ func (e *Engine) resolveRunCredentials(run domain.Run) runtime.RunCredentials {
 		credentials.Codex = runtime.ProviderCredential{APIKey: user.CodexAPIKey, BaseURL: user.CodexBaseURL}
 		credentials.ClaudeCode = runtime.ProviderCredential{APIKey: user.ClaudeCodeAPIKey, BaseURL: user.ClaudeCodeBaseURL}
 	}
-	scriptAssets, _, _ := runtime.PrepareMCPServers(e.resolveScriptMCPAssets(run.ExecutionContext.ProjectID, userID), runtime.MCPTarget{PersonalMCPToken: credentials.PersonalMCPToken})
+	scriptAssets := e.resolveScriptMCPAssets(run.ExecutionContext.ProjectID, userID)
+	scriptAssets, _, _ = runtime.PrepareMCPServers(scriptAssets, runtime.MCPTarget{PersonalMCPToken: runtime.PersonalMCPTokenFor(scriptAssets, credentials.PersonalMCPToken, credentials.GitToken)})
 	credentials.MCPServers = scriptAssets.MCPServers
 	return credentials
 }

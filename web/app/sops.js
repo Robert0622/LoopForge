@@ -48,7 +48,7 @@ async function toggleShare(kind,id){
 // open the pull request, so the catalog surfaces that dependency before adoption.
 const GENERIC_REQUIREMENT_CHECKS={
   'git-token':{label:'GitHub Git Token',hint:'推送工作分支到 GitHub。',fix:'settings',fixLabel:'去个人设置配置',check:()=>!!(userById(state.currentUser?.id)||{}).gitTokenConfigured},
-  'personal-token':{label:'个人 MCP 令牌',hint:'GitHub MCP 使用个人访问令牌认证。',fix:'settings',fixLabel:'去个人设置配置',check:()=>!!(userById(state.currentUser?.id)||{}).personalMcpTokenConfigured},
+  'personal-token':{label:'个人 MCP 令牌',hint:'GitHub MCP 使用个人访问令牌认证；没单独配置时自动复用 GitHub Token。',fix:'settings',fixLabel:'去个人设置配置',check:()=>{const u=userById(state.currentUser?.id)||{};return !!(u.personalMcpTokenConfigured||u.gitTokenConfigured)}},
   'github-mcp':{label:'GitHub MCP',hint:'调用 GitHub 接口创建 PR；未安装时复制出的 SOP 需安装后为「交付工程师」角色绑定。',fix:'mcp',fixLabel:'去 MCP 市场安装',check:()=>forgeMCPInstalled()}
 };
 function forgeMarketItem(){

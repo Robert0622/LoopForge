@@ -63,7 +63,7 @@ async function renderPersonalSettings(){
         <div class="credential-grid">
         <fieldset class="provider-credentials credential-card-featured"><legend><span class="credential-card-logo"><img src="/images/credentials/github.svg" alt=""></span><span>个人 MCP 令牌<small>GitHub MCP 等</small></span>${credentialBadge(storedUser.personalMcpTokenConfigured)}</legend>
           <p class="credential-description">用于认证方式为「个人令牌」的 HTTP MCP（如 GitHub MCP）。令牌会自动拼成 Bearer 请求头，只在你负责的任务里注入。</p>
-          <label>个人 MCP 令牌<input name="personalMcpToken" type="password" autocomplete="new-password" placeholder="${storedUser.personalMcpTokenConfigured?'已配置，留空则不改':'ghp_xxx / github_pat_xxx'}"></label>
+          <label>个人 MCP 令牌<input name="personalMcpToken" type="password" autocomplete="new-password" placeholder="${storedUser.personalMcpTokenConfigured?'已配置，留空则不改':'留空则 GitHub MCP 复用上面的 GitHub Token'}"></label>
           ${credentialClearAction('personalMcpToken',storedUser.personalMcpTokenConfigured,'MCP 令牌')}
           <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
         </fieldset>
