@@ -13,6 +13,10 @@ async function createBlankSOP(page, name) {
   await page.locator('#sopFinish').click();
   await expect(page.locator('#flowView')).toBeVisible();
   await expect(page.locator('#toastContainer')).toContainText('SOP 草稿已创建');
+  // New SOPs default to the docker sandbox; these specs exercise the local one.
+  await page.locator('#flowSettingsToggle').click();
+  await page.locator('#workflowSandbox').selectOption('local');
+  await page.locator('#flowSettingsToggle').click();
 }
 
 async function writeScript(page, script) {
@@ -28,7 +32,9 @@ async function writeScript(page, script) {
 async function publish(page) {
   await page.locator('#publishWorkflow').click();
   await expect(page.locator('#toastContainer')).toContainText('已发布');
-  return page.locator('#workflowSelect').inputValue();
+  const id = await page.locator('#workflowSelect').inputValue();
+  expect((await api(page, `/api/workflows/${encodeURIComponent(id)}`)).sandboxProfileId).toBe('local');
+  return id;
 }
 
 test('a shell SOP designed in the editor runs in the local sandbox and keeps its artifact', async ({ page }) => {
