@@ -63,14 +63,30 @@ test('first login tours the sidebar and ends on the settings page that still nee
   expect(errors).toEqual([]);
 });
 
-test('the chat page one-click demo launches a run', async ({ page }) => {
+test('the chat page demo shows progress in the side panel', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
   await page.locator('.nav[data-view="chat"]').click();
   const home = page.locator('#homeChat');
-  await expect(home).toBeVisible();
-  await expect(home.locator('#homeChatDemo')).toBeVisible();
-  await home.locator('#homeChatDemo').click();
+  await expect(home.locator('.hc-key-hint')).toBeVisible();
+  await home.locator('.hc-key-hint [data-chat-action="demo"]').click();
+  await expect(home.locator('.hc-msg.is-bot').last()).toContainText('已按「演示交付流程」开跑', { timeout: 15_000 });
+  await expect(page.locator('#issueDetailDrawer')).toBeHidden();
+
+  const card = home.locator('#hcRuns .hc-run', { hasText: '演示：需求列表支持导出 CSV' }).first();
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card).toHaveClass(/is-waiting/, { timeout: 30_000 });
+  await expect(card).toContainText('确认方案');
+  expect(await card.locator('.hc-steps i').count()).toBeGreaterThan(2);
+  await expect(card.locator('.hc-steps i.is-done').first()).toBeVisible();
+
+  await home.locator('#homeRunsToggle').click();
+  await expect(home.locator('.hc-layout')).toHaveClass(/runs-collapsed/);
+  await expect(card).toBeHidden();
+  await home.locator('#homeRunsToggle').click();
+  await expect(card).toBeVisible();
+
+  await card.click();
   const drawer = page.locator('#issueDetailDrawer');
   await expect(drawer).toContainText('演示：需求列表支持导出 CSV');
   await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });

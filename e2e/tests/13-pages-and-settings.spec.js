@@ -7,17 +7,34 @@ test('the dashboard and the requirement chat are separate pages', async ({ page 
   await expect(page.locator('#pageTitle')).toHaveText('工作总览');
   await expect(page.locator('#dashboardView #homeChat')).toHaveCount(0);
   await expect(page.locator('#homeChat')).toBeHidden();
-  await expect(page.locator('#dashboardView .home-chat-side')).toHaveCount(0);
 
   await page.locator('#dashNewRun').click();
   await expect(page.locator('#pageTitle')).toHaveText('发起需求');
   await expect(page).toHaveURL(/#\/chat$/);
-  await expect(page.locator('#homeChat')).toBeVisible();
+  const home = page.locator('#homeChat');
+  await expect(home.locator('.hc-brand')).toHaveText('LoopForge');
   await expect(page.locator('#homeChatInput')).toBeVisible();
-  await expect(page.locator('#homeChat .home-chat-empty')).toContainText('想改点什么');
-  await page.locator('[data-home-example]').first().click();
-  await expect(page.locator('#homeChatInput')).toHaveValue('给需求列表加导出 CSV');
-  await page.locator('#homeChatInput').fill('');
+  await expect(home.locator('#hcRuns')).toContainText('正在运行');
+
+  const cards = home.locator('[data-home-sop]');
+  expect(await cards.count()).toBeGreaterThan(1);
+  await cards.nth(1).click();
+  await expect(home.locator('[data-home-sop]').nth(1)).toHaveClass(/is-selected/);
+  const picked = await home.locator('[data-home-sop]').nth(1).getAttribute('data-home-sop');
+  await expect(page.locator('#homeChatWorkflow')).toHaveValue(picked);
+
+  // Without a model key a message gets an explanation, never a surprise run.
+  const runsBefore = await page.evaluate(() => (state.data.runs || []).length);
+  await page.locator('#homeChatInput').fill('你好');
+  await page.locator('#homeChatInput').press('Enter');
+  await expect(home.locator('.hc-msg.is-user')).toHaveText('你好');
+  await expect(home.locator('.hc-msg.is-bot').last()).toContainText('还没配置模型 Key');
+  await expect(home.locator('.hc-msg.is-bot').last().locator('[data-chat-action="settings-models"]')).toBeVisible();
+  expect(await page.evaluate(() => (state.data.runs || []).length)).toBe(runsBefore);
+  await expect(page.locator('#issueDetailDrawer')).toBeHidden();
+
+  await home.locator('#homeChatNew').click();
+  await expect(home.locator('.hc-brand')).toBeVisible();
   await expect(page.locator('.nav[data-view="chat"]')).toHaveClass(/active/);
 
   await page.reload();

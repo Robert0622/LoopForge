@@ -104,7 +104,7 @@ async function runQuickstartAction(action, button) {
   if (action.run === 'demo') return startDemoRequirement(button);
 }
 
-async function startDemoRequirement(button) {
+async function startDemoRequirement(button, opts = {}) {
   const projectId = state.projectFilter || (state.data.projects || [])[0]?.id;
   if (!projectId) return toast('还没有项目，请先在项目管理里建一个');
   if (button) button.disabled = true;
@@ -134,12 +134,16 @@ async function startDemoRequirement(button) {
     }
     renderIssues();
     renderDashboard();
-    await openIssueDetail(issue.id, 'sop');
-    toast('演示需求已开跑。几秒后会停在「确认方案」，点「确认通过，继续下游」放行', 'ok');
+    if (!opts.stay) {
+      await openIssueDetail(issue.id, 'sop');
+      toast('演示需求已开跑。几秒后会停在「确认方案」，点「确认通过，继续下游」放行', 'ok');
+    }
     Promise.all([refreshIssues(), refreshRuns(true)]).catch(() => {});
     setTimeout(() => refreshIssues(), 2000);
     setTimeout(() => refreshIssues(), 10000);
+    return { issue, task };
   } catch (err) {
+    if (opts.stay) throw err;
     toast(err.message, 'err');
   } finally {
     if (button) button.disabled = false;

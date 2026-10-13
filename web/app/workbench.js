@@ -700,7 +700,6 @@ function renderDashboard(){
   const active=projectIssues.filter(i=>issueRunHealth(i)==='active'&&issueCurrentStage(i).key!=='waiting');
   const closed=projectIssues.filter(i=>issueRunHealth(i)==='closed');
   updateApprovalBadge();
-  renderHomeChat();
   renderQuickstart();
   const needMe=[...waiting,...confirm,...attention.filter(i=>!waiting.includes(i)&&!confirm.includes(i))];
   const statCards=[
