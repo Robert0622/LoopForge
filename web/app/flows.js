@@ -178,7 +178,8 @@ function nodeMeta(n){
     const generic=catalogGeneric(state.workflow);
     const e=state.data.executors.find(x=>x.id===(a?.executorId||n.executorId));
     const subtitle=a?.name||(n.agentId?(generic?n.agentId:'角色不可用'):'未绑定角色');
-    const detail=a?(a.model||e?.model||e?.name||(generic?'通用模板角色':'模型在角色定义里选')):(n.agentId?(generic?'通用模板角色':'不属于当前项目且未共享'):'模型在角色定义里选');
+    const alt=effectiveExecutorFallback(e);
+    const detail=a?(alt?`${alt}（没配 ${runnerCLILabels[e.kind]} Key，运行时自动改用）`:(a.model||e?.model||e?.name||(generic?'通用模板角色':'模型在角色定义里选'))):(n.agentId?(generic?'通用模板角色':'不属于当前项目且未共享'):'模型在角色定义里选');
     return {icon:'AI',kind:'agent',subtitle,detail};
   }
   if(n.type==='script')return {icon:'⌘',kind:'script',subtitle:n.scriptLanguage==='python'?'Python Script':'Shell Script',detail:n.script||'未配置脚本'};
@@ -873,7 +874,14 @@ function bindFlowResize(){
     };
   });
 }
-function newWorkflow(){state.workflow={id:uid('sop'),name:'未命名 SOP',version:1,revision:0,status:'draft',projectId:state.projectFilter||'',shared:false,owner:'',tags:[],description:'',sandboxProfileId:'local',nodes:[],edges:[]};state.selectedNode=null;rememberOpenWorkflow();renderAll();dirty()}
+function effectiveExecutorFallback(executor){
+  const order=['claude-code','codebuddy','codex'];
+  if(!executor||!order.includes(executor.kind)||runnerPersonalCredentialConfigured(executor.kind))return '';
+  const kind=order.find(runnerPersonalCredentialConfigured);
+  return kind?runnerCLILabels[kind]:'';
+}
+function defaultSandboxProfileId(){return (state.data.sandboxes||[]).some(s=>s.id==='generic-docker')?'generic-docker':'local'}
+function newWorkflow(){state.workflow={id:uid('sop'),name:'未命名 SOP',version:1,revision:0,status:'draft',projectId:state.projectFilter||'',shared:false,owner:'',tags:[],description:'',sandboxProfileId:defaultSandboxProfileId(),nodes:[],edges:[]};state.selectedNode=null;rememberOpenWorkflow();renderAll();dirty()}
 function openSOPWizard(){
   const f=$('#sopCreateForm');f.reset();
   const generic=(state.data.workflows||[]).filter(w=>catalogGeneric(w));
@@ -901,7 +909,7 @@ async function createSOPFromWizard(e){
     }else{
       const workflow=template?clone(template):{nodes:[],edges:[]};
       Object.assign(workflow,{id:uid('sop'),name,description,owner,tags,status:'draft',version:1,revision:0,projectId:state.projectFilter||'',shared:false});
-      workflow.sandboxProfileId=workflow.sandboxProfileId||'local';
+      workflow.sandboxProfileId=workflow.sandboxProfileId||defaultSandboxProfileId();
       delete workflow.createdAt;delete workflow.updatedAt;
       saved=await api('/api/workflows',{method:'PUT',body:JSON.stringify(workflow)});
     }

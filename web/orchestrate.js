@@ -173,7 +173,7 @@ function shellForAIWorkflow(raw) {
     owner: raw.owner || '',
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     description: raw.description || '',
-    sandboxProfileId: raw.sandboxProfileId || 'local',
+    sandboxProfileId: raw.sandboxProfileId || defaultSandboxProfileId(),
     nodes: [],
     edges: []
   };

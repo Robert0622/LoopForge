@@ -2386,3 +2386,29 @@ assert.equal(issueClarifyDimensions({source:'github',kind:'issue'},{})[0].id, 'p
 		t.Fatalf("clarification dimensions: %v\n%s", err, out)
 	}
 }
+
+func TestNewSOPDefaultsMatchWhatWillActuallyRun(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	script := `
+const assert = require('node:assert/strict');
+const code = require('node:fs').readFileSync('` + appBundlePath(t) + `', 'utf8');
+const state = {data:{sandboxes:[{id:'local'},{id:'generic-docker'}], users:[{id:1, codeBuddyApiKeyConfigured:true}]}, currentUser:{id:1}};
+const userById = id => state.data.users.find(u => u.id === id);
+const runnerStart = code.indexOf('const runnerCLILabels=');
+eval(code.slice(runnerStart, code.indexOf('}', code.indexOf('return false;', runnerStart))+1).replace('const runnerCLILabels', 'var runnerCLILabels'));
+eval(code.slice(code.indexOf('function effectiveExecutorFallback('), code.indexOf('function newWorkflow(')));
+assert.equal(defaultSandboxProfileId(), 'generic-docker');
+assert.equal(effectiveExecutorFallback({kind:'claude-code'}), 'CodeBuddy');
+assert.equal(effectiveExecutorFallback({kind:'codebuddy'}), '');
+assert.equal(effectiveExecutorFallback({kind:'mock'}), '');
+state.data.sandboxes = [{id:'local'}];
+assert.equal(defaultSandboxProfileId(), 'local');
+`
+	out, err := exec.Command(node, "-e", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("new SOP defaults: %v\n%s", err, out)
+	}
+}
