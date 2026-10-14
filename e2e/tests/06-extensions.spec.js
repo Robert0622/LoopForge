@@ -9,15 +9,15 @@ test('a web plugin adds a working page that survives a reload', async ({ page })
 
   const nav = page.locator('#pluginNavGroup .nav[data-view="delivery-board"]');
   await expect(page.locator('#pluginNavGroup')).toContainText('扩展');
-  await expect(nav).toContainText('交付看板');
+  await expect(nav).toContainText('大盘');
   await nav.click();
 
   const view = page.locator('#delivery-boardView');
   await expect(view).toBeVisible();
-  await expect(page.locator('#pageTitle')).toHaveText('交付看板');
+  await expect(page.locator('#pageTitle')).toHaveText('大盘');
   await expect(view).toContainText('次运行');
-  await expect(view.locator('.delivery-board-tile')).toHaveCount(5);
-  expect(await view.locator('.delivery-board-tiles').evaluate(el => getComputedStyle(el).display)).toBe('grid');
+  await expect(view.locator('.db-col')).toHaveCount(5);
+  expect(await view.locator('.db-board').evaluate(el => getComputedStyle(el).display)).toBe('grid');
 
   await page.reload();
   await expect(view).toBeVisible();
@@ -57,7 +57,7 @@ test('custom MCP market entries are listed and searchable', async ({ page }) => 
   const market = await page.evaluate(() => fetch('/api/mcp-market?q=kb').then(r => r.json()));
   expect(market.items.map(i => i.id)).toContain('team-knowledge');
 
-  await page.locator('#capabilityNavToggle').click();
+  if (await page.locator('[data-nav-group="config"]').getAttribute('aria-expanded') !== 'true') await page.locator('[data-nav-group="config"]').click();
   await page.locator('.nav[data-view="mcp"]').click();
   await page.locator('#mcpMarketSearch').fill('Team knowledge');
   const card = page.locator('.mcp-market-card').filter({ hasText: 'Team knowledge base (example)' });

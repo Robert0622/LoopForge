@@ -1036,8 +1036,8 @@ func TestRequirementDirectCreateUI(t *testing.T) {
 	if sendIdx < 0 || directIdx < 0 || sendIdx > directIdx {
 		t.Fatal("直接创建 must sit to the right of 开始分析")
 	}
-	if !strings.Contains(page, `nav-label">项目配置`) {
-		t.Fatal("sidebar must label the projects page 项目配置")
+	if appJS, err := readAppBundle(); err != nil || !strings.Contains(string(appJS), `{view:'projects',label:'项目'}`) {
+		t.Fatal("项目配置 must be reachable as the 项目 tab under 构建")
 	}
 	if !strings.Contains(page, `<script src="/app/composer.js`) {
 		t.Fatal("index.html must load the requirement composer script")
@@ -1127,22 +1127,21 @@ func TestIssueImportUI(t *testing.T) {
 			t.Fatalf("UI is missing %q", want)
 		}
 	}
-	daily := strings.Index(page, `>日常工作<`)
-	runsNav := strings.Index(page, `data-view="runs"`)
-	projectsNav := strings.Index(page, `data-view="projects"`)
-	flowConfig := strings.Index(page, `>流程配置<`)
-	insights := strings.Index(page, `>数据洞察<`)
-	if daily < 0 || runsNav < 0 || insights < 0 || !(daily < runsNav && runsNav < insights) {
-		t.Fatal("运行记录 must sit under 日常工作, not 数据洞察")
-	}
-	if projectsNav < 0 || flowConfig < 0 || !(daily < projectsNav && projectsNav < flowConfig) {
-		t.Fatal("项目配置 must sit under 日常工作, before 流程配置")
-	}
 	js, err := readAppBundle()
 	if err != nil {
 		t.Fatal(err)
 	}
 	code := string(js)
+	issuesNav, buildNav := strings.Index(page, `data-view="issues"`), strings.Index(page, `data-view="build"`)
+	if issuesNav < 0 || buildNav < 0 || issuesNav > buildNav {
+		t.Fatal("交付 must be a daily entry above 构建")
+	}
+	if !strings.Contains(code, `{nav:'issues',label:'交付',tabs:[{view:'issues',label:'需求看板'},{view:'runs',label:'运行'}`) {
+		t.Fatal("运行 must be a tab of 交付, next to 需求看板")
+	}
+	if !strings.Contains(code, `{view:'projects',label:'项目'}]}`) {
+		t.Fatal("项目配置 must sit inside 构建")
+	}
 	for _, want := range []string{`/api/issues/import`, `openImportIssueModal`, `fillImportIssueWorkflow`, `fillImportIssueRepository`, `selectedImportIssueRepositoryIds`, `renderImportIssueRepositoryPicker`, `repositoryIds`, `请至少选择一个代码仓库`, `importIssueFromURL`, `requirementNeedsClarification`, `clarificationNeedsConfirm`, `data-dtab="clarify"`, `确认结论`, `clarification?.gated`, `autoStartClarify`, `issueClarifyJobs`, `attachIssueClarifyStream`, `关闭网页也不会中断`, `clarifyOptionLabel`, `clarifyQuestionOptions`, `createIssueDirect`, `projectGitHubReady`, `chatCreateDirect`, `chatCreateLocal`, `pushIssueToGitHubFromDetail`, `run-id-copy`, `data-export-logs`, `从这里重跑`, `重新触发`, `data-retrigger-issue`, `data-rerun-from-here`, `canRetriggerIssue`, `openRerunFromNode`, `executionContext?.issueId`, `run?.status==='succeeded'`, `/api/issues/${encodeURIComponent(issueId)}/requirement`, `inferSOPLane`, `req-lane-card`, `issueLaneDots`, `.filter(l=>!l.orphan)`, `lanes.length<2`, `collapseSingleSOPLane`, `issueSOPLabel`, `actionWorkflow`, `data-workflow`, `workflowSOPLane`, `需求开发`, `saveIssueSOPS`, `/sops`, `effectiveIssueSOPBindings`, `projectSOPBindings`, `fillReqWorkflow`, `plannedSOPNodes`, `sopWorkflowId`, `sopWorkflowChoices`, `syncReqComposerLayout`} {
 		if !strings.Contains(code, want) {
 			t.Fatalf("app.js is missing %q", want)
@@ -1931,7 +1930,7 @@ func TestPlatformAdminLivesOnItsOwnView(t *testing.T) {
 	for _, want := range []string{
 		`id="platformView"`,
 		`id="platformNavGroup"`,
-		`data-view="platform"`,
+		`data-view="admin"`,
 	} {
 		if !strings.Contains(markup, want) {
 			t.Fatalf("index.html is missing the platform admin view wiring %q", want)
@@ -2070,7 +2069,7 @@ func TestResearchEfficiencyDashboardUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := string(html)
-	for _, want := range []string{`data-view="metrics"`, `id="metricsView"`, `id="metricsBody"`, `data-metrics-range="7d"`, `data-metrics-range="30d"`, `data-metrics-range="90d"`, `data-metrics-range="365d"`, `id="metricsDateFrom"`, `id="metricsDateTo"`, `metrics-dashboard.css`} {
+	for _, want := range []string{`data-view="insights"`, `id="metricsView"`, `id="metricsBody"`, `data-metrics-range="7d"`, `data-metrics-range="30d"`, `data-metrics-range="90d"`, `data-metrics-range="365d"`, `id="metricsDateFrom"`, `id="metricsDateTo"`, `metrics-dashboard.css`} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("研发效能看板缺少 %q", want)
 		}
@@ -2339,7 +2338,7 @@ const nr = {status:'waiting_approval', activity:'等待人工确认', gateResult
   findings:[{title:'合流检查失败', evidence:'build 241981168'}]
 }};
 const html = humanDecisionPanelHTML('run-1','summary',nr,node,[node]);
-assert.match(html, /human-gate-brief/);
+assert.match(html, /decision-brief/);
 assert.match(html, /需要确认/);
 assert.match(html, /请打开流水线 &lt;build&gt; 判断失败原因/);
 assert.match(html, /Agent 判断依据/);
@@ -2353,7 +2352,7 @@ assert.match(html, /确认通过，继续下游/);
 const callout = approvalCalloutHTML(node, nr, [node]);
 assert.match(callout, /需要确认/);
 assert.match(callout, /请打开流水线 &lt;build&gt; 判断失败原因/);
-assert.match(callout, /等待人工确认/);
+assert.match(callout, /等你确认/);
 const bare = humanDecisionPanelHTML('run-1','summary',{status:'waiting_approval'},node,[node]);
 assert.match(bare, /判断依据/);
 assert.match(bare, /门禁未通过。请看产物和日志后决定。/);

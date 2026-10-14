@@ -18,10 +18,10 @@ const steps = context.onboardingSteps(false);
 assert.equal(steps.length, 6);
 assert.equal(steps[0].target, '.nav[data-view="chat"]');
 assert.equal(steps[1].target, '#homeChatForm');
-assert.ok(steps.slice(2).every(step => step.target.startsWith('.nav[data-view=')));
+assert.ok(steps.slice(2).every(step => /\.nav\[data-(view|nav-group)=/.test(step.target)));
 assert.equal(steps.at(-1).finish, true);
 assert.equal(steps.at(-1).next, '去填写');
-assert.equal(steps.at(-1).target, '.nav[data-view="settings"]');
+assert.equal(steps.at(-1).target, '.nav[data-view="me"]');
 
 const demoSteps = context.onboardingSteps(true);
 assert.equal(demoSteps.length, 6);

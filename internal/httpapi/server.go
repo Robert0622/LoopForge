@@ -306,6 +306,14 @@ func New(s *repo.Store, e *engine.Engine, syncSvc *tracker.Service, basicUser, b
 	g.POST("/api/rooms/:id/messages", rooms.messages)
 	g.POST("/api/rooms/:id/issues", rooms.createIssue)
 	g.POST("/api/rooms/:id/decisions", rooms.decide)
+	g.POST("/api/rooms/:id/crew", rooms.createCrew)
+	g.POST("/api/rooms/:id/crew/:mid", rooms.crewAction)
+	go func() {
+		time.Sleep(5 * time.Second)
+		if rooms.tickCrews() > 0 {
+			rooms.ensureCrewLoop()
+		}
+	}()
 	g.POST("/api/chat-clarify", api.stream.chatClarify)
 	g.GET("/api/chat-clarify", api.stream.attachChatClarify)
 	g.POST("/api/chat-clarify/cancel", api.stream.chatClarifyCancel)

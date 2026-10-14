@@ -226,6 +226,25 @@ function setFlowView(mode){$$('.canvas-view-toggle button').forEach(b=>b.classLi
 function renderThemeToggle(){const light=document.documentElement.dataset.theme==='light',button=$('#themeToggle');if(!button)return;button.querySelector('span').textContent=light?'☾':'☀';button.querySelector('b').textContent=light?'深色':'亮色';button.title=light?'切换到深色主题':'切换到亮色主题'}
 function toggleTheme(){const theme=document.documentElement.dataset.theme==='light'?'dark':'light';document.documentElement.dataset.theme=theme;localStorage.setItem('loopforge.theme.v3',theme);renderThemeToggle();toast(theme==='light'?'已切换亮色主题':'已切换深色主题')}
 function statusText(s){return ({pending:'待执行',running:'运行中',succeeded:'已完成',failed:'失败',waiting_approval:'待审批',waiting:'待确认',paused:'已暂停',cancelled:'已取消'}[s]||'')}
+function bindCanvasPan(){
+  const canvas=$('#canvas');if(!canvas||canvas.dataset.pan)return;canvas.dataset.pan='1';
+  let pan=null;
+  const blank=t=>t===canvas||t.id==='nodes'||t.id==='edges'||t.classList?.contains('canvas-grid');
+  canvas.addEventListener('pointerdown',e=>{
+    if(!(e.button===1||(e.button===0&&blank(e.target))))return;
+    pan={x:e.clientX,y:e.clientY,l:canvas.scrollLeft,t:canvas.scrollTop,moved:false};
+    canvas.setPointerCapture(e.pointerId);canvas.classList.add('is-panning');
+    if(e.button===1)e.preventDefault();
+  });
+  canvas.addEventListener('pointermove',e=>{
+    if(!pan)return;const dx=e.clientX-pan.x,dy=e.clientY-pan.y;
+    if(Math.abs(dx)+Math.abs(dy)>3)pan.moved=true;
+    canvas.scrollLeft=pan.l-dx;canvas.scrollTop=pan.t-dy;
+  });
+  const end=()=>{if(!pan)return;if(pan.moved)canvas.addEventListener('click',ev=>ev.stopPropagation(),{capture:true,once:true});pan=null;canvas.classList.remove('is-panning')};
+  canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+  canvas.addEventListener('wheel',e=>{if(e.shiftKey&&!e.deltaX&&e.deltaY){canvas.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+}
 function canvasPoint(e){
   const canvas=$('#canvas');if(!canvas)return {x:0,y:0};
   const rect=canvas.getBoundingClientRect();
@@ -317,7 +336,8 @@ function renderEdges(){
     <marker id="rejectArrowHover" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626"></path></marker>
   </defs>`;
   let html=defs;
-  const size=state.workflow.nodes.reduce((acc,n)=>({w:Math.max(acc.w,n.position.x+320),h:Math.max(acc.h,n.position.y+220)}),{w:1200,h:800});
+  const canvasEl=$('#canvas'),floatPad=$('.flow-workbench')?.classList.contains('props-hidden')?160:480;
+  const size=state.workflow.nodes.reduce((acc,n)=>({w:Math.max(acc.w,n.position.x+220+floatPad),h:Math.max(acc.h,n.position.y+320)}),{w:Math.max(1200,(canvasEl?.clientWidth||0)+240),h:Math.max(800,(canvasEl?.clientHeight||0)+200)});
   svg.setAttribute('width',size.w);svg.setAttribute('height',size.h);svg.style.width=size.w+'px';svg.style.height=size.h+'px';
   state.workflow.edges.forEach(e=>{
     const a=state.workflow.nodes.find(n=>n.id===e.source),b=state.workflow.nodes.find(n=>n.id===e.target);if(!a||!b)return;
@@ -328,6 +348,7 @@ function renderEdges(){
     html+=`<g class="edge-group" data-edge="${escapeHTML(e.id)}">
       <path class="edge-hitbox" d="${d}"/>
       <path class="edge" d="${d}"/>
+      <path class="edge-flow" d="${d}"/>
       <g class="edge-delete-btn" transform="translate(${mx}, ${my})" data-edge-del="${escapeHTML(e.id)}">
         <circle cx="0" cy="0" r="11"/>
         <path d="M -4 -4 L 4 4 M 4 -4 L -4 4"/>

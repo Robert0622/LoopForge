@@ -148,6 +148,20 @@ function renderRunOverview(){
   const live=liveRuns(),runs=scopedRuns(state.data.runs||[]),active=live.filter(r=>r.status==='running'&&!r.pauseRequested).length,paused=runs.filter(r=>r.pauseRequested||r.status==='paused').length,waiting=live.filter(r=>r.status==='waiting'&&!r.pauseRequested).length,failed=runs.filter(r=>r.status==='failed').length,cancelled=runs.filter(r=>r.status==='cancelled').length,finished=runs.filter(r=>r.status==='succeeded'),successBase=finished.length+failed,rate=successBase?Math.round(finished.length*100/successBase):0,totalTokens=runs.reduce((n,r)=>n+Number(r.usage?.totalTokens||0),0);
   $('#runOverview').innerHTML=`<div class="run-kpi"><span>进行中</span><b>${active}</b></div><div class="run-kpi ${paused?'warning':''}"><span>已暂停</span><b>${paused}</b></div><div class="run-kpi"><span>待确认</span><b>${waiting}</b></div><div class="run-kpi"><span>已完成</span><b>${finished.length}</b></div><div class="run-kpi ${failed?'danger':''}"><span>失败</span><b>${failed}</b></div><div class="run-kpi"><span>已取消</span><b>${cancelled}</b></div><div class="run-kpi"><span>成功率</span><b>${rate}%</b><small>${successBase} 次已结束</small></div><div class="run-kpi"><span>累计 Token</span><b>${formatTokens(totalTokens)}</b><small>${runs.length} 次</small></div>`;
   $('#runsLiveState').classList.toggle('active',active+waiting>0)
+  $('#runOverview').hidden=!runs.length;
+  $('#runsView .run-toolbar')&&($('#runsView .run-toolbar').hidden=!runs.length);
+  if(typeof updateApprovalBadge==='function')updateApprovalBadge();
+}
+function runsFirstEmptyHTML(){
+  const demo=typeof quickstartDemoAvailable==='function'&&quickstartDemoAvailable();
+  return `<div class="lf-empty is-hero"><div class="lf-empty-flow" aria-hidden="true"><i></i><em></em><i class="is-live"></i><em></em><i></i><em></em><i></i></div><b>还没有运行</b><p>一次运行就是一条需求按 SOP 一步步往下走：分析、确认、实现、交付。每一步的进度、产物和日志都会在这里实时出现。</p><div class="lf-empty-actions">${demo?'<button type="button" class="button primary" data-runs-demo>▶ 跑一遍演示（约 30 秒，不调模型）</button>':''}<button type="button" class="button ghost" data-view="chat">去首页提需求</button></div></div>`;
+}
+function runLaneHTML(r,workflows){
+  const defs=r.workflowSnapshot?.nodes||(workflows||[]).find(w=>w.id===r.workflowId)?.nodes||[];
+  if(!defs.length){const p=runProgress(r);return `<div class="run-progress"><i style="width:${p.pct}%"></i></div>`}
+  const states=r.nodes||{};
+  const glyph={succeeded:'✓',failed:'✕',cancelled:'–',skipped:'↷'};
+  return `<div class="run-lane">${defs.map((n,i)=>{const st=states[n.id]?.status||'pending';const cls=st==='waiting'?'waiting_approval':st;return `${i?'<em class="run-lane-link '+(['succeeded','skipped'].includes(states[defs[i-1].id]?.status)?'is-done':'')+'"></em>':''}<span class="run-lane-step is-${escapeHTML(cls)}" title="${escapeHTML(n.name||n.id)}"><i>${glyph[st]||(i+1)}</i><b>${escapeHTML(n.name||n.id)}</b></span>`}).join('')}</div>`;
 }
 function renderRuns(){
   renderRunOverview();const workflows=catalogWorkflows();$('#runWorkflowFilter').innerHTML='<option value="">全部 SOP</option>'+workflows.map(w=>`<option value="${escapeHTML(w.id)}" ${state.runWorkflowFilter===w.id?'selected':''}>${escapeHTML(w.name)}</option>`).join('');
@@ -167,9 +181,10 @@ function renderRuns(){
     const p=runProgress(r),ctx=runContext(r),sop=r.workflowSnapshot?.name||workflows.find(w=>w.id===r.workflowId)?.name||r.workflowId,title=ctx.issue?.title||sop;
     const isPaused=Boolean(r.pauseRequested||r.status==='paused');
     const isDeletable=(!['running','waiting'].includes(r.status))||isPaused;
-    return `<div class="run-card ${state.selectedRun===r.id?'active':''}" data-id="${escapeHTML(r.id)}"><div class="run-card-top"><span class="run-workflow-icon">${escapeHTML((ctx.project?.key||sop)).slice(0,1)}</span><div class="run-card-title"><h3>${escapeHTML(title)}${r.workflowSnapshot?.generic?' <span class="sop-status generic">通用</span>':''}</h3><small>${ctx.issue?`${escapeHTML(ctx.project?.key||'ISS')}-${ctx.issue.number} · `:''}${escapeHTML(sop)} · ${relativeTime(r.createdAt)} ${taskTriggerBadge(ctx.task)}</small></div><div class="run-card-right"><span class="run-meta-step">${p.done}/${p.total} 步</span><span class="run-meta-time" title="${escapeHTML(runTimingTitle(r))}">${runElapsed(r)}</span><span class="status ${runDisplayStatusClass(r)}">${runDisplayStatus(r)}</span><button class="button ghost run-view-btn" data-view-run="${escapeHTML(r.id)}">查看</button>${isDeletable?`<button class="button ghost run-del-btn" data-delete-run="${escapeHTML(r.id)}" title="删除该运行记录">删除</button>`:'<span class="run-del-btn run-del-placeholder" aria-hidden="true">删除</span>'}</div></div><div class="run-progress"><i style="width:${p.pct}%"></i></div></div>`
-  }).join('')||'<div class="run-list-empty"><span>⌕</span><b>没有匹配的运行</b><p>可到需求列表查看对应需求的执行结果。</p></div>';
+    return `<div class="run-card ${state.selectedRun===r.id?'active':''}" data-id="${escapeHTML(r.id)}"><div class="run-card-top"><span class="run-workflow-icon">${escapeHTML((ctx.project?.key||sop)).slice(0,1)}</span><div class="run-card-title"><h3>${escapeHTML(title)}${r.workflowSnapshot?.generic?' <span class="sop-status generic">通用</span>':''}</h3><small>${ctx.issue?`${escapeHTML(ctx.project?.key||'ISS')}-${ctx.issue.number} · `:''}${escapeHTML(sop)} · ${relativeTime(r.createdAt)} ${taskTriggerBadge(ctx.task)}</small></div><div class="run-card-right"><span class="run-meta-step">${p.done}/${p.total} 步</span><span class="run-meta-time" title="${escapeHTML(runTimingTitle(r))}">${runElapsed(r)}</span><span class="status ${runDisplayStatusClass(r)}">${runDisplayStatus(r)}</span><button class="button ghost run-view-btn" data-view-run="${escapeHTML(r.id)}">查看</button>${isDeletable?`<button class="button ghost run-del-btn" data-delete-run="${escapeHTML(r.id)}" title="删除该运行记录">删除</button>`:'<span class="run-del-btn run-del-placeholder" aria-hidden="true">删除</span>'}</div></div>${runLaneHTML(r,workflows)}</div>`
+  }).join('')||(scopedRuns(state.data.runs||[]).length?'<div class="run-list-empty"><span>⌕</span><b>没有匹配的运行</b><p>换个筛选条件，或清空搜索再看看。</p></div>':runsFirstEmptyHTML());
   list.insertAdjacentHTML('beforeend', pagerHTML('runs', pagedRuns));
+  list.querySelector('[data-runs-demo]')?.addEventListener('click',async e=>{const started=await startDemoRequirement(e.currentTarget,{stay:true});if(started?.task?.runId){await refreshRuns(true);openRunFromId(started.task.runId,{forceRuns:true})}});
   list.querySelectorAll('.run-card').forEach(el=>el.onclick=(e)=>{if(e.target.closest('.run-view-btn,.run-del-btn,.pager'))return;showRunDetail(el.dataset.id)});
   list.querySelectorAll('.run-view-btn').forEach(btn=>btn.onclick=(e)=>{e.stopPropagation();showRunDetail(btn.dataset.viewRun)});
   list.querySelectorAll('.run-del-btn').forEach(btn=>btn.onclick=(e)=>{e.stopPropagation();deleteRun(btn.dataset.deleteRun)});
@@ -936,6 +951,7 @@ function renderRunDetail(r){
     host.querySelector('.node-inspector .approval-callout')?.remove();
   }
   const childCallout=childSOPCalloutHTML(r);if(childCallout)host.querySelector('.run-detail-header')?.insertAdjacentHTML('afterend',childCallout);
+  mountRunStage(host,r,nodes);
   if(pg.child){const note=`<p class="child-sop-trace-note">这是 SOP 节点，下面显示的是子 SOP 运行 <code>${escapeHTML(pg.runId.slice(-12))}</code> 全部节点的内容。</p>`;host.querySelectorAll('.trace-section>.section-heading,.worker-log-section>.section-heading').forEach(h=>h.insertAdjacentHTML('afterend',note))}
   const runMeta=host.querySelector('.run-header-meta');if(runMeta)runMeta.insertAdjacentHTML('beforeend',`${taskTriggerBadge(ctx.task)}<span class="run-meta-chip">Sandbox <code>${escapeHTML(r.sandboxId||'—')}</code></span>`);
   const nodeSandbox=host.querySelector('.runtime-details span:first-child');if(nodeSandbox)nodeSandbox.remove();
@@ -957,6 +973,21 @@ function renderRunDetail(r){
   bindChildSOPActions(host,r,pg);
   bindRunEvalPane(r,host);
   if(runDetailTab==='eval')loadRunEval(r.id);
+}
+function runStageLiveHTML(r,nodes){
+  const live=nodes.filter(n=>['running','waiting_approval','failed'].includes(r.nodes?.[n.id]?.status));
+  if(!live.length)return r.status==='succeeded'?'<div class="stage-live is-done"><i></i><span>全部步骤已完成</span></div>':'';
+  return live.map(n=>{const nr=r.nodes[n.id],st=nr.status;const text=st==='waiting_approval'?'等你确认后继续下游':st==='failed'?String(nr.error||'执行失败').split('\n')[0].slice(0,140):String(nr.activity||'Agent 正在执行…').split('\n')[0].slice(0,140);return `<div class="stage-live is-${escapeHTML(st)}"><i></i><b>${escapeHTML(n.name||n.id)}</b><span>${escapeHTML(text)}</span></div>`}).join('');
+}
+function mountRunStage(host,r,nodes){
+  const stage=host.querySelector('.run-graph-section'),header=host.querySelector('.run-detail-header');
+  if(!stage||!header)return;
+  stage.classList.add('run-stage',`is-${r.pauseRequested?'paused':r.status}`);
+  const heading=stage.querySelector('.section-heading h3');if(heading)heading.textContent='执行现场';
+  const hint=stage.querySelector('.section-heading h3+span');if(hint)hint.textContent='点击步骤查看它的输出、产物和执行事件';
+  stage.querySelector('.stage-live-wrap')?.remove();
+  stage.insertAdjacentHTML('beforeend',`<div class="stage-live-wrap" aria-live="polite">${runStageLiveHTML(r,nodes)}</div>`);
+  header.after(stage);
 }
 function fallbackCopyText(value){const ta=document.createElement('textarea');ta.value=value;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:-9999px;left:-9999px';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){ok=false}document.body.removeChild(ta);return ok}
 async function copyText(value,message){if(navigator.clipboard&&window.isSecureContext){try{await navigator.clipboard.writeText(value);toast(message);return}catch(e){}}toast(fallbackCopyText(value)?message:'复制失败，请手动复制')}

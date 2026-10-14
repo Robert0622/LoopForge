@@ -120,24 +120,30 @@ function issueKanbanCard(i){
   const isFailed=Boolean(run&&(['failed','cancelled'].includes(run.status)||issueHasFailedNode(run)));
   const needsConfirm=clarificationNeedsConfirm(i);
   const cardTone=needsConfirm?' needs-confirm':(isFailed?' needs-attention':'');
-  return `<article class="kanban-card${cardTone}" draggable="true" data-id="${escapeHTML(i.id)}">
-    <div class="kanban-card-top"><b>${escapeHTML(key)}</b></div>
+  const assignee=issueAssigneeName(i)||'';
+  const pri=i.priority||'none';
+  const bars=({urgent:4,high:3,medium:2,low:1}[pri]||0);
+  const ring=Math.max(0,Math.min(100,progress.pct||0));
+  return `<article class="kanban-card kc${cardTone}" draggable="true" data-id="${escapeHTML(i.id)}">
+    <div class="kc-top"><span class="kc-key">${escapeHTML(key)}</span><span class="kc-pri pri-${escapeHTML(pri)}" title="优先级 ${escapeHTML(issuePriorityLabel(i.priority))}">${[1,2,3,4].map(n=>`<i class="${n<=bars?'on':''}"></i>`).join('')}</span>${assignee?`<span class="kc-avatar" title="${escapeHTML(assignee)}">${escapeHTML(assignee.slice(0,1).toUpperCase())}</span>`:''}</div>
     <h4 title="${escapeHTML(i.title)}">${issueTitleMarkup(i.title)}</h4>
-    <div class="kanban-card-meta">
-      <span class="priority-label ${escapeHTML(i.priority||'')}"><i class="priority ${escapeHTML(i.priority||'')}"></i>${issuePriorityLabel(i.priority)}</span>
-      <span class="kanban-stage ${stage.key}">${escapeHTML(stage.label)}</span>
+    ${w?`<div class="kc-sop"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="3.5" cy="8" r="2"/><circle cx="12.5" cy="3.5" r="2"/><circle cx="12.5" cy="12.5" r="2"/><path d="M5.5 8h3l2-3M8.5 8l2 3"/></svg>${escapeHTML(w.name)}</div>`:''}
+    <div class="kc-foot">
+      <span class="kanban-stage kc-stage ${stage.key}">${escapeHTML(stage.label)}</span>
+      ${progress.total?`<span class="kc-ring" style="--p:${ring}" title="${progress.done}/${progress.total} 步"><b>${progress.done}/${progress.total}</b></span>`:''}
     </div>
-    <div class="kanban-card-progress"><span>${progress.done}/${progress.total||'—'} · ${progress.pct}%</span><div class="issue-progress-track"><i style="width:${progress.pct}%"></i></div></div>
     <div class="kanban-card-actions">${issueActionButtons(i)}</div>
   </article>`;
 }
 
+const kanbanPrimaryStatuses=new Set(['backlog','todo','in_progress','in_review','done']);
 function renderIssueKanban(issues){
   return `<div class="kanban-board">${issueStatuses.map(([status])=>{
     const col=issues.filter(i=>(i.status||'backlog')===status);
+    if(!col.length&&!kanbanPrimaryStatuses.has(status))return '';
     return `<section class="kanban-column" data-status="${status}">
-      <header><b>${issueStatusLabel(status)}</b><span>${col.length}</span></header>
-      <div class="kanban-column-body">${col.map(issueKanbanCard).join('')||'<div class="kanban-empty">暂无卡片</div>'}</div>
+      <header><i class="kc-dot"></i><b>${issueStatusLabel(status)}</b><span>${col.length}</span><button type="button" class="kc-add" data-kanban-new="${status}" title="新建需求">＋</button></header>
+      <div class="kanban-column-body">${col.map(issueKanbanCard).join('')||'<div class="kanban-empty">拖拽卡片到这里</div>'}</div>
     </section>`;
   }).join('')}</div>`;
 }
@@ -156,6 +162,7 @@ function bindIssueKanban(){
     card.onclick=()=>{if(kanbanDragMoved){kanbanDragMoved=false;return}openIssueDetail(card.dataset.id)};
   });
   bindIssueRowActions($('#issueBoard'));
+  $$('[data-kanban-new]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();if(typeof openRequirementWizard==='function')openRequirementWizard()});
   $$('.kanban-column').forEach(col=>{
     col.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';col.classList.add('drop-target')};
     col.ondragleave=e=>{if(!col.contains(e.relatedTarget))col.classList.remove('drop-target')};

@@ -12,9 +12,21 @@ function openRunFromId(id,opts={}){
 function updateApprovalBadge(){
   const n=approvalItems().length;
   const badge=$('#approvalNavBadge');
+  $$('[data-approval-count]').forEach(el=>{el.hidden=!n;el.textContent=n||''});
+  const base='LoopForge · 你的 AI 交付团队';
+  document.title=n?`(${n}) 待确认 · ${base}`:base;
+  const prev=state.approvalCountSeen;
+  state.approvalCountSeen=n;
+  if(prev!=null&&n>prev)notifyApprovalWaiting(n);
   if(!badge)return;
   badge.hidden=!n;
   badge.textContent=n||'';
+}
+function notifyApprovalWaiting(n){
+  if(!document.hidden||typeof Notification==='undefined')return;
+  const show=()=>{try{const note=new Notification('LoopForge · 有流程等你确认',{body:`当前 ${n} 条待确认，点开处理`,tag:'loopforge-approval'});note.onclick=()=>{window.focus();switchView('approvals');note.close()}}catch(e){}};
+  if(Notification.permission==='granted')show();
+  else if(Notification.permission==='default')Notification.requestPermission().then(p=>{if(p==='granted')show()}).catch(()=>{});
 }
 
 function credentialClearAction(name,configured,label='API Key'){
@@ -205,97 +217,37 @@ function renderPlatformNav(){
 function renderPlatformAdminPanel(){
   const host=$('#platformAdminPanel');if(!host)return;
   if(!isPlatformAdmin()){host.innerHTML='';return}
+  const tab=state.platformAdminTab||'admins';
   host.innerHTML=`
-    <div class="platform-metric-grid">
-      <div class="platform-metric-card">
-        <div class="platform-metric-icon blue">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
-        </div>
-        <div class="platform-metric-info">
-          <span class="platform-metric-label">平台管理员</span>
-          <b class="platform-metric-num" id="platformMetricTotal">--</b>
-          <small>具有跨项目通用模板与角色编辑权</small>
-        </div>
-      </div>
-      <div class="platform-metric-card">
-        <div class="platform-metric-icon amber">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
-        <div class="platform-metric-info">
-          <span class="platform-metric-label">系统内置</span>
-          <b class="platform-metric-num" id="platformMetricLocked">--</b>
-          <small>系统初始预设名单，不可撤销</small>
-        </div>
-      </div>
-      <div class="platform-metric-card">
-        <div class="platform-metric-icon purple">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="platform-metric-info">
-          <span class="platform-metric-label">界面授权</span>
-          <b class="platform-metric-num" id="platformMetricGranted">--</b>
-          <small>控制台动态授予，可随时撤销</small>
-        </div>
-      </div>
-      <div class="platform-metric-card">
-        <div class="platform-metric-icon green">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-        </div>
-        <div class="platform-metric-info">
-          <span class="platform-metric-label">生效范围</span>
-          <b class="platform-metric-num">全平台通用</b>
-          <small>通用模板 · 共享角色 · 门禁规范</small>
-        </div>
-      </div>
+    <div class="platform-metric-grid pa-stats">
+      <div class="platform-metric-card"><span class="platform-metric-label">平台管理员</span><b class="platform-metric-num" id="platformMetricTotal">--</b></div>
+      <div class="platform-metric-card"><span class="platform-metric-label">系统内置</span><b class="platform-metric-num" id="platformMetricLocked">--</b></div>
+      <div class="platform-metric-card"><span class="platform-metric-label">界面授权</span><b class="platform-metric-num" id="platformMetricGranted">--</b></div>
+      <div class="platform-metric-card is-scope"><span class="platform-metric-label">生效范围</span><b class="platform-metric-num">全平台</b><small>通用模板 · 共享角色 · 门禁</small></div>
     </div>
 
-    <div class="platform-admin-layout">
-      <div class="platform-admin-main-card">
-        <div class="platform-admin-head">
-          <div class="platform-admin-head-meta">
-            <span class="credential-eyebrow">平台权限</span>
-            <h2>谁可以改通用模板</h2>
-            <p>平台管理员能直接编辑通用模板和它打包的角色，改完所有项目下次运行生效。由环境变量 <code>LOOPFORGE_PLATFORM_ADMINS</code> 固定的名单不能在这里撤销。</p>
+    <nav class="pa-tabs" role="tablist">
+      <button type="button" role="tab" data-pa-tab="admins" class="${tab==='admins'?'active':''}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>平台管理员<em id="platformAdminCountBadge" class="platform-admin-count-pill">--</em></button>
+      <button type="button" role="tab" data-pa-tab="accounts" class="${tab==='accounts'?'active':''}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>成员账号</button>
+      <button type="button" role="tab" data-pa-tab="security" class="${tab==='security'?'active':''}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>注册与安全</button>
+    </nav>
+
+    <div class="platform-admin-layout pa-layout">
+      <div class="platform-admin-main-card pa-pane" data-pa-pane="admins" ${tab==='admins'?'':'hidden'}>
+        <div class="pa-pane-head">
+          <div><h2>谁可以改通用模板</h2><p>平台管理员能编辑通用 SOP 模板和它打包的角色，改完所有项目下次运行生效。<code>LOOPFORGE_PLATFORM_ADMINS</code> 里的名单不能在这里撤销。</p></div>
+        </div>
+        <form id="platformAdminForm" class="platform-admin-form pa-inline-form">
+          <div class="platform-input-wrap">
+            <span class="platform-input-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+            <input name="loginName" placeholder="输入登录名授予管理员，如 alice" autocomplete="off">
           </div>
-          <span class="platform-admin-count-pill" id="platformAdminCountBadge">-- 位管理员</span>
-        </div>
-
-        <div class="platform-add-box">
-          <form id="platformAdminForm" class="platform-admin-form">
-            <div class="platform-input-wrap">
-              <span class="platform-input-icon">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </span>
-              <input name="loginName" placeholder="输入登录名，如 alice" autocomplete="off">
-            </div>
-            <button class="button primary platform-add-btn" type="submit">添加管理员</button>
-          </form>
-          <div class="platform-add-hint">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>授权后用户将获得全平台通用 SOP 模板及公共角色的修改与发布权限，请谨慎授予。</span>
-          </div>
-        </div>
-
-        <div class="platform-add-box platform-signup-box">
-          <label class="toggle-row"><input type="checkbox" id="platformSignupOpen"> 允许新用户在登录页自行注册</label>
-          <div class="platform-add-hint"><span>注册的账号是普通成员，能看到项目、提需求、被指派为负责人。只在可信网络里打开；关闭后只能由管理员在下面创建账号。</span></div>
-        </div>
-
-        <div class="platform-add-box">
-          <form id="platformAccountForm" class="platform-admin-form platform-account-form">
-            <input name="loginName" placeholder="登录名" autocomplete="off" required>
-            <input name="displayName" placeholder="显示名（可选）" autocomplete="off">
-            <input name="password" type="password" placeholder="初始密码（至少 8 位）" autocomplete="new-password" required>
-            <label class="toggle-row"><input name="admin" type="checkbox"> 设为平台管理员</label>
-            <button class="button ghost platform-add-btn" type="submit">创建账号 / 重置密码</button>
-          </form>
-          <div class="platform-add-hint"><span>本地账号使用 bcrypt 存储密码。已存在的登录名会被重置为新密码；接入 SSO 时可改用受信反向代理身份头，无需在这里建号。</span></div>
-        </div>
-
+          <button class="button primary platform-add-btn" type="submit">授予</button>
+        </form>
         <div class="platform-list-toolbar">
           <div class="platform-search-wrap">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input id="platformAdminSearch" placeholder="搜索姓名或登录名..." autocomplete="off">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="platformAdminSearch" placeholder="搜索姓名或登录名" autocomplete="off">
           </div>
           <div class="platform-filter-tabs" id="platformFilterTabs">
             <button type="button" class="platform-filter-btn active" data-source-filter="all">全部</button>
@@ -303,54 +255,50 @@ function renderPlatformAdminPanel(){
             <button type="button" class="platform-filter-btn" data-source-filter="granted">已授权</button>
           </div>
         </div>
-
         <div id="platformAdminList" class="platform-admin-list"></div>
       </div>
 
-      <div class="platform-admin-side">
-        <div class="platform-side-card">
-          <div class="platform-side-head">
-            <span class="platform-side-icon blue">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </span>
-            <h3>权限与安全规则</h3>
-          </div>
-          <ul class="platform-side-list">
-            <li>
-              <b>通用 SOP 模板全局编辑</b>
-              <p>通用模板面向全平台所有项目共享，由平台管理员统一定义并维护，修改后各项目下次运行即刻生效。</p>
-            </li>
-            <li>
-              <b>公共角色与通用门禁下发</b>
-              <p>通用模板中引用的 Agent 角色、执行门禁由平台统一调优升级，项目内默认只读，保障基准质量。</p>
-            </li>
-            <li>
-              <b>系统固化名单安全保护</b>
-              <p>系统内置名单具备最高防锁死安全防护，无法通过页面撤销，确保生产管理连续性。</p>
-            </li>
-          </ul>
-        </div>
-
-        <div class="platform-side-card">
-          <div class="platform-side-head">
-            <span class="platform-side-icon green">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            </span>
-            <h3>通用模板与资产管理</h3>
-          </div>
-          <p class="platform-side-desc">平台管理员在流程设计或角色定义中维护通用模板后，所有关联项目将在下次运行自动应用最新版本。</p>
-          <div class="platform-side-quick-links">
-            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="sops">查看流程模板 ↗</button>
-            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="agents">查看角色定义 ↗</button>
-          </div>
-          <div class="platform-audit-note">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span>管理员授予与撤销操作均实时生效，变更将记录平台审计。</span>
-          </div>
-        </div>
+      <div class="platform-admin-main-card pa-pane" data-pa-pane="accounts" ${tab==='accounts'?'':'hidden'}>
+        <div class="pa-pane-head"><div><h2>创建或重置账号</h2><p>本地账号用 bcrypt 存储密码。登录名已存在时会重置为新密码；接入 SSO 时改用受信反向代理身份头，无需在这里建号。</p></div></div>
+        <form id="platformAccountForm" class="platform-admin-form platform-account-form pa-grid-form">
+          <label><span>登录名</span><input name="loginName" placeholder="alice" autocomplete="off" required></label>
+          <label><span>显示名</span><input name="displayName" placeholder="可选" autocomplete="off"></label>
+          <label><span>初始密码</span><input name="password" type="password" placeholder="至少 8 位" autocomplete="new-password" required></label>
+          <div class="pa-form-foot"><label class="toggle-row"><input name="admin" type="checkbox"> 同时设为平台管理员</label><button class="button primary platform-add-btn" type="submit">创建账号 / 重置密码</button></div>
+        </form>
       </div>
+
+      <div class="platform-admin-main-card pa-pane" data-pa-pane="security" ${tab==='security'?'':'hidden'}>
+        <div class="pa-pane-head"><div><h2>注册与安全</h2><p>控制谁能进入平台，以及平台级权限的边界。</p></div></div>
+        <label class="pa-switch-row platform-signup-box">
+          <span><b>允许新用户在登录页自行注册</b><small>注册的账号是普通成员：能看项目、提需求、被指派为负责人。只在可信网络里打开；关闭后只能由管理员创建账号。</small></span>
+          <input type="checkbox" id="platformSignupOpen" class="pa-switch">
+        </label>
+        <ul class="platform-side-list pa-rules">
+          <li><i><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg></i><div><b>通用 SOP 模板全局生效</b><p>通用模板由平台管理员统一维护，修改后各项目下次运行即生效。</p></div></li>
+          <li><i><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6"/><path d="m16 19 2 2 4-4"/></svg></i><div><b>公共角色与门禁统一下发</b><p>通用模板引用的 Agent 角色、执行门禁在项目内默认只读。</p></div></li>
+          <li><i><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></i><div><b>内置名单防锁死</b><p>环境变量里的管理员无法从页面撤销，保证总有人能管理平台。</p></div></li>
+        </ul>
+      </div>
+
+      <aside class="platform-admin-side pa-side">
+        <div class="platform-side-card">
+          <b class="pa-side-title">通用资产</b>
+          <p class="platform-side-desc">在流程设计或角色定义中修改通用模板后，所有关联项目下次运行自动用最新版本。</p>
+          <div class="platform-side-quick-links">
+            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="sops">流程模板 →</button>
+            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="agents">角色定义 →</button>
+          </div>
+          <div class="platform-audit-note">授予与撤销实时生效，并记录平台审计。</div>
+        </div>
+      </aside>
     </div>
   `;
+  host.querySelectorAll('[data-pa-tab]').forEach(btn=>btn.onclick=()=>{
+    state.platformAdminTab=btn.dataset.paTab;
+    host.querySelectorAll('[data-pa-tab]').forEach(b=>b.classList.toggle('active',b===btn));
+    host.querySelectorAll('[data-pa-pane]').forEach(p=>p.hidden=p.dataset.paPane!==btn.dataset.paTab);
+  });
   loadPlatformAdmins(host);
 }
 async function loadPlatformAdmins(host){
@@ -390,7 +338,7 @@ async function loadPlatformAdmins(host){
     if(elTotal)elTotal.textContent=total;
     if(elLocked)elLocked.textContent=locked;
     if(elGranted)elGranted.textContent=granted;
-    if(elBadge)elBadge.textContent=`共 ${total} 位管理员`;
+    if(elBadge)elBadge.textContent=String(total);
   };
 
   const render=()=>{

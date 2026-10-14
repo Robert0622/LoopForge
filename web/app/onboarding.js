@@ -12,10 +12,10 @@ function onboardingSteps(demo) {
   return [
     { target: '.nav[data-view="chat"]', title: '首页就是对话', body: '平台的事都可以先在首页问。它是这个项目的 PM 助理，会查需求、查运行，帮你澄清需求并按 SOP 开跑。' },
     { target: '#homeChatForm', title: '在这里说', body: start },
-    { target: '.nav[data-view="issues"]', title: '需求都在这里', body: '在这里新建，或从 GitHub 导入 Issue。说清楚要做什么就可以派发；没说清的地方，澄清会继续问。' },
-    { target: '.nav[data-view="approvals"]', title: '要你拍板时来这里', body: '运行停下来等你决定，会出现在「待我确认」。先看清问题，再同意或退回。没有待办时，这里是空的。' },
-    { target: '.nav[data-view="runs"]', title: '进度看运行记录', body: '点进一次运行，能看到停在哪一步、已经产出了什么。' },
-    { target: '.nav[data-view="settings"]', ...last, finish: true },
+    { target: '.nav[data-view="issues"]', title: '需求、运行、待确认都在「交付」', body: '顶部三个标签：需求看板管规划，运行看 Agent 正在哪一步，待我确认是等你拍板的节点。有东西要你确认时，这里会亮起角标。' },
+    { target: '.nav[data-view="rooms"]', title: '没有固定流程的活，交给「群聊」', body: '在群里 @LoopForge 说一句要做什么，队长会拉几个 Bot 分工、交接、汇报；有问题也可以直接 @ 它问，或回复某条消息接着问。' },
+    { target: '.nav[data-view="build"]', title: '流程、角色、能力、环境都在「构建」', body: 'SOP、角色、技能/MCP/规则、沙箱和项目都在这里，用顶部标签切换。日常不用动，要调整流程时再来。' },
+    { target: '.nav[data-view="me"]', ...last, finish: true },
   ];
 }
 

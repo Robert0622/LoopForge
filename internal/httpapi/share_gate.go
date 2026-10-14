@@ -273,17 +273,22 @@ f.onsubmit=async(e)=>{
 	return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>外部审批 · LoopForge</title>
 <style>
-body{margin:0;font:15px/1.5 system-ui,sans-serif;background:#0f172a;color:#e2e8f0}
-main.card{max-width:520px;margin:8vh auto;padding:28px;background:#1e293b;border:1px solid #334155;border-radius:16px}
-.kicker{color:#93c5fd;font-size:12px;font-weight:650;letter-spacing:.04em}
-h1{margin:8px 0;font-size:22px}p{color:#94a3b8}
-label{display:grid;gap:6px;margin:12px 0;font-size:13px;color:#cbd5e1}
-input,textarea{padding:10px 12px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;font:inherit}
-button.primary{margin-top:8px;width:100%;padding:12px;border:0;border-radius:10px;background:#3867f4;color:#fff;font-weight:650;cursor:pointer}
-.meta{font-size:12px;color:#64748b;margin-top:16px}
-details{margin:12px 0;border:1px solid #334155;border-radius:10px;padding:10px 12px;background:#0f172a}
-summary{cursor:pointer;font-size:13px;color:#cbd5e1}
-pre{white-space:pre-wrap;word-break:break-word;margin:8px 0 0;font:13px/1.55 ui-monospace,monospace;color:#cbd5e1;max-height:320px;overflow:auto}
+:root{color-scheme:dark}
+body{margin:0;min-height:100vh;font:15px/1.6 Inter,ui-sans-serif,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:radial-gradient(720px 340px at 50% -6%,rgba(139,123,255,.22),transparent 70%),#08090c;color:#ededf2}
+main.card{max-width:540px;margin:7vh auto;padding:28px;background:#111217;border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 30px 80px -30px rgba(0,0,0,.8)}
+.kicker{display:inline-flex;align-items:center;gap:8px;color:#f5a524;font-size:12px;font-weight:650;letter-spacing:.04em}
+.kicker::before{content:"";width:8px;height:8px;border-radius:50%;background:#f5a524;box-shadow:0 0 12px rgba(245,165,36,.8)}
+h1{margin:8px 0;font-size:22px;letter-spacing:-.02em}p{color:#a3a5b5}p b{color:#ededf2}
+label{display:grid;gap:6px;margin:12px 0;font-size:13px;color:#a3a5b5}
+input,textarea{padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#16171e;color:#ededf2;font:inherit}
+input:focus,textarea:focus{outline:none;border-color:#8b7bff;box-shadow:0 0 0 3px rgba(139,123,255,.18)}
+button.primary{margin-top:8px;width:100%;min-height:46px;padding:12px;border:0;border-radius:11px;background:linear-gradient(135deg,#8b7bff,#5b8cff 55%,#38c6f4);color:#fff;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 12px 30px -12px rgba(139,123,255,.7)}
+.meta{font-size:12px;color:#6c6f80;margin-top:16px}
+details{margin:12px 0;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;background:#16171e}
+summary{cursor:pointer;font-size:13px;color:#ededf2}
+pre{white-space:pre-wrap;word-break:break-word;margin:8px 0 0;font:13px/1.55 ui-monospace,monospace;color:#c9cbd6;max-height:320px;overflow:auto}
+@media(max-width:600px){main.card{margin:0;min-height:100vh;border-radius:0;border:0;padding:22px 18px 110px}
+.actions button.primary{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));width:auto;margin:0}}
 </style></head><body><main class="card">
 <p class="kicker">外部一次决策</p>
 <h1>` + htmlEsc(title) + `</h1>

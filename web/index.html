@@ -3,26 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>LoopForge · Agent 编排平台</title>
+  <title>LoopForge · 你的 AI 交付团队</title>
+  <meta name="theme-color" content="#08090d">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/images/loopforge-logo.png">
   <link rel="stylesheet" href="/styles.css?v=20260823v1">
   <link rel="stylesheet" href="/assets.css?v=20260823v1">
-  <link rel="stylesheet" href="/platform.css?v=20261013r4">
+  <link rel="stylesheet" href="/platform.css?v=20261014g">
   <link rel="stylesheet" href="/observability.css?v=20260921r1">
   <link rel="stylesheet" href="/artifacts.css?v=20260914r3">
   <link rel="stylesheet" href="/sops.css?v=20260921r3">
   <link rel="stylesheet" href="/sync.css?v=20260915r3">
   <link rel="stylesheet" href="/access.css">
-  <link rel="stylesheet" href="/onboarding.css?v=20261013c1">
+  <link rel="stylesheet" href="/onboarding.css?v=20261014g">
   <link rel="stylesheet" href="/product-v3.css?v=20260917r2">
   <link rel="stylesheet" href="/product-v4.css?v=20261001r1">
   <link rel="stylesheet" href="/assistant.css?v=20260920r2">
-  <link rel="stylesheet" href="/collab.css?v=20261012r1">
+  <link rel="stylesheet" href="/collab.css?v=20261014g">
   <link rel="stylesheet" href="/knowledge.css?v=20261008r1">
   <link rel="stylesheet" href="/metrics-dashboard.css?v=20260921r2">
-  <link rel="stylesheet" href="/business-domains.css?v=20261012r1">
+  <link rel="stylesheet" href="/business-domains.css?v=20261014g">
+  <link rel="stylesheet" href="/design.css?v=20261014g">
+  <script src="/boot.js?v=20261014g"></script>
+  <script src="/i18n.js?v=20261014g"></script>
 </head>
 <body>
   <div id="globalProgress" class="global-progress" aria-hidden="true"></div>
@@ -30,50 +34,23 @@
 
   <!-- 侧边栏：分组导航 -->
   <aside class="platform-sidebar">
-    <div class="brand" data-view="chat" title="LoopForge 产研 AI 协作平台">
+    <div class="brand" data-view="chat" title="LoopForge · 你的 AI 交付团队">
       <span class="brand-mark">
         <img src="/images/loopforge-logo.png" alt="LoopForge Logo" width="30" height="30" class="brand-logo">
       </span>
-      <span class="brand-text"><b>LoopForge</b><small>产研 AI 协作平台</small></span>
+      <span class="brand-text"><b>LoopForge</b><small>你的 AI 交付团队</small></span>
     </div>
 
     <nav>
-      <p>日常工作</p>
       <button class="nav" data-view="chat"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z"/><path d="M8.5 9.5h7"/></svg></span><span class="nav-label">首页</span></button>
-      <button class="nav" data-view="issues"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg></span><span class="nav-label">需求列表</span></button>
-      <button class="nav" data-view="rooms"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V14a2.5 2.5 0 0 1-2.5 2.5H10l-4 3v-3H7.5A2.5 2.5 0 0 1 5 14z"/></svg></span><span class="nav-label">协作群聊</span></button>
-      <button class="nav" data-view="approvals"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9l-4.8 2.6.9-5.4-3.9-3.8 5.4-.8z"/></svg></span><span class="nav-label">待我确认</span><span id="approvalNavBadge" class="nav-badge" hidden></span></button>
-      <button class="nav" data-view="runs"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5.5v13l11-6.5z"/></svg></span><span class="nav-label">运行记录</span></button>
-      <button class="nav" data-view="projects"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3 2.9-5 6.5-5s6.5 2 6.5 5M15.5 4.6a3.5 3.5 0 0 1 0 6.8M17.8 15.3c2 .8 3.7 2.3 3.7 4.7"/></svg></span><span class="nav-label">项目配置</span></button>
-
-      <p>流程配置</p>
-      <button class="nav" data-view="sops"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M10 6.5h5a3 3 0 0 1 3 3v4.5M14 17.5h-5a3 3 0 0 1-3-3V10"/></svg></span><span class="nav-label">流程模板</span></button>
-      <button class="nav" data-view="flow"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/></svg></span><span class="nav-label">流程设计</span></button>
-      <button class="nav" data-view="agents"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-5.5 8-5.5s8 2.2 8 5.5"/></svg></span><span class="nav-label">角色定义</span></button>
-      <button id="capabilityNavToggle" class="nav nav-group-toggle" type="button" aria-expanded="false"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="10" cy="17" r="2" fill="currentColor" stroke="none"/></svg></span><span class="nav-label">能力资产</span><svg class="nav-group-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-      <div id="capabilityNavGroup" class="nav-submenu" hidden>
-        <button class="nav nav-child" data-view="mcp"><span class="nav-label">MCP 管理</span></button>
-        <button class="nav nav-child" data-view="rules"><span class="nav-label">规则管理</span></button>
-        <button class="nav nav-child" data-view="skills"><span class="nav-label">技能管理</span></button>
-      </div>
-      <button id="environmentNavToggle" class="nav nav-group-toggle" type="button" aria-expanded="false"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h16M6 4h12l2 4-2 12H6L4 8z"/><path d="M9 12h6M9 16h6"/></svg></span><span class="nav-label">环境资产</span><svg class="nav-group-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-      <div id="environmentNavGroup" class="nav-submenu" hidden>
-        <button class="nav nav-child" data-view="dockerfiles"><span class="nav-label">Dockerfile</span></button>
-        <button class="nav nav-child" data-view="environments"><span class="nav-label">环境安装脚本</span></button>
-        <button class="nav nav-child" data-view="sandboxes"><span class="nav-label">沙箱管理</span></button>
-      </div>
-      <button class="nav" data-view="knowledge"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg></span><span class="nav-label">知识中心</span></button>
-
-      <p>数据洞察</p>
-      <button class="nav" data-view="metrics"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 4v8h8"/><path d="M5.5 17.5 12 12"/></svg></span><span class="nav-label">研发效能</span></button>
-      <button class="nav" data-view="businessDomains"><span class="nav-icon">◫</span><span class="nav-label">业务领域</span></button>
-      <button class="nav" data-view="observability"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span><span class="nav-label">用量分析</span></button>
-      <p>开放能力</p>
-      <button class="nav" data-view="guide"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span class="nav-label">接入指南</span></button>
-      <div id="platformNavGroup" hidden><p>平台</p><button class="nav" data-view="platform"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7.5 3.4v5c0 4.4-3.1 8.2-7.5 9.2-4.4-1-7.5-4.8-7.5-9.2v-5z"/><path d="M9.2 12.2l2 2 3.6-3.9"/></svg></span><span class="nav-label">平台管理</span></button><button class="nav" data-view="businessDomainManagement"><span class="nav-icon">◫</span><span class="nav-label">领域管理</span></button></div>
-      <p>个人</p>
-      <button class="nav" data-view="runners"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span class="nav-label">执行机器</span></button>
-      <button class="nav" data-view="settings"><span class="nav-icon">⚙</span><span class="nav-label">个人设置</span></button>
+      <button class="nav" data-view="issues"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5-9 4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></svg></span><span class="nav-label">交付</span><span id="approvalNavBadge" class="nav-badge" title="待我确认" hidden></span></button>
+      <button class="nav" data-view="rooms"><span class="nav-icon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V14a2.5 2.5 0 0 1-2.5 2.5H10l-4 3v-3H7.5A2.5 2.5 0 0 1 5 14z"/></svg></span><span class="nav-label">群聊</span></button>
+      <div class="nav-sep" aria-hidden="true"></div>
+      <button class="nav" data-view="build"><span class="nav-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span><span class="nav-label">构建</span></button>
+      <button class="nav" data-view="insights"><span class="nav-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg></span><span class="nav-label">洞察</span></button>
+      <div class="nav-spacer" aria-hidden="true"></div>
+      <div id="platformNavGroup" hidden><button class="nav" data-view="admin"><span class="nav-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3.4v5c0 4.4-3.1 8.2-7.5 9.2-4.4-1-7.5-4.8-7.5-9.2v-5z"/><path d="M9.2 12.2l2 2 3.6-3.9"/></svg></span><span class="nav-label">平台</span></button></div>
+      <button class="nav" data-view="me"><span class="nav-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="nav-label">设置</span></button>
     </nav>
 
     <div class="sidebar-bottom"><span class="health-dot" aria-hidden="true"></span><div><b>控制面在线</b><small id="sidebarSyncState">正在检查存储</small></div></div>
@@ -82,8 +59,8 @@
   <div class="shell-main">
   <!-- 顶栏：页面上下文 + 全局项目切换 + 关键操作 -->
   <header class="topbar">
-    <div class="page-context"><b id="pageTitle">首页</b><span>／ Agent 原生研发协作平台</span></div>
-    <button id="commandPaletteTrigger" class="command-trigger" type="button"><span>⌕</span><b>搜索需求、运行、SOP 或 Agent</b><kbd>⌘K</kbd></button>
+    <div class="page-context"><b id="pageTitle">首页</b></div>
+    <button id="commandPaletteTrigger" class="command-trigger" type="button"><span>⌕</span><b>搜索或执行操作…</b><kbd>⌘K</kbd></button>
     <div class="topbar-spacer"></div>
     <div class="topbar-project">
       <label class="topbar-project-label">项目</label>
@@ -91,6 +68,7 @@
       <button id="manageRepositories" class="button ghost small" type="button" title="管理当前项目的代码仓库">代码仓库</button>
     </div>
     <div class="top-actions">
+      <button id="langToggle" class="lang-toggle" type="button" title="中文 / English" data-i18n-skip><span data-l="zh">中</span><span data-l="en">EN</span></button>
       <button id="themeToggle" class="theme-toggle" type="button" title="切换亮色/深色主题"><span>☀</span><b>亮色</b></button>
       <div class="user-profile-wrap" id="userProfileWrap">
         <div id="userBadge" class="user-badge" tabindex="0" role="button" aria-haspopup="true" aria-expanded="false" title="点击或悬停查看个人信息">
@@ -129,7 +107,7 @@
     <!-- 需求与 Issue -->
     <section id="issuesView" class="view page-view">
       <div class="page-heading issue-heading">
-        <div><p class="eyebrow">需求与缺陷</p><h1>需求列表</h1><p>查看每条需求的执行结果。失败的点进去看卡在哪，再决定重试或修改。</p></div>
+        <div><p class="eyebrow">规划</p><h1>需求</h1><p>决定做什么、谁负责、走哪套 SOP。拖动卡片改状态，点开卡片看详情和执行结果。</p></div>
         <div class="heading-actions">
           <button id="refreshIssues" class="button ghost" type="button">↻ 刷新</button>
           <button id="openSyncModal" class="button ghost" type="button">⟳ 外部同步 <span id="syncBadge" class="sync-badge live">未配置</span></button>
@@ -151,8 +129,8 @@
         <select id="issueRunFilter" class="select"><option value="">全部执行情况</option><option value="not_started">尚未执行</option><option value="active">正在推进</option><option value="attention">需要介入</option><option value="closed">已闭环</option></select>
         <select id="sourceFilter" class="select"><option value="">全部来源</option><option value="local">本地</option><option value="github">GitHub</option></select>
         <div class="issue-view-toggle" role="group" aria-label="视图切换">
-          <button type="button" data-issue-view="table" class="active">列表</button>
-          <button type="button" data-issue-view="kanban">看板</button>
+          <button type="button" data-issue-view="kanban" class="active">看板</button>
+          <button type="button" data-issue-view="table">列表</button>
         </div>
       </div>
       <div id="issueBoard" class="issue-board"></div>
@@ -168,43 +146,50 @@
     <div id="kbDocModal" class="modal"><div class="modal-card kb-modal-card"><button type="button" class="modal-close" data-kb-doc-close>×</button><p class="eyebrow">引用来源</p><h2 id="kbDocTitle">原文</h2><p id="kbDocMeta" class="modal-hint mono"></p><div id="kbDocBody"></div></div></div>
 
     <section id="roomsView" class="view page-view">
-      <div class="rooms-shell">
+      <div class="rooms-shell" id="roomsShell">
         <aside class="rooms-list-pane">
-          <div class="rooms-pane-head"><b>群 <em id="roomCount">0</em></b><button id="newRoom" class="rooms-icon-btn" type="button" title="新建群">＋</button></div>
+          <div class="rooms-pane-head"><b>群聊 <em id="roomCount">0</em></b><button id="newRoom" class="rooms-icon-btn" type="button" title="新建群">＋</button></div>
           <div id="roomList" class="room-list"></div>
+          <div id="roomBots" class="room-bots"></div>
         </aside>
         <section class="rooms-chat-pane">
-          <div class="rooms-chat-head"><div><b id="roomTitle">选择一个群</b><span id="roomSubtitle">选择一个群</span></div><button id="renameRoom" class="rooms-icon-btn" type="button" title="重命名" hidden>✎</button></div>
+          <div class="rooms-chat-head">
+            <div class="rooms-chat-id"><span class="rooms-hash">#</span><div><b id="roomTitle">选择一个群</b><span id="roomSubtitle">选择一个群</span></div></div>
+            <div class="rooms-head-actions"><span id="roomFaces" class="room-faces"></span><button id="renameRoom" class="rooms-icon-btn" type="button" title="重命名" hidden>✎</button><button id="toggleRoomInfo" class="rooms-icon-btn" type="button" title="成员与 SOP" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></div>
+          </div>
           <div id="roomLog" class="room-log"></div>
           <form id="roomComposer" class="room-composer">
             <div class="room-composer-box">
               <div id="roomMention" class="room-mention" hidden></div>
-              <textarea id="roomInput" rows="2" maxlength="4000" placeholder="发消息，输入 @ 提醒同事"></textarea>
+              <div class="room-composer-picks"><span id="roomSOPPicks" class="room-picks room-issue-only"></span></div>
+              <textarea id="roomInput" rows="1" maxlength="4000" placeholder="发消息… @ 一条 SOP 就是派活，/ 看命令"></textarea>
               <div class="room-composer-bar">
+                <button type="button" class="room-tool" data-room-tool="at" title="@ 选 SOP 或成员">@</button>
+                <button type="button" class="room-tool" data-room-tool="slash" title="命令">/</button>
                 <div class="room-mode" role="tablist" aria-label="发送方式">
                   <button type="button" id="roomModeChat" class="on">消息</button>
-                  <button type="button" id="roomModeIssue">建单</button>
+                  <button type="button" id="roomModeIssue">派给 SOP</button>
                 </div>
-                <label class="room-chip room-issue-only"><span>SOP</span><select id="roomSOP"><option value="">添加 SOP…</option></select></label>
-                <span id="roomSOPPicks" class="room-picks room-issue-only"></span>
+                <label class="room-chip room-issue-only"><span>＋ SOP</span><select id="roomSOP"><option value="">添加 SOP…</option></select></label>
                 <span class="room-composer-spacer"></span>
+                <p id="roomTargetHint" class="room-target-hint room-issue-only"></p>
                 <button id="roomDispatch" class="button primary small room-issue-only" type="button">建单并派发</button>
-                <button id="roomSend" class="room-send room-chat-only" type="submit" title="发送">↑</button>
+                <button id="roomSend" class="room-send room-chat-only" type="submit" title="发送"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
               </div>
-              <p id="roomTargetHint" class="room-target-hint room-issue-only"></p>
             </div>
           </form>
         </section>
         <aside class="rooms-member-pane">
           <div id="roomResources" class="room-resources"></div>
         </aside>
+        <aside id="roomThread" class="room-thread-pane" hidden aria-label="执行过程"></aside>
       </div>
     </section>
 
     <!-- 运行记录 -->
     <section id="runsView" class="view page-view">
       <div class="page-heading runs-heading">
-        <div><p class="eyebrow">日常工作</p><h1>运行记录</h1></div>
+        <div><h1>运行</h1></div>
         <div class="heading-actions"><span id="runsLiveState" class="live-state"><i></i> 详情实时更新</span><button id="refreshRuns" class="button ghost">↻ 刷新</button></div>
       </div>
       <div id="runOverview" class="run-overview"></div>
@@ -224,7 +209,7 @@
     <!-- 待我处理 -->
     <section id="approvalsView" class="view page-view">
       <div class="page-heading approvals-heading">
-        <div><p class="eyebrow">需要拍板</p><h1>待我确认</h1><p>流程跑到人工确认节点时会停在这里。你批准后继续，退回则按 SOP 返工。</p></div>
+        <div><h1>运行</h1><p>流程停在人工确认节点时会出现在这里。通过后继续下游；节点配置了返工目标时，可以退回上游重做。快捷键：<kbd>A</kbd> 通过第一条。</p></div>
         <div class="heading-actions">
           <span class="live-state" id="approvalLiveState" title="列表不会自动刷新，点右侧按钮获取最新"><i></i> <span data-updated>未加载</span></span>
           <button id="refreshApprovals" class="button ghost">↻ 刷新</button>
@@ -385,12 +370,12 @@
         </aside>
         <div class="flow-resize" data-resize="outline" title="拖动调整宽度"></div>
         <div class="workspace-wrap">
-        <div class="canvas-toolbar"><div class="canvas-view-toggle"><button class="active" data-flow-view="canvas">画布</button><button data-flow-view="check">配置检查</button></div><div><button id="openAIOrchestrator" class="ai-orchestrator-trigger" type="button"><i>✦</i>AI 编排助手</button><button id="fitButton" class="button ghost small">自动整理</button><button id="deleteNode" class="button danger-outline small">删除节点</button></div></div>
+        <div class="canvas-toolbar"><div class="canvas-view-toggle"><button class="active" data-flow-view="canvas">画布</button><button data-flow-view="check">配置检查</button></div><div><button id="flowPropsToggle" type="button" class="flow-props-toggle on">属性面板</button><button id="openAIOrchestrator" class="ai-orchestrator-trigger" type="button"><i>✦</i>用对话改流程</button><button id="fitButton" class="button ghost small">自动整理</button><button id="deleteNode" class="button danger-outline small">删除节点</button></div></div>
         <div id="canvas" class="canvas">
           <div class="canvas-grid"></div>
           <svg id="edges" class="edges"><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#98a2b3"></path></marker><marker id="arrowHover" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"></path></marker><marker id="rejectArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#e26d6d"></path></marker><marker id="rejectArrowHover" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626"></path></marker></defs></svg>
           <div id="nodes"></div>
-          <button type="button" id="canvasAIEntry" class="canvas-ai-entry" hidden><i>✦</i>AI 对话辅助编排</button>
+          <button type="button" id="canvasAIEntry" class="canvas-ai-entry" hidden><i>✦</i>用对话搭流程</button>
           <div class="canvas-note"><span>— 成功依赖</span><span class="reject-legend">⇠ 失败打回</span><span class="canvas-hint-tag">💡 悬停连线点击 <b>×</b> 可删除</span><span>· 多个就绪节点自动并发</span></div>
         </div>
         <div id="flowCheckPanel" class="flow-check-panel" hidden></div>
@@ -398,12 +383,12 @@
         <div class="flow-resize" data-resize="props" title="拖动调整宽度"></div>
       <aside id="aiOrchestrator" class="ai-orchestrator" hidden>
         <div class="ai-orchestrator-head">
-          <b><i>✦</i>AI 编排助手</b>
+          <b><i>✦</i>用对话改流程</b>
           <div><button type="button" id="aiOrchestratorReset" class="rooms-icon-btn" title="新对话">＋</button><button type="button" id="closeAIOrchestrator" class="rooms-icon-btn" title="收起">×</button></div>
         </div>
         <div id="aiOrchestratorLog" class="ai-orchestrator-log">
           <div id="aiOrchestratorIntro" class="ai-orchestrator-intro">
-            <h3>您好，我是 <em>AI 编排助手</em></h3>
+            <h3>用一句话<em>改流程</em></h3>
             <p>画布是空的，就描述要搭的流程。画布上已经有流程时，直接说改哪一步，我会在原流程上调整，不用先清空。</p>
             <div class="ai-orchestrator-suggest-head"><span>可以试试这些场景：</span><button type="button" id="aiSuggestMore">换一批</button></div>
             <div id="aiOrchestratorSuggest" class="ai-orchestrator-suggest"></div>
@@ -497,7 +482,7 @@
     <!-- MCP 市场与安装管理 -->
     <section id="mcpView" class="view page-view">
       <div class="page-heading mcp-page-heading">
-        <div><p class="eyebrow">MCP MARKET</p><h1>MCP 管理</h1><p>市场 MCP 统一供给项目；个人范围仅管理自己添加的自定义 MCP。</p></div>
+        <div><p class="eyebrow">能力</p><h1>MCP</h1><p>市场 MCP 统一供给项目；个人范围仅管理自己添加的自定义 MCP。</p></div>
         <div class="heading-actions"><a class="button ghost" href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener noreferrer">更多 MCP ↗</a><button id="newCustomMcp" class="button primary" type="button">＋ 添加自定义 MCP</button></div>
       </div>
       <div class="mcp-toolbar panel">
@@ -615,28 +600,45 @@
       <header class="as-top">
         <div class="as-top-main">
           <h2 id="agentWizardTitle">新建角色</h2>
-          <p class="as-top-copy">先定身份，再写任务，最后勾技能。每一步只填人话，不用写 prompt。</p>
+          <p class="as-top-copy as-copy-simple">一句话说清它干什么，选好模型，挂上技能，就能用。</p>
+          <p class="as-top-copy as-copy-full">一页看全：身份、任务书、产物与门禁、技能工具。点左边目录跳转，⌘S 保存。</p>
         </div>
         <div class="as-top-meta">
+          <div class="as-mode" role="tablist" aria-label="编辑模式"><button type="button" data-agent-mode="simple" class="active">简单</button><button type="button" data-agent-mode="full">完整</button></div>
           <span id="agentVersion" class="as-version">v1</span>
           <button id="agentHistory" class="button ghost small" type="button">版本历史</button>
         </div>
       </header>
       <div id="agentSummaryBar" class="as-summary-row" aria-live="polite"></div>
       <nav class="as-steps" data-wizard-steps="agent">
-        <button type="button" class="active" data-step-target="1"><span class="as-step-num">1</span>身份</button>
-        <button type="button" data-step-target="2"><span class="as-step-num">2</span>任务</button>
-        <button type="button" data-step-target="3"><span class="as-step-num">3</span>产物与门禁</button>
-        <button type="button" data-step-target="4"><span class="as-step-num">4</span>技能、工具与 Hook</button>
+        <p class="as-steps-label">目录</p>
+        <button type="button" class="active" data-step-target="1"><span class="as-step-num">1</span><span><b>身份</b><small>名称 · CLI · 模型</small></span></button>
+        <button type="button" data-step-target="2"><span class="as-step-num">2</span><span><b>任务书</b><small>这个角色要做什么</small></span></button>
+        <button type="button" data-step-target="3"><span class="as-step-num">3</span><span><b>产物与门禁</b><small>交什么、怎么验收</small></span></button>
+        <button type="button" data-step-target="4"><span class="as-step-num">4</span><span><b>技能与工具</b><small>技能 · MCP · Hook</small></span></button>
       </nav>
       <div class="as-main">
-          <section class="as-pane wizard-pane active" data-step="1">
-            <div id="agentPresetHost"></div>
+          <section class="as-ai" id="agentAI">
+            <span class="as-ai-orb" aria-hidden="true"></span>
+            <div class="as-ai-body">
+              <b>一句话描述这个角色</b>
+              <small>说清它负责什么、不做什么。名称、标识、职责和任务书帮你写好，你只需要看一眼。</small>
+              <div class="as-ai-row"><input id="agentAIInput" autocomplete="off" placeholder="例如：盯着每个 PR 找安全漏洞，只提意见不改代码"><button type="button" class="button primary" id="agentAIGo">✦ 帮我写好</button></div>
+              <div class="as-ai-picks">
+                <button type="button" data-agent-example="读 Issue 和源码，写出根因与修复计划，不改代码">根因分析</button>
+                <button type="button" data-agent-example="按任务书改代码，跑通构建和测试后提交">写代码</button>
+                <button type="button" data-agent-example="独立审查每个 PR 的正确性和安全风险，只提意见不改代码">代码审查</button>
+                <button type="button" data-agent-example="根据验收标准补测试用例并跑回归">补测试</button>
+              </div>
+            </div>
+          </section>
+          <section class="as-pane wizard-pane active" data-step="1"><h3 class="as-pane-title"><i>1</i>身份</h3>
+            <div id="agentPresetHost" class="as-adv"></div>
             <div class="as-stack">
-              <p class="as-lead-line">名称给团队看，标识给系统和 API 用。每个角色选择一种内置 CLI。</p>
+              <p class="as-lead-line as-adv">名称给团队看，标识给系统和 API 用。每个角色选择一种内置 CLI。</p>
               <label class="as-field"><span>显示名称</span><input name="name" required placeholder="例如：Issue 根因分析师"></label>
               <div class="as-grid">
-                <label class="as-field"><span>标识 <small>创建后不能改</small></span><input name="id" required placeholder="issue-root-cause-analyst"></label>
+                <label class="as-field as-adv"><span>标识 <small>创建后不能改</small></span><input name="id" required placeholder="issue-root-cause-analyst"></label>
                 <label class="as-field"><span>CLI</span><select name="executorId" class="select" id="agentExecutorSelect"></select></label>
               </div>
               <label class="as-field"><span>职责 <small>一句话说明这个角色负责什么、不负责什么</small></span><textarea name="description" rows="3" placeholder="读 Issue 和源码，写出根因与修复计划。不改业务代码、不跑测试。"></textarea></label>
@@ -650,7 +652,7 @@
                     <div class="ai-model-menu" hidden role="listbox"></div>
                   </div>
                 </div>
-                <div class="as-field"><span>思考强度 <small>可选</small></span>
+                <div class="as-field as-adv"><span>思考强度 <small>可选</small></span>
                   <div class="clarify-model-field" id="agentEffortPicker" data-clarify-model>
                     <input type="hidden" name="effort" value="">
                     <button type="button" class="ai-model-toggle" data-model-toggle aria-haspopup="listbox" aria-expanded="false">
@@ -661,29 +663,31 @@
                 </div>
               </div>
               <label class="as-field" id="agentModelCustomField" hidden><span>自定义模型 ID <small>使用自定义 Base URL 时，填服务商提供的模型名</small></span><input name="model" placeholder="例如：gpt-5.6-terra"></label>
-              <label class="as-toggle as-share-toggle"><input name="shared" type="checkbox"><div><b>共享给其他项目</b><small>打开后，别的项目能在「共享角色」里看到并选用这个角色</small></div></label>
+              <label class="as-toggle as-share-toggle as-adv"><input name="shared" type="checkbox"><div><b>共享给其他项目</b><small>打开后，别的项目能在「共享角色」里看到并选用这个角色</small></div></label>
             </div>
           </section>
-          <section class="as-pane wizard-pane" data-step="2">
+          <section class="as-pane wizard-pane" data-step="2"><h3 class="as-pane-title"><i>2</i>任务书</h3>
             <div id="agentTaskBookPanel"></div>
             <details class="as-fold as-fold-muted">
               <summary>补充系统指令<em>可选，任务书为空时才当主 prompt</em></summary>
               <div class="as-fold-body"><label class="as-field"><span>额外约束</span><textarea name="instructions" rows="5" placeholder="角色边界、禁止事项。有结构化任务书时，这里只作补充。"></textarea></label></div>
             </details>
           </section>
-          <section class="as-pane wizard-pane" data-step="3">
+          <section class="as-pane wizard-pane" data-step="3"><h3 class="as-pane-title"><i>3</i>产物与门禁</h3>
             <div id="agentGovPanel"></div>
           </section>
-          <section class="as-pane wizard-pane" data-step="4">
+          <section class="as-pane wizard-pane" data-step="4"><h3 class="as-pane-title"><i>4</i>技能、工具与 Hook</h3><p class="as-simple-more">任务书、产物门禁、Hook 等进阶配置在 <button type="button" class="link-button" data-agent-mode="full">完整模式</button> 里，不配也能直接跑。</p>
             <div id="agentAssetsPanel"></div>
           </section>
       </div>
       <footer class="as-footer wizard-actions">
-        <button id="agentPrev" type="button" class="button ghost" disabled>上一步</button>
-        <span id="agentStepHint">1 / 4</span>
+        <button id="agentPrev" type="button" class="button ghost" hidden disabled>上一步</button>
+        <span id="agentStepHint" class="as-dirty-hint"><i></i><em class="as-saved">已保存</em><em class="as-unsaved">有未保存的修改</em></span>
+        <kbd class="as-kbd">⌘S</kbd>
         <button id="agentClone" type="button" class="button primary" hidden>复制到本项目</button>
-        <button id="agentSave" type="submit" class="button ghost">保存</button>
-        <button id="agentNext" type="button" class="button primary">下一步</button>
+        <button type="button" class="button ghost agent-close-alt" id="agentCloseAlt">关闭</button>
+        <button id="agentSave" type="submit" class="button primary">保存</button>
+        <button id="agentNext" type="button" class="button primary" hidden>下一步</button>
       </footer>
     </form>
   </div>
@@ -946,45 +950,45 @@
   </div>
   <div id="commandPalette" class="command-palette" hidden>
     <div class="command-dialog">
-      <div class="command-search"><span>⌕</span><input id="commandSearch" autocomplete="off" placeholder="搜索需求、运行、SOP、Agent，或输入页面名称…"><kbd>ESC</kbd></div>
+      <div class="command-search"><span>⌕</span><input id="commandSearch" autocomplete="off" placeholder="搜索，或输入操作：新建需求、通过、跑演示、切换主题…"><kbd>ESC</kbd></div>
       <div id="commandResults" class="command-results"></div>
       <div class="command-footer"><span>↑↓ 浏览</span><span>Enter 打开</span><span>⌘K 快速唤起</span></div>
     </div>
   </div>
   <div id="revisionModal" class="modal"><div class="modal-card revision-card"><button type="button" class="modal-close" id="revisionClose">×</button><div class="wizard-head"><div><p class="eyebrow">版本历史</p><h2 id="revisionTitle">版本历史</h2><p>对比上一版并回退。回退会生成新版本，不会改已经跑完的记录。</p></div></div><div id="revisionList" class="revision-list"></div><pre id="revisionDiff" class="revision-diff">选择一个历史版本查看差异。</pre><div class="wizard-actions"><button type="button" class="button ghost" id="revisionClose2">关闭</button><button type="button" class="button primary" id="revisionRestore" disabled>回退到此版本</button></div></div></div>
-  <script src="/app.js?v=20261013c1"></script>
-  <script src="/app/access.js?v=20261013c1"></script>
+  <script src="/app.js?v=20261014g"></script>
+  <script src="/app/access.js?v=20261014g"></script>
   <script src="/app/dashboards.js"></script>
-  <script src="/app/sops.js?v=20261013r2"></script>
+  <script src="/app/sops.js?v=20261014g"></script>
   <script src="/app/issue-model.js"></script>
   <script src="/app/projects.js"></script>
   <script src="/app/business-domains.js"></script>
-  <script src="/app/composer.js?v=20261013r1"></script>
-  <script src="/app/issues.js?v=20261013r7"></script>
+  <script src="/app/composer.js?v=20261014g"></script>
+  <script src="/app/issues.js?v=20261014g"></script>
   <script src="/app/sync-schedule.js"></script>
-  <script src="/app/flows.js?v=20261013r2"></script>
+  <script src="/app/flows.js?v=20261014g"></script>
   <script src="/app/agents.js"></script>
   <script src="/app/mcp.js"></script>
   <script src="/app/assets.js"></script>
   <script src="/app/runners.js"></script>
-  <script src="/app/runs.js?v=20261013r1"></script>
-  <script src="/app/workbench.js?v=20261013c1"></script>
-  <script src="/app/approvals.js?v=20261013r3"></script>
+  <script src="/app/runs.js?v=20261014g"></script>
+  <script src="/app/workbench.js?v=20261014g"></script>
+  <script src="/app/approvals.js?v=20261014g"></script>
   <script src="/app/observability.js"></script>
-  <script src="/app/issue-drawer.js?v=20261013c1"></script>
+  <script src="/app/issue-drawer.js?v=20261014g"></script>
   <script src="/app/revisions.js"></script>
-  <script src="/app/plugins.js?v=20261013c1"></script>
-  <script src="/app/quickstart.js?v=20261013c1"></script>
-  <script src="/app/doctor.js?v=20261013r1"></script>
-  <script src="/app/homechat.js?v=20261013c1"></script>
-  <script src="/app/setup-wizard.js?v=20261013r3"></script>
-  <script src="/app/onboarding.js?v=20261013c1"></script>
+  <script src="/app/plugins.js?v=20261014g"></script>
+  <script src="/app/quickstart.js?v=20261014g"></script>
+  <script src="/app/doctor.js?v=20261014g"></script>
+  <script src="/app/homechat.js?v=20261014g"></script>
+  <script src="/app/setup-wizard.js?v=20261014g"></script>
+  <script src="/app/onboarding.js?v=20261014g"></script>
   <script src="/app/start.js"></script>
   </div>
   </div>
   <script src="/knowledge.js?v=20261008r1"></script>
-  <script src="/rooms.js?v=20261012r1"></script>
-  <script src="/orchestrate.js?v=20261013r1"></script>
-  <script src="/assistant.js?v=20261013c1"></script>
+  <script src="/rooms.js?v=20261014g"></script>
+  <script src="/orchestrate.js?v=20261014g"></script>
+  <script src="/assistant.js?v=20261014g"></script>
 </body>
 </html>

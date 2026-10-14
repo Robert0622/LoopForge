@@ -77,6 +77,18 @@ type ChatMessage struct {
 	// CanReject is view-only: the waiting step has somewhere to send work back.
 	CanReject bool `json:"canReject,omitempty"`
 
+	// Crew is the mission state on a "crew" message; CrewID ties a
+	// "crew_post" (a bot or the captain speaking) back to its mission.
+	Crew   *CrewMission `json:"crew,omitempty"`
+	CrewID string       `json:"crewId,omitempty"`
+	// ReplyTo quotes an earlier message; author and text are copied so the
+	// quote survives the original being trimmed out of the window.
+	ReplyTo     string `json:"replyTo,omitempty"`
+	ReplyAuthor string `json:"replyAuthor,omitempty"`
+	ReplyText   string `json:"replyText,omitempty"`
+	// Pending marks a bot reply that is still being written.
+	Pending bool `json:"pending,omitempty"`
+
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -87,4 +99,6 @@ const (
 	ChatKindProgress = "progress"
 	ChatKindApproval = "approval"
 	ChatKindDecision = "decision"
+	ChatKindCrew     = "crew"
+	ChatKindCrewPost = "crew_post"
 )

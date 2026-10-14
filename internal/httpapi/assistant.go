@@ -50,6 +50,10 @@ type assistantLaunch struct {
 	Description string `json:"description,omitempty"`
 	WorkflowID  string `json:"workflowId,omitempty"`
 	IssueID     string `json:"issueId,omitempty"`
+	// Mode is the PM's pick: "sop" runs a fixed SOP, "crew" hands open-ended
+	// work to the room's bots. The user can switch it on the card.
+	Mode       string `json:"mode,omitempty"`
+	ModeReason string `json:"modeReason,omitempty"`
 }
 type assistantRequest struct {
 	ProjectID    string             `json:"projectId"`

@@ -135,3 +135,36 @@ func (r *RoomsRepo) PutMessage(v domain.ChatMessage) error {
 		"payload": mustJSON(v), "created_at": timePtr(v.CreatedAt),
 	})
 }
+
+// CrewMessages lists the crew mission messages of one room, or of every room
+// when roomID is empty, oldest first.
+func (r *RoomsRepo) CrewMessages(roomID string) []domain.ChatMessage {
+	q := r.DB.Table("chat_messages").Where("kind = ?", domain.ChatKindCrew).Order("created_at asc")
+	if roomID = strings.TrimSpace(roomID); roomID != "" {
+		q = q.Where("room_id = ?", roomID)
+	}
+	var rows []chatMessageRow
+	if err := q.Find(&rows).Error; err != nil {
+		return nil
+	}
+	out := make([]domain.ChatMessage, 0, len(rows))
+	for _, row := range rows {
+		var item domain.ChatMessage
+		if json.Unmarshal(row.Payload, &item) != nil || item.Crew == nil {
+			continue
+		}
+		if item.ID == "" {
+			item.ID = row.ID
+		}
+		if item.RoomID == "" {
+			item.RoomID = row.RoomID
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+// Message loads one chat message by id.
+func (r *RoomsRepo) Message(id string) (domain.ChatMessage, bool) {
+	return payloadOne[domain.ChatMessage](r.DB, "chat_messages", strings.TrimSpace(id))
+}

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('path');
 const source = fs.readFileSync(path.join(__dirname, 'app/homechat.js'), 'utf8');
-const css = fs.readFileSync(path.join(__dirname, 'onboarding.css'), 'utf8');
+const css = ['onboarding.css', 'design.css'].map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
 assert.match(source, /function renderHomeChat/);
 assert.match(source, /\/api\/assistant\/chat/, 'the home chat is the platform assistant, not a clarify-only entry');
 assert.match(source, /scene: 'home'/);

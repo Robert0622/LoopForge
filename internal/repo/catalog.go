@@ -389,7 +389,8 @@ func (r *CatalogRepo) Workflows() []domain.WorkflowDefinition {
 	out := make([]domain.WorkflowDefinition, 0, len(stored)+len(generic))
 	for _, workflow := range stored {
 		workflow = normalizeWorkflowDefinition(workflow)
-		if reserved[workflow.ID] {
+		// Crew steps are one-off single-role runs, not SOPs anyone picks.
+		if reserved[workflow.ID] || workflow.Status == domain.WorkflowStatusCrew {
 			continue
 		}
 		out = append(out, workflow)

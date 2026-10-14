@@ -15,6 +15,8 @@ type dispatchRequest struct {
 	IssueID, WorkflowID, ScheduleJobID, TriggerOrigin string
 	Rerun                                             bool
 	TriggerUserID                                     int64
+	// ExtraInput is appended to the issue input, e.g. a crew step's brief.
+	ExtraInput string
 }
 
 func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
@@ -165,6 +167,9 @@ func dispatchIssue(d *deps, req dispatchRequest) (domain.Task, error) {
 			}
 		}
 		input += "\n- SOP deliverables (fix-plan.md and other reports not tied to one repository) go to the workspace root, never inside a repository directory\n- do not write to any host absolute path"
+	}
+	if extra := strings.TrimSpace(req.ExtraInput); extra != "" {
+		input += "\n\n" + extra
 	}
 	input = appendSOPHandoff(issue, project, workflowID, input)
 	taskID, dispatchMode := primaryTaskID(issue.ID, workflowID), "primary"

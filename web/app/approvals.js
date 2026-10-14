@@ -19,13 +19,6 @@ function reworkTarget(node,nodes){
   if(!id)return null;
   return {id,name:(nodes||[]).find(n=>n.id===id)?.name||id};
 }
-function waitingActionButtons(runId,nodeId,nr,node,nodes){
-  if(turnsExhausted(nr))return `<button class="button primary small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">重试本节点</button><button class="button danger-outline small" data-decline-retry="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">不重试</button>`;
-  const target=reworkTarget(node,nodes);
-  const rework=target?`<button class="button ghost small" data-reject="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}" data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`:'';
-  const retry=node?.type==='approval'?'':`<button class="button ghost small" data-retry-node="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">补充信息，重跑当前节点</button>`;
-  return `<button class="button primary small" data-approve="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}">确认通过，继续下游</button>${retry}${rework}`;
-}
 function humanGateSectionsHTML(nr,node){
   if(turnsExhausted(nr)){
     return `<div class="callout-section"><strong class="callout-label">说明</strong><p class="callout-text">${escapeHTML(nr?.error||'请确认是否重试本节点。不重试则本节点失败。')}</p></div>`;
@@ -53,9 +46,29 @@ function humanGateSectionsHTML(nr,node){
   }
   return sections.join('');
 }
-function humanDecisionPanelHTML(runId,nodeId,nr,node,nodes){
+// One decision card for run detail, 待我确认 and the issue drawer. Run detail binds
+// buttons by node id (runId omitted); the other two bind by run id plus data-node.
+function decisionCardHTML({runId='',nodeId,nr,node,nodes,compact=false}){
+  const exhausted=turnsExhausted(nr);
+  const attrs=key=>runId?`data-${key}="${escapeHTML(runId)}" data-node="${escapeHTML(nodeId)}"`:`data-${key}="${escapeHTML(nodeId)}"`;
+  const target=exhausted?null:reworkTarget(node,nodes);
   const field=isScriptWorkflowNode(node)?'':humanContextFieldHTML();
-  return `<div class="human-decision" data-human-context-root><div class="human-gate-brief">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="ap-buttons">${waitingActionButtons(runId,nodeId,nr,node,nodes)}</div></div>`;
+  const nodeTitle=escapeHTML(node?.name||nodeId||'当前节点');
+  const title=exhausted?'对话轮次已用尽':(nr?.gateResult?.decision==='human'||node?.type==='approval'?'等你确认':'需要人工判断');
+  let actions;
+  if(exhausted){
+    actions=`<button class="button primary" ${attrs('retry-node')}>重试本节点</button><button class="button ghost" ${attrs('decline-retry')}>不重试</button>`;
+  }else{
+    const reject=target
+      ?`<button class="button ghost decision-reject" ${attrs('reject')} data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`
+      :`<span class="decision-hint" title="在流程设计里给这个节点配置「失败返工」目标后，这里可以退回上游重做">未配置返工目标，不能退回</span>`;
+    const retry=node?.type==='approval'?'':`<button class="button ghost" ${attrs('retry-node')}>补充信息，重跑当前节点</button>`;
+    actions=`<button class="button primary decision-approve" ${attrs('approve')}>确认通过，继续下游</button><kbd class="decision-kbd" title="快捷键">A</kbd>${retry}${reject}`;
+  }
+  return `<div class="decision-card approval-callout human${compact?' is-compact':''}" data-human-context-root><div class="decision-head"><span class="decision-pulse" aria-hidden="true"></span><b>${title}</b><span class="decision-node">步骤 · ${nodeTitle}</span></div><div class="decision-brief">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="decision-actions ap-buttons">${actions}</div></div>`;
+}
+function humanDecisionPanelHTML(runId,nodeId,nr,node,nodes){
+  return decisionCardHTML({runId,nodeId,nr,node,nodes,compact:true});
 }
 function failedNodeId(run){
   const nodes=run?.workflowSnapshot?.nodes||[];
@@ -195,16 +208,7 @@ function pausedRunPanelHTML(run){
 }
 function approvalCalloutHTML(node,nr,nodes){
   nodes=nodes||state.activeRun?.workflowSnapshot?.nodes||[];
-  const field=isScriptWorkflowNode(node)?'':humanContextFieldHTML();
-  const nodeTitle=escapeHTML(node?.name||node?.id||'当前节点');
-  const gate=nr?.gateResult;
-  const target=reworkTarget(node,nodes);
-  const rework=turnsExhausted(nr)?'':(target?`<button class="button ghost" data-reject="${node.id}" data-target="${escapeHTML(target.id)}" data-target-name="${escapeHTML(target.name)}">退回上游「${escapeHTML(target.name)}」并重跑后续</button>`:'');
-  const buttons=turnsExhausted(nr)
-    ? `<button class="button primary" data-retry-node="${node.id}">重试本节点</button><button class="button ghost" data-decline-retry="${node.id}">不重试</button>`
-    : `<button class="button primary" data-approve="${node.id}">确认通过，继续下游</button>${node?.type==='approval'?'':`<button class="button ghost" data-retry-node="${node.id}">补充信息，重跑当前节点</button>`}${rework}`;
-  const title=turnsExhausted(nr)?'对话轮次已用尽':(gate?.decision==='human'?'等待人工确认':'需要人工判断');
-  return `<div class="approval-callout human" data-human-context-root><div class="callout-head"><div class="callout-title-row"><span class="callout-badge human">待确认</span><b class="callout-title">${title}</b><span class="callout-node-name">步骤：<b>${nodeTitle}</b></span></div></div><div class="callout-content">${humanGateSectionsHTML(nr,node)}</div>${field}<div class="ap-buttons">${buttons}</div></div>`;
+  return decisionCardHTML({nodeId:node?.id||'',nr,node,nodes});
 }
 async function retryWaitingNode(runId,nodeId,fromEl){
   const issue=(state.data.issues||[]).find(i=>i.id===issueIdForRun(runId))||state.issueDetailData?.issue;
@@ -338,8 +342,10 @@ async function renderApprovals(background=false){
     const sideButton=issue?`<button class="button ghost small" data-open-issue="${escapeHTML(issue.id)}">打开需求</button>`:`<button class="button ghost small" data-open-logs="${escapeHTML(r.id)}">${alignRun?'查看对齐详情':'排查日志'}</button>`;
     const decision=r.pauseRequested?pausedRunPanelHTML(r):humanDecisionPanelHTML(r.id,nodeId,r.nodes?.[nodeId],node,r.workflowSnapshot?.nodes||[]);
     const shareBtn=r.pauseRequested?'':`<button class="button ghost small" data-share-gate="${escapeHTML(r.id)}" data-node="${escapeHTML(nodeId||'')}">复制外部审批链接</button>`;
-    return `<article class="ap-card attention"><div class="ap-main"><div class="ap-head"><span class="run-kind gate">待确认</span><b>${escapeHTML(title)}</b><span class="status ${r.pauseRequested?'paused':'waiting'}">${r.pauseRequested?'已暂停':'待确认'}</span></div><div class="ap-meta">${escapeHTML(key)} ｜ ${r.pauseRequested?'暂停于':'卡在'}「${escapeHTML(node?.name||nodeId||'确认')}」｜ 已等待 ${relativeTime(r.createdAt)}</div></div><div class="ap-actions">${decision}${!r.pauseRequested?refreshRunSOPButtonHTML(r):''}${shareBtn}${sideButton}<button class="button ghost small danger" data-cancel-run="${escapeHTML(r.id)}">取消流程</button></div></article>`;
-  }).join('')||'<div class="approval-empty"><div class="empty-box">没有需要你拍板的需求</div></div>';
+    const steps=(r.workflowSnapshot?.nodes||[]).map(n=>{const st=r.nodes?.[n.id]?.status||'pending';return `<i class="is-${escapeHTML(st)}" title="${escapeHTML(n.name||n.id)}"></i>`}).join('');
+    return `<article class="ap-card attention"><div class="ap-main"><div class="ap-head"><span class="mono ap-key">${escapeHTML(key)}</span><b>${escapeHTML(title)}</b><span class="status ${r.pauseRequested?'paused':'waiting'}">${r.pauseRequested?'已暂停':'待确认'}</span></div><div class="ap-meta"><span class="ap-steps" aria-hidden="true">${steps}</span>${r.pauseRequested?'暂停于':'停在'}「${escapeHTML(node?.name||nodeId||'确认')}」· 已等待 ${relativeTime(r.createdAt)}</div></div>${decision}<div class="ap-footer">${!r.pauseRequested?refreshRunSOPButtonHTML(r):''}${sideButton}${shareBtn}<span class="ap-footer-spacer"></span><button class="button ghost small danger" data-cancel-run="${escapeHTML(r.id)}">取消流程</button></div></article>`;
+  }).join('')||'<div class="lf-empty"><div class="lf-empty-orb" aria-hidden="true"></div><b>没有需要你拍板的事</b><p>流程停在人工确认节点时会出现在这里，侧边栏「运行」上也会亮起角标。</p><button type="button" class="button ghost small" data-view="runs">查看全部运行</button></div>';
+  $$('[data-approval-count]').forEach(el=>{el.hidden=!items.length;el.textContent=items.length||''});
   host.querySelectorAll('[data-open-issue]').forEach(b=>b.onclick=()=>openIssueDetail(b.dataset.openIssue,'sop'));
   host.querySelectorAll('[data-open-logs]').forEach(b=>b.onclick=()=>openRunFromId(b.dataset.openLogs,{forceRuns:true}));
   host.querySelectorAll('[data-cancel-run]').forEach(b=>b.onclick=()=>cancelRunFlow(b.dataset.cancelRun));

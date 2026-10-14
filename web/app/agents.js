@@ -9,7 +9,11 @@ function renderAgents(){
   const used=new Map();(state.data.workflows||[]).forEach(w=>(w.nodes||[]).forEach(n=>{if(n.agentId)used.set(n.agentId,(used.get(n.agentId)||0)+1)}));
   $('#agentCatalogStats').innerHTML=`<span><b>${agents.length}</b> 个${state.agentScope==='shared'?'共享':'项目'}角色</span><span><b>${agents.reduce((n,a)=>n+(a.skills?.length||0),0)}</b> 项技能绑定</span><span><b>${agents.reduce((n,a)=>n+(a.mcpServers?.length||0),0)}</b> 个 MCP 连接</span>`;
   const empty=state.agentScope==='shared'?'还没有共享给当前项目的角色。':'当前项目还没有角色。可以新建，或从共享角色复制后改。';
-  list.innerHTML=agents.map((a,index)=>{const initials=(a.name||'AI').replace(/[^A-Za-z\u4e00-\u9fa5]/g,'').slice(0,2),tone=['blue','purple','green','amber'][index%4];const exec=(state.data.executors||[]).find(x=>x.id===a.executorId);return`<article class="definition-card" data-agent-id="${escapeHTML(a.id)}"><header><span class="definition-avatar ${tone}">${escapeHTML(initials)}</span><div><h3>${escapeHTML(a.name)}</h3><code>${escapeHTML(a.id)}</code></div><span class="definition-version">v${a.version||1}</span></header><p>${escapeHTML(a.description||'尚未填写职责说明')}</p><div class="agent-runtime-summary"><span>${escapeHTML(a.model||exec?.model||exec?.name||'未选模型')}</span><span class="${a.loop?.enabled?'active':''}">${a.loop?.enabled?`${a.loop.maxIterations||1} 轮 Loop`:'单轮'}</span><span>${a.artifactOutputs?.length||0} 产物</span><span>${a.verification?.length||0} 门禁</span><span>${a.hooks?.length||0} Hook</span></div><div class="definition-assets"><span><i>R</i>${a.rules?.length||0} 规则</span><span><i>S</i>${a.skills?.length||0} 技能</span><span><i>M</i>${a.mcpServers?.length||0} MCP</span></div><footer><span>用于 <b>${used.get(a.id)||0}</b> 个流程节点</span>${shareBadge(a,'agent')}${catalogOwned(a.projectId)?`<button type="button" class="scope-share delete-action" data-delete-agent="${escapeHTML(a.id)}" ${a.shared?'disabled title="共享状态的角色不能删除，请先取消共享"':(used.get(a.id)?'disabled title="角色仍被流程引用，请先解除引用"':'')}>删除</button>`:''}<button type="button">编辑 <i>›</i></button></footer></article>`}).join('')||`<div class="catalog-empty"><span>AI</span><b>${empty}</b><p>调整搜索，或新建一个角色。</p></div>`;
+  const hue=t=>{let h=0;for(const c of String(t||''))h=(h*31+c.charCodeAt(0))%360;return h};
+  list.innerHTML=agents.map(a=>{const initials=(a.name||'AI').replace(/[^A-Za-z\u4e00-\u9fa5]/g,'').slice(0,2)||'AI';const exec=(state.data.executors||[]).find(x=>x.id===a.executorId);const n=used.get(a.id)||0;
+    const meta=[`${a.skills?.length||0} 技能`,`${a.mcpServers?.length||0} MCP`,n?`用在 ${n} 个步骤`:'还没用在流程里'].join(' · ');
+    return`<article class="definition-card role-card" data-agent-id="${escapeHTML(a.id)}" style="--h:${hue(a.id)}"><header><span class="role-avatar">${escapeHTML(initials)}</span><div><h3>${escapeHTML(a.name)}</h3><small>${escapeHTML(exec?.name||a.executorId||'未选 CLI')}${a.model?` · ${escapeHTML(a.model)}`:''}${a.loop?.enabled?` · ${a.loop.maxIterations||1} 轮`:''}</small></div>${a.shared?'<span class="role-shared">共享</span>':''}</header><p>${escapeHTML(a.description||'尚未填写职责说明')}</p><footer><span class="role-meta">${escapeHTML(meta)}</span><span class="role-actions">${shareBadge(a,'agent')}${catalogOwned(a.projectId)?`<button type="button" class="scope-share delete-action" data-delete-agent="${escapeHTML(a.id)}" ${a.shared?'disabled title="共享状态的角色不能删除，请先取消共享"':(n?'disabled title="角色仍被流程引用，请先解除引用"':'')}>删除</button>`:''}</span><span class="role-open">编辑 ›</span></footer></article>`}).join('')+(state.agentScope==='shared'?'':`<button type="button" class="role-card role-new" id="agentNewCard"><span class="role-new-orb" aria-hidden="true"></span><b>一句话新建角色</b><small>说清它干什么，剩下的帮你填好</small></button>`)||`<div class="catalog-empty"><span>AI</span><b>${empty}</b><p>调整搜索，或新建一个角色。</p></div>`;
+  $('#agentNewCard')&&($('#agentNewCard').onclick=()=>openAgentWizard());
   list.querySelectorAll('[data-share-agent]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();toggleShare('agent',btn.dataset.shareAgent)});
   list.querySelectorAll('[data-clone-agent]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();cloneAgent(btn.dataset.cloneAgent)});
   list.querySelectorAll('[data-delete-agent]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();if(btn.disabled)return;deleteAgent(btn.dataset.deleteAgent)});
@@ -135,7 +139,7 @@ function openAgentWizard(agent=null,initialStep=1){
   const open=a=>{
     const presetHost=$('#agentPresetHost');if(presetHost)presetHost.dataset.ready='';
     selectAgent(a||{id:'',name:'',version:1,projectId:state.projectFilter||'',shared:false,description:'',instructions:'',taskPrompt:{},rules:[],skills:[],mcpServers:[],hooks:[],loop:{enabled:false,maxIterations:3,onExhausted:'fail'},interventions:[],artifactOutputs:[],verification:[]},false);
-    setAgentWizardStep(initialStep);$('#agentModal').classList.add('open');
+    bindAgentStudio();$('#agentForm').classList.remove('is-dirty');$('#agentForm').classList.toggle('is-creating',!agent);setAgentStudioMode(initialStep>1?'full':(localStorage.getItem('loopforge.agentMode')||'simple'),false);if($('#agentAIInput'))$('#agentAIInput').value='';$('#agentModal').classList.add('open');setAgentWizardStep(initialStep,initialStep>1);
     if(catalogGeneric(state.workflow))loadMCPMarket().then(()=>{const current=workflowAgent(state.selectedAgent)||state.agentDraft||a;if(current)renderAgentAssetsPanel(current)});
   };
   if(agent?.id && !agent.instructions){
@@ -145,32 +149,80 @@ function openAgentWizard(agent=null,initialStep=1){
   open(agent);
 }
 function applyAgentPreset(id){const p=agentPresets.find(x=>x.id===id),f=$('#agentForm');if(!p)return;f.elements.id.value=f.elements.id.value||`${id}-${Math.random().toString(36).slice(2,6)}`;f.elements.name.value=p.title;f.elements.description.value=p.desc;f.elements.instructions.value=p.instructions;$$('[data-agent-preset]').forEach(b=>b.classList.toggle('active',b.dataset.agentPreset===id));renderAgentSummary();toast(`已套用「${p.name}」模板，可直接保存或继续调整`)}
-function setAgentWizardStep(step){
+function setAgentWizardStep(step,scroll=true){
   const f=$('#agentForm');
-  if(step>1&&state.agentWizardStep===1&&(!f.elements.id.value.trim()||!f.elements.name.value.trim()))return toast('选择模板或填写标识和名称');
   state.agentWizardStep=Math.max(1,Math.min(4,step));
-  f.querySelectorAll('.wizard-pane').forEach(p=>p.classList.toggle('active',Number(p.dataset.step)===state.agentWizardStep));
-  f.querySelectorAll('[data-wizard-steps="agent"] [data-step-target]').forEach(b=>{
-    const n=Number(b.dataset.stepTarget);
-    b.classList.toggle('active',n===state.agentWizardStep);
-    b.classList.toggle('done',n<state.agentWizardStep);
-  });
-  $('#agentPrev').disabled=state.agentWizardStep===1;
-  $('#agentNext').hidden=state.agentWizardStep===4;
-  $('#agentNext').textContent=state.agentWizardStep===1?'下一步：任务':state.agentWizardStep===2?'下一步：门禁':'下一步：技能';
+  f.querySelectorAll('.wizard-pane').forEach(p=>p.classList.add('active'));
+  f.querySelectorAll('[data-wizard-steps="agent"] [data-step-target]').forEach(b=>b.classList.toggle('active',Number(b.dataset.stepTarget)===state.agentWizardStep));
+  const main=f.querySelector('.as-main'),pane=f.querySelector(`.wizard-pane[data-step="${state.agentWizardStep}"]`);
+  if(scroll&&main&&pane){state.agentScrollLock=Date.now();main.scrollTo({top:state.agentWizardStep===1?0:pane.offsetTop-main.offsetTop-8,behavior:'smooth'})}
   const save=$('#agentSave');
   const foreign=agentWizardForeign(agentWizardSubject());
   save.hidden=foreign;
   save.textContent='保存';
-  save.classList.toggle('primary',state.agentWizardStep===4);
-  save.classList.toggle('ghost',state.agentWizardStep!==4);
+  save.classList.add('primary');save.classList.remove('ghost');
   const cloneBtn=$('#agentClone');
   if(cloneBtn)cloneBtn.hidden=catalogGeneric(state.workflow)||!foreign;
-  $('#agentStepHint').textContent=`${state.agentWizardStep} / 4`;
-  if(state.agentWizardStep===3&&state.selectedAgent){const a=agentWizardSubject();renderAgentGovernance(a)}
+  if(state.agentWizardStep===3&&state.selectedAgent&&scroll){const a=agentWizardSubject();renderAgentGovernance(a)}
   renderAgentSummary();
 }
-async function saveAgent(e){e.preventDefault();const f=e.currentTarget;const existing=state.data.agents.find(a=>a.id===f.elements.id.value);if(!catalogGeneric(state.workflow)&&existing&&catalogForeign(existing.projectId))return toast('这是其他项目的共享角色，请先复制到本项目再改');const checked=name=>[...f.querySelectorAll(`input[name="${name}"]:checked`)].map(x=>x.value);const draft=readAgentDraft(f);const artifacts=draft.artifactOutputs.map((x,i)=>({name:x.name||`artifact-${i+1}`,path:x.path||'result.md',mediaType:x.path?.endsWith('.json')?'application/json':(x.mediaType||'text/markdown'),required:!!x.required})),verification=draft.verification.map((gate,i)=>({id:gate.id||`gate-${i+1}`,name:gate.name||`门禁 ${i+1}`,mode:'command',stage:'after_execution',commands:(gate.commands||[]).map(c=>String(c||'').trim()).filter(Boolean),required:true,onFailure:['loop','reject','fail','human'].includes(gate.onFailure)?gate.onFailure:'loop',executionScope:gate.executionScope==='repositories'?'repositories':'run'})).filter(g=>g.commands.length),hooks=(draft.hooks||[]).map((h,i)=>({id:String(h.id||`hook-${i+1}`).trim(),name:String(h.name||`Hook ${i+1}`).trim(),event:h.event||'PreToolUse',matcher:String(h.matcher||'').trim(),language:h.language==='python'?'python':'shell',script:String(h.script||'').trim(),timeoutSec:Number(h.timeoutSec)||10,executionScope:h.executionScope==='repositories'?'repositories':'run'})).filter(h=>h.script),interventions=[];if(f.elements.interventionAfter?.checked)interventions.push({id:'human-review',name:'人工结果复核',stage:'after_execution',required:true});if(f.elements.interventionPublish?.checked)interventions.push({id:'publish-approval',name:'产物发布确认',stage:'before_publish',required:true});const a={id:f.elements.id.value.trim(),name:f.elements.name.value.trim(),version:(existing?.version||0)+1,projectId:existing?(existing.projectId||state.projectFilter||''):(state.projectFilter||''),shared:!!f.elements.shared?.checked,description:f.elements.description.value,instructions:f.elements.instructions.value,taskPrompt:draft.taskPrompt,executorId:f.elements.executorId?.value||'',model:agentEffectiveModel(f),effort:f.elements.effort?.value||'',rules:checked('rules'),skills:checked('skills'),mcpServers:checked('mcpServers'),platformMcp:!!f.elements.platformMcp?.checked,hooks,loop:{enabled:!!f.elements.loopEnabled?.checked,maxIterations:Number(f.elements.loopMaxIterations?.value)||1,exitCondition:'all_gates_pass',onExhausted:f.elements.loopOnExhausted?.value||'fail',feedbackPrompt:f.elements.loopFeedbackPrompt?.value||''},interventions,artifactOutputs:artifacts,verification};if(!a.id||!a.name)return toast('标识和名称不能为空');if(catalogGeneric(state.workflow)){if(!isPlatformAdmin())return toast('只有平台管理员可以编辑通用模板角色');const bundled=workflowAgent(a.id);if(!bundled)return toast('该角色不属于当前通用模板');a.projectId='';a.shared=false;a.rules=bundled.rules||[];a.skills=bundled.skills||[];a.mcpServers=f.querySelectorAll('input[name="mcpServers"]').length?checked('mcpServers'):(bundled.mcpServers||[]);a.hooks=Array.isArray(bundled.hooks)?bundled.hooks:a.hooks;a.version=bundled.version||0;try{const saved=await api(`/api/workflows/${encodeURIComponent(state.workflow.id)}/agents`,{method:'PUT',body:JSON.stringify(a)});const list=state.genericTemplateAgents||[];const gi=list.findIndex(x=>x.id===saved.id);if(gi>=0)list[gi]=saved;else list.push(saved);state.genericTemplateAgents=list;state.selectedAgent=saved.id;state.agentDraft=null;$('#agentModal').classList.remove('open');renderCanvas();renderProperties();toast('通用模板角色已保存，所有项目下次运行生效');}catch(err){toast(err.message)}return;}try{await api('/api/agents',{method:'PUT',body:JSON.stringify(a)});const i=state.data.agents.findIndex(x=>x.id===a.id);if(i>=0)state.data.agents[i]=a;else state.data.agents.push(a);if(a.shared){(state.data.rules||[]).forEach(item=>{if(a.rules.includes(item.id)&&item.projectId===a.projectId)item.shared=true});(state.data.skills||[]).forEach(item=>{if(a.skills.includes(item.id)&&item.projectId===a.projectId)item.shared=true})}state.selectedAgent=a.id;state.agentDraft=null;$('#agentModal').classList.remove('open');renderAgents();renderCanvas();toast('Agent 新版本已保存')  }catch(err){toast(err.message)}}
+const AGENT_DRAFT_RULES=[
+  [/安全|漏洞|权限|security/i,'reviewer','安全审查员'],
+  [/评审|审查|review|\bcr\b/i,'reviewer','代码审查员'],
+  [/测试|用例|回归|\bqa\b|test/i,'tester','测试工程师'],
+  [/发布|上线|合并|交付|checks?|pipeline/i,'coordinator','交付协调员'],
+  [/分析|根因|调研|方案|拆解|需求/i,'developer','需求分析师'],
+  [/文档|readme|说明书|doc/i,'developer','文档工程师'],
+  [/前端|页面|样式|\bui\b|组件/i,'developer','前端工程师'],
+  [/后端|接口|\bapi\b|数据库|服务端/i,'developer','后端工程师'],
+];
+function agentSlug(text){const ascii=String(text||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');return ascii.length>=3?ascii.slice(0,40):''}
+function draftAgentFromText(text){
+  const t=String(text||'').trim();if(!t)return toast('先用一句话说说这个角色要干什么');
+  const rule=AGENT_DRAFT_RULES.find(r=>r[0].test(t))||[null,'developer','研发工程师'];
+  const preset=agentPresets.find(p=>p.id===rule[1])||agentPresets[0];
+  const f=$('#agentForm'),el=f.elements;
+  const readonlyHint=/不改|只读|只提|不修改|不动代码/.test(t)?'\n不得修改业务代码，只输出结论与建议。':'';
+  el.name.value=rule[2];
+  if(!el.id.readOnly)el.id.value=`${agentSlug(preset.id)||'role'}-${Math.random().toString(36).slice(2,6)}`;
+  el.description.value=t;
+  el.instructions.value=`${preset.instructions}\n\n本角色的具体职责：${t}${readonlyHint}`;
+  f.classList.add('is-dirty','has-draft');
+  renderAgentSummary();
+  f.querySelector('.as-draft-flash')?.classList.remove('as-draft-flash');
+  requestAnimationFrame(()=>f.querySelector('.wizard-pane[data-step="1"]')?.classList.add('as-draft-flash'));
+  el.name.focus();el.name.select();
+}
+function setAgentStudioMode(mode,remember=true){
+  const f=$('#agentForm');if(!f)return;
+  const full=mode==='full';
+  f.classList.toggle('as-simple',!full);
+  $$('[data-agent-mode]').forEach(b=>b.classList.toggle('active',b.dataset.agentMode===(full?'full':'simple')));
+  if(remember)localStorage.setItem('loopforge.agentMode',full?'full':'simple');
+  if(full&&state.selectedAgent)renderAgentGovernance(agentWizardSubject());
+}
+function bindAgentStudio(){
+  const f=$('#agentForm');if(!f||f.dataset.studio)return;f.dataset.studio='1';
+  const main=f.querySelector('.as-main');
+  main?.addEventListener('scroll',()=>{
+    if(Date.now()-(state.agentScrollLock||0)<600)return;
+    const top=main.scrollTop+main.offsetTop+80;let cur=1;
+    f.querySelectorAll('.wizard-pane').forEach(p=>{if(p.offsetTop<=top)cur=Number(p.dataset.step)});
+    if(main.scrollTop+main.clientHeight>=main.scrollHeight-4)cur=4;
+    if(cur!==state.agentWizardStep){state.agentWizardStep=cur;f.querySelectorAll('[data-wizard-steps="agent"] [data-step-target]').forEach(b=>b.classList.toggle('active',Number(b.dataset.stepTarget)===cur))}
+  },{passive:true});
+  $('#agentCloseAlt')&&($('#agentCloseAlt').onclick=()=>f.querySelector('.agent-close')?.click());
+  $$('[data-agent-mode]').forEach(b=>b.onclick=()=>setAgentStudioMode(b.dataset.agentMode));
+  $('#agentAIGo')&&($('#agentAIGo').onclick=()=>draftAgentFromText($('#agentAIInput').value));
+  $('#agentAIInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();draftAgentFromText(e.target.value)}});
+  $$('[data-agent-example]').forEach(b=>b.onclick=()=>{$('#agentAIInput').value=b.dataset.agentExample;draftAgentFromText(b.dataset.agentExample)});
+  f.elements.name?.addEventListener('input',()=>{if(!f.elements.id.readOnly&&!f.elements.id.dataset.touched){f.elements.id.value=agentSlug(f.elements.name.value)||f.elements.id.value||`role-${Math.random().toString(36).slice(2,6)}`}});
+  f.elements.id?.addEventListener('input',()=>{f.elements.id.dataset.touched='1'});
+  const markDirty=()=>{f.classList.add('is-dirty')};
+  f.addEventListener('input',markDirty);f.addEventListener('change',markDirty);
+  f.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(!$('#agentSave').hidden)f.requestSubmit()}});
+}
+async function saveAgent(e){e.preventDefault();const f=e.currentTarget;const existing=state.data.agents.find(a=>a.id===f.elements.id.value);if(!catalogGeneric(state.workflow)&&existing&&catalogForeign(existing.projectId))return toast('这是其他项目的共享角色，请先复制到本项目再改');const checked=name=>[...f.querySelectorAll(`input[name="${name}"]:checked`)].map(x=>x.value);const draft=readAgentDraft(f);const artifacts=draft.artifactOutputs.map((x,i)=>({name:x.name||`artifact-${i+1}`,path:x.path||'result.md',mediaType:x.path?.endsWith('.json')?'application/json':(x.mediaType||'text/markdown'),required:!!x.required})),verification=draft.verification.map((gate,i)=>({id:gate.id||`gate-${i+1}`,name:gate.name||`门禁 ${i+1}`,mode:'command',stage:'after_execution',commands:(gate.commands||[]).map(c=>String(c||'').trim()).filter(Boolean),required:true,onFailure:['loop','reject','fail','human'].includes(gate.onFailure)?gate.onFailure:'loop',executionScope:gate.executionScope==='repositories'?'repositories':'run'})).filter(g=>g.commands.length),hooks=(draft.hooks||[]).map((h,i)=>({id:String(h.id||`hook-${i+1}`).trim(),name:String(h.name||`Hook ${i+1}`).trim(),event:h.event||'PreToolUse',matcher:String(h.matcher||'').trim(),language:h.language==='python'?'python':'shell',script:String(h.script||'').trim(),timeoutSec:Number(h.timeoutSec)||10,executionScope:h.executionScope==='repositories'?'repositories':'run'})).filter(h=>h.script),interventions=[];if(f.elements.interventionAfter?.checked)interventions.push({id:'human-review',name:'人工结果复核',stage:'after_execution',required:true});if(f.elements.interventionPublish?.checked)interventions.push({id:'publish-approval',name:'产物发布确认',stage:'before_publish',required:true});const a={id:f.elements.id.value.trim(),name:f.elements.name.value.trim(),version:(existing?.version||0)+1,projectId:existing?(existing.projectId||state.projectFilter||''):(state.projectFilter||''),shared:!!f.elements.shared?.checked,description:f.elements.description.value,instructions:f.elements.instructions.value,taskPrompt:draft.taskPrompt,executorId:f.elements.executorId?.value||'',model:agentEffectiveModel(f),effort:f.elements.effort?.value||'',rules:checked('rules'),skills:checked('skills'),mcpServers:checked('mcpServers'),platformMcp:!!f.elements.platformMcp?.checked,hooks,loop:{enabled:!!f.elements.loopEnabled?.checked,maxIterations:Number(f.elements.loopMaxIterations?.value)||1,exitCondition:'all_gates_pass',onExhausted:f.elements.loopOnExhausted?.value||'fail',feedbackPrompt:f.elements.loopFeedbackPrompt?.value||''},interventions,artifactOutputs:artifacts,verification};if(!a.id||!a.name)return toast('标识和名称不能为空');if(catalogGeneric(state.workflow)){if(!isPlatformAdmin())return toast('只有平台管理员可以编辑通用模板角色');const bundled=workflowAgent(a.id);if(!bundled)return toast('该角色不属于当前通用模板');a.projectId='';a.shared=false;a.rules=bundled.rules||[];a.skills=bundled.skills||[];a.mcpServers=f.querySelectorAll('input[name="mcpServers"]').length?checked('mcpServers'):(bundled.mcpServers||[]);a.hooks=Array.isArray(bundled.hooks)?bundled.hooks:a.hooks;a.version=bundled.version||0;try{const saved=await api(`/api/workflows/${encodeURIComponent(state.workflow.id)}/agents`,{method:'PUT',body:JSON.stringify(a)});const list=state.genericTemplateAgents||[];const gi=list.findIndex(x=>x.id===saved.id);if(gi>=0)list[gi]=saved;else list.push(saved);state.genericTemplateAgents=list;state.selectedAgent=saved.id;state.agentDraft=null;$('#agentModal').classList.remove('open');renderCanvas();renderProperties();($('#agentForm')?.classList.remove('is-dirty'),toast('通用模板角色已保存，所有项目下次运行生效'));}catch(err){toast(err.message)}return;}try{await api('/api/agents',{method:'PUT',body:JSON.stringify(a)});const i=state.data.agents.findIndex(x=>x.id===a.id);if(i>=0)state.data.agents[i]=a;else state.data.agents.push(a);if(a.shared){(state.data.rules||[]).forEach(item=>{if(a.rules.includes(item.id)&&item.projectId===a.projectId)item.shared=true});(state.data.skills||[]).forEach(item=>{if(a.skills.includes(item.id)&&item.projectId===a.projectId)item.shared=true})}state.selectedAgent=a.id;state.agentDraft=null;$('#agentModal').classList.remove('open');renderAgents();renderCanvas();($('#agentForm')?.classList.remove('is-dirty'),toast('Agent 新版本已保存'))  }catch(err){toast(err.message)}}
 async function deleteAgent(id){
   const a=(state.data.agents||[]).find(x=>x.id===id);
   if(!a)return toast('角色不存在或已删除');

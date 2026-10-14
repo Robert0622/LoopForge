@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Tencent/LoopForge/internal/domain"
@@ -15,6 +17,9 @@ import (
 type roomsHandlers struct {
 	*deps
 	runCache roomRunCache
+	// crewMu serialises crew mission writes; crewLoopOn guards the captain loop.
+	crewMu     sync.Mutex
+	crewLoopOn atomic.Bool
 }
 
 // roomMaxSOPs bounds one multi-SOP dispatch.
@@ -159,10 +164,18 @@ func (h *roomsHandlers) messages(c *gin.Context) {
 	}
 	switch c.Request.Method {
 	case http.MethodGet:
-		c.JSON(http.StatusOK, h.syncRoomRuns(room, h.repo.Messages(room.ID, 200)))
+		messages := h.syncRoomRuns(room, h.repo.Messages(room.ID, 200))
+		for _, m := range messages {
+			if m.Kind == domain.ChatKindCrew && m.Crew != nil && domain.CrewMissionActive(m.Crew.Status) {
+				h.ensureCrewLoop()
+				break
+			}
+		}
+		c.JSON(http.StatusOK, messages)
 	case http.MethodPost:
 		var req struct {
-			Body string `json:"body"`
+			Body    string `json:"body"`
+			ReplyTo string `json:"replyTo"`
 		}
 		if !decode(c, &req) {
 			return
@@ -178,11 +191,15 @@ func (h *roomsHandlers) messages(c *gin.Context) {
 		}
 		userID, author := h.roomActor(c)
 		msg := domain.ChatMessage{ID: newChatID("msg"), RoomID: room.ID, UserID: userID, Author: author, Kind: "text", Body: body, CreatedAt: time.Now().UTC()}
+		if quoted, ok := h.repo.Message(strings.TrimSpace(req.ReplyTo)); ok && quoted.RoomID == room.ID {
+			msg.ReplyTo, msg.ReplyAuthor, msg.ReplyText = quoted.ID, roomQuoteAuthor(quoted), roomTrim(roomQuoteText(quoted), 200)
+		}
 		if err := h.repo.PutMessage(msg); err != nil {
 			respond(c, err)
 			return
 		}
 		h.touchRoom(room)
+		h.crewHear(room, msg)
 		c.JSON(http.StatusCreated, msg)
 	default:
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})

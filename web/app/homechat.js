@@ -27,7 +27,16 @@ function homeChatWorkflows() {
   const list = [];
   [HOME_CHAT_QUICK, HOME_CHAT_DEMO].forEach(id => { const w = all.find(x => x.id === id); if (w) list.push(w); });
   mine.forEach(w => { if (!list.some(x => x.id === w.id)) list.push(w); });
+  all.filter(w => catalogGeneric(w) && w.status !== 'archived').forEach(w => { if (!list.some(x => x.id === w.id)) list.push(w); });
   return list;
+}
+
+function homeWorkflowOptionsHTML(workflows, selectedId) {
+  const opt = w => `<option value="${escapeHTML(w.id)}" ${w.id === selectedId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}</option>`;
+  const own = workflows.filter(w => !catalogGeneric(w));
+  const generic = workflows.filter(w => catalogGeneric(w));
+  if (!generic.length) return own.map(opt).join('');
+  return `${own.length ? `<optgroup label="本项目">${own.map(opt).join('')}</optgroup>` : ''}<optgroup label="通用模板 · 平台维护">${generic.map(opt).join('')}</optgroup>`;
 }
 
 function homeChatStoreKey() {
@@ -124,6 +133,10 @@ function renderHomeChat() {
   renderHomeChatMain();
   renderHomeRunsPanel();
   startHomeRunsPolling();
+  if (!state.homeRunsPrimed) {
+    state.homeRunsPrimed = true;
+    refreshRuns(true).then(renderHomeRunsPanel).catch(() => {});
+  }
 }
 
 function renderHomeChatMain() {
@@ -143,6 +156,8 @@ function renderHomeChatMain() {
     <div class="hc-thread" id="homeChatThread">${chat.messages.map(homeChatMessageHTML).join('')}${chat.busy ? homeChatLiveHTML() : ''}</div>
     <div class="hc-dock">${homeChatComposerHTML()}</div>`;
   bindHomeChat();
+  bindHomeBento(main.querySelector('#hcBento'));
+  $('#homeSopSelect') && ($('#homeSopSelect').onchange = e => { chat.workflowId = e.target.value; persistHomeChat(); });
   renderHomeMermaid(main);
   const thread = $('#homeChatThread');
   if (thread) thread.scrollTop = thread.scrollHeight;
@@ -163,28 +178,72 @@ function homeChatSubtitle() {
 }
 
 function homeChatHeroHTML() {
-  const workflows = homeChatWorkflows();
-  const workflow = homeChatSelectedWorkflow();
-  const keyHint = homeChatHasModelKey() ? '' : `<p class="hc-key-hint">还没配置 CodeBuddy Key，我暂时没法读代码、查数据、追问需求。<button type="button" class="link-button" data-chat-action="settings-models">去配置</button>，或<button type="button" class="link-button" data-chat-action="demo">先跑一遍演示</button>（不需要 Key）。</p>`;
-  const cards = workflows.map(w => {
-    const steps = (w.nodes || []).length;
-    const tag = homeChatWorkflowTag(w);
-    return `<button type="button" class="hc-sop${w.id === workflow?.id ? ' is-selected' : ''}" data-home-sop="${escapeHTML(w.id)}" aria-pressed="${w.id === workflow?.id}">
-      <span class="hc-sop-flow" aria-hidden="true"><i></i><em></em><i class="is-main"></i><em></em><i></i></span>
-      <b>${escapeHTML(w.name || w.id)}</b>
-      <small>${escapeHTML(w.description || (steps ? `${steps} 个步骤` : '自定义 SOP'))}</small>
-      ${tag ? `<span class="hc-sop-tag">${escapeHTML(tag)}</span>` : ''}
-    </button>`;
-  }).join('');
+  const user = state.currentUser || {};
+  const keyHint = homeChatHasModelKey() ? '' : `<p class="hc-key-line"><i></i>还没配置模型 Key · <button type="button" class="link-button" data-chat-action="settings-models">去配置</button> 或 <button type="button" class="link-button" data-chat-action="demo">先跑一遍演示</button></p>`;
   return `<div class="hc-hero-tools">${homeChatHistoryHTML()}</div>
-  <div class="hc-hero">
-    <h1 class="hc-brand">LoopForge</h1>
-    <p class="hc-sub">提需求、问进度、处理待确认、画图出文档，都在这里说。需求说清了，我按 SOP 帮你开跑。</p>
-    ${homeChatComposerHTML()}
+  <div class="hc-hero hc-hero-v3">
+    <p class="hc-greet"><span class="hc-greet-dot" aria-hidden="true"></span>${escapeHTML(homeGreeting())}，${escapeHTML(user.displayName || user.name || user.loginName || '')}</p>
+    <h1 class="hc-headline">今天想交付什么？</h1>
+    <div class="hc-composer-glow">${homeChatComposerHTML()}</div>
     ${keyHint}
     <div class="hc-suggest">${HOME_CHAT_SUGGESTIONS.map((s, i) => `<button type="button" class="hc-chip" data-home-suggest="${i}">${escapeHTML(s.label)}</button>`).join('')}</div>
-    ${workflows.length ? `<div class="hc-sop-head">开跑默认用的 SOP</div><div class="hc-sop-rail" role="list">${cards}</div>` : '<p class="hc-key-hint">这个项目还没有 SOP。<button type="button" class="link-button" data-home-goto="templates">从模板创建一个</button></p>'}
+    <div class="hc-bento" id="hcBento">${homeBentoHTML()}</div>
   </div>`;
+}
+
+function homeSopPickerHTML(disabled) {
+  const workflows = homeChatWorkflows();
+  if (!workflows.length) return '';
+  const current = homeChatSelectedWorkflow();
+  return `<label class="hc-sop-pick" title="开跑时用哪条 SOP"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H14a4 4 0 0 1 4 4v5.5"/></svg><select id="homeSopSelect" ${disabled ? 'disabled' : ''}>${homeWorkflowOptionsHTML(workflows, current?.id)}</select></label>`;
+}
+
+function homeGreeting() {
+  const h = new Date().getHours();
+  return h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+}
+
+function homeBentoHTML() {
+  const runs = homeRunsForProject();
+  const active = runs.filter(r => HOME_RUN_ACTIVE.has(r.status));
+  const waiting = active.filter(r => homeRunStatus(r).key === 'waiting');
+  const moving = active.filter(r => homeRunStatus(r).key !== 'waiting');
+  if (!waiting.length && !moving.length) return '';
+  const row = (run, decide) => {
+    const steps = homeRunSteps(run);
+    const cur = steps.find(x => x.status === 'waiting') || steps.find(x => x.status === 'running') || steps.find(x => x.status === 'failed');
+    const nodeId = decide ? (Object.keys(run.nodes || {}).find(id => run.nodes[id]?.status === 'waiting_approval') || '') : '';
+    const quick = decide && nodeId && !run.pauseRequested && !(typeof turnsExhausted === 'function' && turnsExhausted(run.nodes[nodeId]));
+    return `<div class="hb-row ${decide ? 'is-wait' : 'is-live'}" data-home-run="${escapeHTML(run.id)}" data-home-issue="${escapeHTML(run.executionContext?.issueId || '')}" tabindex="0">
+      <span class="hb-state" aria-hidden="true"></span>
+      <div class="hb-row-main"><b>${escapeHTML(runIssueTitle(run))}</b>
+        <small>${escapeHTML(cur ? `${decide ? '等你确认' : '正在'}「${cur.name}」` : homeRunStatus(run).label)} · ${escapeHTML(homeRunAgo(run.updatedAt || run.createdAt))}</small></div>
+      ${steps.length ? `<span class="hb-lane">${steps.map(x => `<i class="is-${x.status}" title="${escapeHTML(x.name)}"></i>`).join('')}</span>` : ''}
+      ${decide ? (quick ? `<button type="button" class="button primary small" data-home-approve="${escapeHTML(run.id)}" data-node="${escapeHTML(nodeId)}">通过</button>` : '<span class="hb-go">去确认 ›</span>') : '<span class="hb-go">›</span>'}
+    </div>`;
+  };
+  const rows = [...waiting.map(r => row(r, true)), ...moving.map(r => row(r, false))];
+  return `<section class="hb-feed">
+    <header><b>${waiting.length ? `${waiting.length} 件事等你拍板` : '正在进行'}</b>${moving.length && waiting.length ? `<span>· ${moving.length} 条在跑</span>` : ''}<button type="button" class="link-button" data-home-goto="${waiting.length ? 'approvals' : 'runs'}">全部 ›</button></header>
+    ${rows.slice(0, 4).join('')}
+  </section>`;
+}
+
+function bindHomeBento(root) {
+  if (!root) return;
+  root.querySelectorAll('[data-home-approve]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    b.disabled = true;
+    await approveRun(b.dataset.homeApprove, b.dataset.node, b);
+    await refreshRuns(true);
+    renderHomeRunsPanel();
+  });
+  root.querySelectorAll('[data-home-goto]').forEach(b => b.onclick = e => { e.stopPropagation(); switchView(b.dataset.homeGoto); });
+  root.querySelectorAll('[data-home-run]').forEach(card => {
+    const open = () => card.dataset.homeIssue ? openIssueDetail(card.dataset.homeIssue, 'sop') : (typeof openRunFromId === 'function' && openRunFromId(card.dataset.homeRun));
+    card.onclick = open;
+    card.onkeydown = e => { if (e.key === 'Enter') open(); };
+  });
 }
 
 function homeChatComposerHTML() {
@@ -209,6 +268,7 @@ function homeChatComposerHTML() {
       <button type="button" class="hc-tool" id="homeChatAt" title="引用一条需求" aria-label="引用一条需求" ${chat.busy ? 'disabled' : ''}>@</button>
       <input type="file" id="homeChatFile" multiple hidden>
       ${typeof clarifyModelPickerHTML === 'function' ? clarifyModelPickerHTML(chat.busy) : ''}
+      ${homeSopPickerHTML(chat.busy)}
       <span class="hc-composer-hint">${chat.busy ? '正在处理…' : uploading ? '附件上传中…' : 'Enter 发送 · Shift+Enter 换行'}</span>
       ${chat.busy
         ? '<button type="button" class="hc-send is-stop" id="homeChatStop" title="停止" aria-label="停止">■</button>'
@@ -282,12 +342,24 @@ function homeChatLaunchCardHTML(m, index) {
     return `<div class="hc-launch is-done"><div class="hc-launch-head"><b>已开跑</b><span>${escapeHTML(l.title || '')}，进度在右侧。</span></div></div>`;
   }
   const issue = l.issueId ? (state.data.issues || []).find(i => i.id === l.issueId) : null;
-  return `<div class="hc-launch" data-launch="${index}">
-    <div class="hc-launch-head"><b>${issue ? '跑这条已有需求' : '需求已经说清，可以开跑'}</b><span>${issue ? `按选中的 SOP 派发「${escapeHTML(homeIssueLabel(issue))}」` : '建一张需求单并立即派发'}，进度在右侧看。</span></div>
+  const mode = issue ? 'sop' : homeLaunchMode(l, workflows);
+  const crew = mode === 'crew';
+  const recommended = l.mode === 'crew' || l.mode === 'sop' ? l.mode : '';
+  const modes = issue ? '' : `<div class="hc-mode" role="tablist" aria-label="交给谁做">
+      <button type="button" data-launch-mode="sop" class="${crew ? '' : 'on'}"><b>交给 SOP</b><small>固定流程，每步有闸门</small>${recommended === 'sop' ? '<em>推荐</em>' : ''}</button>
+      <button type="button" data-launch-mode="crew" class="${crew ? 'on' : ''}"><b>交给群聊 Bot</b><small>没有固定流程，Bot 们自己分工交接</small>${recommended === 'crew' ? '<em>推荐</em>' : ''}</button>
+    </div>${l.modeReason ? `<p class="hc-mode-why">✦ ${escapeHTML(l.modeReason)}</p>` : ''}`;
+  const rooms = crew ? homeCrewRooms() : [];
+  const target = crew
+    ? `<label>协作群<select data-launch-room>${(rooms || []).map(r => `<option value="${escapeHTML(r.id)}">#${escapeHTML(r.name)}</option>`).join('')}<option value="__new" ${rooms && rooms.length ? '' : 'selected'}>＋ 新建「协作群」</option></select></label>`
+    : `<label>SOP<select data-launch-workflow>${homeWorkflowOptionsHTML(workflows, workflowId)}</select></label>`;
+  return `<div class="hc-launch ${crew ? 'is-crew' : ''}" data-launch="${index}">
+    <div class="hc-launch-head"><b>${issue ? '跑这条已有需求' : '需求已经说清，交给谁做？'}</b><span>${issue ? `按选中的 SOP 派发「${escapeHTML(homeIssueLabel(issue))}」，进度在右侧看。` : crew ? '队长 LoopForge 会拉角色 Bot 组队，交接和进度都在群里，你随时可以插话。' : '建一张需求单，按 SOP 一步步跑，进度在右侧看。'}</span></div>
+    ${modes}
     ${issue ? '' : `<label>需求标题<input data-launch-title value="${escapeHTML(l.title || '')}" maxlength="120"></label>`}
-    <label>SOP<select data-launch-workflow>${workflows.map(w => `<option value="${escapeHTML(w.id)}" ${w.id === workflowId ? 'selected' : ''}>${escapeHTML(w.name || w.id)}</option>`).join('')}</select></label>
+    ${target}
     ${l.description ? `<details class="hc-launch-desc"><summary>${issue ? '补充说明' : '澄清结论（会写进需求描述）'}</summary><div class="hc-md">${renderMarkdown(l.description)}</div></details>` : ''}
-    <div class="hc-actions"><button type="button" class="button primary" data-launch-go>${issue ? '开跑' : '建单并开跑'}</button></div>
+    <div class="hc-actions"><button type="button" class="button primary" data-launch-go>${issue ? '开跑' : crew ? '交给群聊开工' : '建单并开跑'}</button></div>
   </div>`;
 }
 
@@ -315,7 +387,30 @@ function homeChatDraftHTML(d, index, di) {
   </div>`;
 }
 
+function homeLaunchMode(l, workflows) {
+  if (l.pickedMode) return l.pickedMode;
+  if (l.mode === 'crew' || l.mode === 'sop') return l.mode;
+  return (workflows || []).length ? 'sop' : 'crew';
+}
+
+// homeCrewRooms returns the project's rooms, loading them once per project.
+function homeCrewRooms() {
+  const pid = (currentProject() || {}).id || state.projectFilter || '';
+  const cache = state.homeRooms || (state.homeRooms = {});
+  if (cache[pid] === undefined && pid) {
+    cache[pid] = null;
+    api('/api/rooms?projectId=' + encodeURIComponent(pid), { silent: true })
+      .then(rooms => { cache[pid] = rooms || []; renderHomeChatMain(); })
+      .catch(() => { cache[pid] = []; });
+  }
+  return cache[pid] || [];
+}
+
 function homeChatLaunchedHTML(m) {
+  if (m.crew) {
+    return `<p>已交给 <b>#${escapeHTML(m.roomName || '协作群')}</b> 的 Bot 团队：<b>${escapeHTML(m.title || '')}</b>。队长正在排分工，每个 Bot 做完会在群里交接，卡住了会 @ 你。</p>
+    <div class="hc-actions"><button type="button" class="button primary small" data-open-room="${escapeHTML(m.roomId || '')}">去群里看 ›</button>${m.issueId ? `<button type="button" class="button ghost small" data-open-created="${escapeHTML(m.issueId)}">打开需求</button>` : ''}</div>`;
+  }
   return `<p>已按「${escapeHTML(m.workflowName || m.workflowId || 'SOP')}」开跑：<b>${escapeHTML(m.title || '')}</b>。进度在右侧，需要你确认时会停下来等你。</p>
     <div class="hc-actions">${m.issueId ? `<button type="button" class="button ghost small" data-open-created="${escapeHTML(m.issueId)}">打开需求</button>` : ''}</div>`;
 }
@@ -429,6 +524,16 @@ function bindHomeChat() {
   main.querySelectorAll('[data-home-goto]').forEach(b => b.onclick = () => switchView(b.dataset.homeGoto));
   main.querySelectorAll('[data-open-created]').forEach(b => b.onclick = () => openIssueDetail(b.dataset.openCreated, 'sop'));
   main.querySelectorAll('[data-launch-go]').forEach(b => b.onclick = () => homeChatLaunch(b.closest('[data-launch]')));
+  main.querySelectorAll('[data-launch-mode]').forEach(b => b.onclick = () => {
+    const m = ensureHomeChatState().messages[Number(b.closest('[data-launch]')?.dataset.launch)];
+    if (!m?.launch) return;
+    m.launch.pickedMode = b.dataset.launchMode;
+    renderHomeChatMain();
+  });
+  main.querySelectorAll('[data-open-room]').forEach(b => b.onclick = () => {
+    if (typeof roomState === 'function' && b.dataset.openRoom) roomState().activeId = b.dataset.openRoom;
+    switchView('rooms');
+  });
   main.querySelectorAll('[data-draft]').forEach(b => b.onclick = () => homeChatConfirmDraft(b));
   main.querySelectorAll('[data-clarify-model]').forEach(el => typeof bindClarifyModelPicker === 'function' && bindClarifyModelPicker(el));
   main.querySelectorAll('.md-code-copy').forEach(b => b.onclick = () => {
@@ -842,6 +947,7 @@ async function homeChatLaunch(card) {
   const l = m?.launch;
   const project = currentProject() || (state.data.projects || [])[0];
   if (!l || !project) return toast('请先选择项目');
+  if (!l.issueId && homeLaunchMode(l, homeChatWorkflows()) === 'crew') return homeChatLaunchCrew(card, m, project);
   const workflowId = card.querySelector('[data-launch-workflow]')?.value || homeChatSelectedWorkflow()?.id;
   const workflow = homeChatWorkflows().find(w => w.id === workflowId);
   if (!workflowId) return toast('这个项目还没有可用的 SOP');
@@ -880,6 +986,37 @@ async function homeChatLaunch(card) {
   persistHomeChat();
   renderHomeChatMain();
   await refreshAfterHomeWrite();
+}
+
+async function homeChatLaunchCrew(card, m, project) {
+  const chat = ensureHomeChatState();
+  const l = m.launch;
+  const button = card.querySelector('[data-launch-go]');
+  if (button) { button.disabled = true; button.textContent = '正在组队…'; }
+  const origin = { title: l.title || '', description: l.description || '', issueId: '' };
+  const title = (card.querySelector('[data-launch-title]')?.value || '').trim() || l.title || homeChatTitle();
+  try {
+    let roomId = card.querySelector('[data-launch-room]')?.value || '';
+    let roomName = (homeCrewRooms().find(r => r.id === roomId) || {}).name || '';
+    if (!roomId || roomId === '__new') {
+      const room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ projectId: project.id, name: '协作群' }) });
+      roomId = room.id;
+      roomName = room.name;
+      state.homeRooms = {};
+    }
+    const mission = await api('/api/rooms/' + encodeURIComponent(roomId) + '/crew', { method: 'POST', body: JSON.stringify({ goal: title, detail: l.description || '', autoStart: true, source: 'home' }) });
+    l.done = true;
+    l.title = title;
+    l.issueId = mission.issueId || '';
+    homeChatPush({ role: 'assistant', kind: 'launched', crew: true, roomId, roomName, title, issueId: mission.issueId || '' });
+    homeChatNote(`用户把「${title}」交给了协作群「${roomName}」的 Bot 团队自由协作，需求 ${mission.issueId || ''}`);
+    homeChatMarkLaunchDone(chat.sessionId, origin, { id: mission.issueId || '', title });
+  } catch (err) {
+    if (button) { button.disabled = false; button.textContent = '交给群聊开工'; }
+    return toast('没能交给群聊：' + err.message, 'err');
+  }
+  persistHomeChat();
+  renderHomeChatMain();
 }
 
 // 开跑状态只在浏览器里会丢：写回服务端会话，从历史重新打开时卡片不会再次可点、重复建单。
@@ -1047,17 +1184,37 @@ function homeRunCardHTML(run) {
     ${steps.length ? `<div class="hc-steps" role="img" aria-label="第 ${doneCount}/${steps.length} 步">${steps.map(s => `<i class="is-${s.status}" title="${escapeHTML(s.name)}"></i>`).join('')}</div>` : ''}
     <div class="hc-run-where"><span>${escapeHTML(where)}</span><small>${doneCount}/${steps.length || 0}</small></div>
     ${failed?.error ? `<p class="hc-run-error">${escapeHTML(failed.error.split('\n')[0].slice(0, 120))}</p>` : ''}
-    ${status.key === 'waiting' ? '<button type="button" class="button primary small hc-run-go">去确认</button>' : ''}
+    ${status.key === 'waiting' ? homeRunDecisionHTML(run) : ''}
   </article>`;
 }
 
+function homeRunDecisionHTML(run) {
+  const nodeId = Object.keys(run.nodes || {}).find(id => run.nodes[id]?.status === 'waiting_approval') || '';
+  const gate = run.nodes?.[nodeId]?.gateResult;
+  const why = String(gate?.actionRequired || gate?.reason || '').split('\n')[0].slice(0, 90);
+  const quick = nodeId && !run.pauseRequested && !(typeof turnsExhausted === 'function' && turnsExhausted(run.nodes[nodeId]));
+  return `${why ? `<p class="hc-run-why">${escapeHTML(why)}</p>` : ''}<div class="hc-run-actions">
+    ${quick ? `<button type="button" class="button primary small" data-home-approve="${escapeHTML(run.id)}" data-node="${escapeHTML(nodeId)}">通过</button>` : ''}
+    <button type="button" class="button ghost small hc-run-go">${quick ? '看详情再定' : '去确认'}</button>
+  </div>`;
+}
+
 function renderHomeRunsPanel() {
+  const bento = $('#hcBento');
+  if (bento && !bento.contains(document.activeElement)) { bento.innerHTML = homeBentoHTML(); bindHomeBento(bento); }
   const panel = $('#hcRuns');
   if (!panel) return;
   const runs = homeRunsForProject();
   const active = runs.filter(r => HOME_RUN_ACTIVE.has(r.status));
   const dayAgo = Date.now() - 3 * 86400 * 1000;
-  const recent = runs.filter(r => !HOME_RUN_ACTIVE.has(r.status) && Date.parse(r.updatedAt || r.createdAt || '') > dayAgo).slice(0, 5);
+  const crewSeen = new Set();
+  const recent = runs.filter(r => {
+    if (HOME_RUN_ACTIVE.has(r.status) || !(Date.parse(r.updatedAt || r.createdAt || '') > dayAgo)) return false;
+    if (!String(r.workflowId || '').startsWith('crew-')) return true;
+    if (crewSeen.has(r.issueId)) return false;
+    crewSeen.add(r.issueId);
+    return true;
+  }).slice(0, 5);
   const waiting = active.filter(r => homeRunStatus(r).key === 'waiting').length;
   panel.innerHTML = `<header class="hc-runs-head">
       <button type="button" class="hc-runs-toggle" id="homeRunsToggle" title="收起 / 展开" aria-label="收起或展开运行面板">⟩</button>
@@ -1076,7 +1233,15 @@ function renderHomeRunsPanel() {
     layout.classList.toggle('runs-collapsed', collapsed);
     localStorage.setItem('loopforge.homeRuns.collapsed', collapsed ? '1' : '0');
   };
+  panel.closest('.hc-layout')?.classList.toggle('runs-idle', !active.length && !recent.length);
   panel.querySelector('#homeRunsRefresh').onclick = async () => { await refreshRuns(true); renderHomeRunsPanel(); };
+  panel.querySelectorAll('[data-home-approve]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    b.disabled = true;
+    await approveRun(b.dataset.homeApprove, b.dataset.node, b);
+    await refreshRuns(true);
+    renderHomeRunsPanel();
+  });
   panel.querySelectorAll('[data-home-goto]').forEach(b => b.onclick = () => switchView(b.dataset.homeGoto));
   panel.querySelectorAll('[data-home-run]').forEach(card => {
     const open = () => card.dataset.homeIssue ? openIssueDetail(card.dataset.homeIssue, 'sop') : (typeof openRunFromId === 'function' && openRunFromId(card.dataset.homeRun));

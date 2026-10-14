@@ -273,7 +273,17 @@ function commandCatalog(){
   const runs=(state.data.runs||[]).map(r=>({kind:'运行',title:runIssueTitle(r),meta:`${runDisplayStatus(r)} · ${r.workflowSnapshot?.name||r.workflowId}`,action:()=>openRunFromId(r.id)}));
   const sops=catalogWorkflows().map(w=>({kind:'SOP',title:w.name,meta:`${w.status==='published'?'已发布':'草稿'} · ${w.nodes?.length||0} 个节点`,action:()=>{state.workflow=clone(w);state.selectedNode=null;switchView('flow')}}));
   const agents=(state.data.agents||[]).map(a=>({kind:'Agent',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
-  const actions=[{kind:'操作',title:'新建 SOP',meta:'创建流程草稿',action:openSOPWizard}];
+  const waiting=typeof approvalItems==='function'?approvalItems():[];
+  const approve=waiting.slice(0,3).map(r=>{const nodeId=waitingNodeId(r),node=(r.workflowSnapshot?.nodes||(state.data.workflows||[]).find(w=>w.id===r.workflowId)?.nodes||[]).find(n=>n.id===nodeId);return {kind:'审批',title:`通过：${runIssueTitle(r)}`,meta:`停在「${node?.name||nodeId||'确认'}」· 继续下游`,action:()=>nodeId?approveRun(r.id,nodeId):openRunFromId(r.id)}});
+  const actions=[
+    ...approve,
+    {kind:'操作',title:'新建需求',meta:'写清楚要做什么，选 SOP 开跑',action:()=>openRequirementWizard()},
+    {kind:'操作',title:'问助手',meta:'回首页和平台助手对话',action:()=>{switchView('chat');setTimeout(()=>$('#homeChatInput')?.focus(),60)}},
+    ...(typeof quickstartDemoAvailable==='function'&&quickstartDemoAvailable()?[{kind:'操作',title:'跑一遍演示',meta:'约 30 秒，不调模型，停在「确认方案」等你',action:()=>startDemoRequirement(null)}]:[]),
+    {kind:'操作',title:'新建 SOP',meta:'创建流程草稿',action:openSOPWizard},
+    {kind:'操作',title:'切换深色 / 亮色',meta:'当前：'+(document.documentElement.dataset.theme==='light'?'亮色':'深色'),action:toggleTheme},
+    {kind:'操作',title:'Switch to English / 切换到中文',meta:'中文 ⇄ English',action:()=>window.lfSetLang&&window.lfSetLang(window.lfLang&&window.lfLang()==='en'?'zh':'en')},
+  ];
   return [...actions,...pages,...issues,...runs,...sops,...agents];
 }
 function openCommandPalette(){const host=$('#commandPalette');host.hidden=false;$('#commandSearch').value='';renderCommandResults();requestAnimationFrame(()=>$('#commandSearch').focus())}
@@ -291,7 +301,7 @@ function highlightCommandSelection(){
 }
 function renderCommandResults(){
   const q=$('#commandSearch').value.trim().toLowerCase();
-  commandMatches=commandCatalog().filter(x=>!q||`${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)).slice(0,12);
+  commandMatches=commandCatalog().filter(x=>!q||`${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)).slice(0,q?12:9);
   commandSelectedIndex=0;
   $('#commandResults').innerHTML=commandMatches.length
     ?commandMatches.map((x,i)=>`<button data-command-index="${i}" class="${i===0?'selected':''}"><span class="command-kind">${escapeHTML(x.kind)}</span><span><b>${escapeHTML(x.title)}</b><small>${escapeHTML(x.meta||'')}</small></span><em>↵</em></button>`).join('')

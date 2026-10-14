@@ -9,7 +9,7 @@ const state = {
   selectedAgent:null, selectedRun:null, selectedRunNode:null, runFilter:'all', runQuery:'', runWorkflowFilter:'',
   selectedIssue:null, projectFilter:'', projectDraft:null, requirementIssueId:null, sourceFilter:'',
   sopScope:'project', agentScope:'project', ruleScope:'project', skillScope:'project', dockerfileScope:'project', environmentScope:'project', sandboxScope:'project',
-  issueRunFilter:'', issueStatusFilter:'', issueAssigneeFilter:'', issueQuery:'', issueView:localStorage.getItem('loopforge.issueView')||'table',
+  issueRunFilter:'', issueStatusFilter:'', issueAssigneeFilter:'', issueQuery:'', issueView:localStorage.getItem('loopforge.issueView')||'kanban',
   assetType:'dockerfiles', selectedAsset:null, mcpTab:'market', mcpScope:'project', mcpMarket:[], mcpQuery:'', editingMCPId:'', poll:null, runStream:null,
   obsTab:'overview', obsDeliveryFilter:'all', obsTraceRunId:null, obsTraceAdapter:'live', obsScope:localStorage.getItem('loopforge.obsScope')==='project'?'project':'user', obsUserFilter:'', obsSourceFilter:'', obsUserFilterReady:false, obsTrendGrain:['day','week','month','all'].includes(localStorage.getItem('loopforge.obsTrendGrain'))?localStorage.getItem('loopforge.obsTrendGrain'):'all', obsPeriodKey:'', obsTrendMetric:['runs','issues','cost'].includes(localStorage.getItem('loopforge.obsTrendMetric'))?localStorage.getItem('loopforge.obsTrendMetric'):'tokens', obsCrossProject:null, drawerOpen:false, issueDetailTab:'overview', issueDetailData:null, propTab:'basic',
   uiScroll:{runId:'', nodeId:'', graphLeft:0, feedTop:0, telTop:0, feedStick:true, telStick:true},
@@ -905,7 +905,7 @@ async function boot(){
   restoreRequirementComposer();
   if(typeof maybeStartOnboarding==='function')maybeStartOnboarding();
 }
-const savedTheme=localStorage.getItem('loopforge.theme.v3')||'light';document.documentElement.dataset.theme=savedTheme;
+const savedTheme=localStorage.getItem('loopforge.theme.v3')||'dark';document.documentElement.dataset.theme=savedTheme;
 
 function bind(){
 	prepareMCPFormHints();
@@ -921,6 +921,20 @@ function bind(){
   setCapabilityNavExpanded(localStorage.getItem('loopforge.capabilityNavExpanded')==='true');
   const environmentToggle=$('#environmentNavToggle');if(environmentToggle)environmentToggle.onclick=()=>setEnvironmentNavExpanded(environmentToggle.getAttribute('aria-expanded')!=='true');
   setEnvironmentNavExpanded(localStorage.getItem('loopforge.environmentNavExpanded')==='true');
+  $$('[data-nav-group]').forEach(toggle=>{
+    const group=toggle.dataset.navGroup;
+    toggle.onclick=()=>{
+      const open=toggle.getAttribute('aria-expanded')!=='true';
+      if(open&&navIsCompact())$$('[data-nav-group]').forEach(t=>t!==toggle&&setNavGroupExpanded(t.dataset.navGroup,false));
+      setNavGroupExpanded(group,open);
+    };
+    setNavGroupExpanded(group,!navIsCompact()&&localStorage.getItem(`loopforge.navGroup.${group}`)==='true');
+  });
+  document.addEventListener('click',e=>{
+    if(!navIsCompact()||e.target.closest('[data-nav-group]'))return;
+    const child=e.target.closest('[data-nav-group-body] .nav');
+    if(child||!e.target.closest('[data-nav-group-body]'))$$('[data-nav-group-body]:not([hidden])').forEach(body=>{body.hidden=true;$(`[data-nav-group="${body.dataset.navGroupBody}"]`)?.setAttribute('aria-expanded','false')});
+  });
   $$('#accessTabs [data-access-tab]').forEach(btn=>btn.onclick=()=>setAccessTab(btn.dataset.accessTab));
   $('#guideCreateToken')&&($('#guideCreateToken').onclick=()=>setAccessTab('tokens',true));
   $$('[data-add]').forEach(btn=>btn.onclick=()=>addNode(btn.dataset.add));
@@ -938,7 +952,7 @@ function bind(){
   $('#workflowDescription').oninput=e=>{if(!state.workflow)return;state.workflow.description=e.target.value;dirty()};
   $('#saveWorkflow').onclick=saveWorkflow; $('#discardWorkflow').onclick=discardWorkflow; $('#publishWorkflow').onclick=publishWorkflow;
   $('#flowHistory')&&($('#flowHistory').onclick=()=>openRevisionHistory('workflow', state.workflow?.id, state.workflow?.name));
-  $('#deleteNode').onclick=deleteSelected; $('#fitButton').onclick=arrange;
+  $('#deleteNode').onclick=deleteSelected;{const wb=$('.flow-workbench'),tg=$('#flowPropsToggle');const setProps=on=>{wb?.classList.toggle('props-hidden',!on);tg?.classList.toggle('on',on);localStorage.setItem('loopforge.flowProps',on?'1':'0');renderEdges()};setProps(localStorage.getItem('loopforge.flowProps')!=='0');tg&&(tg.onclick=()=>setProps(wb.classList.contains('props-hidden')));$('#nodes')?.addEventListener('dblclick',e=>{if(e.target.closest('.flow-node'))setProps(true)})} $('#fitButton').onclick=arrange;
   bindFlowResize();
   $('#runButton').onclick=()=>openRunModal(state.workflow?.id);
   $('#flowSettingsToggle').onclick=()=>{const panel=$('#flowSettingsPanel');panel.hidden=!panel.hidden;$('#flowSettingsToggle').classList.toggle('active',!panel.hidden)};
@@ -957,9 +971,13 @@ function bind(){
     const sel=$('#workflowSandbox');
     if(sel)sel.focus();
   };
-  $$('.canvas-view-toggle [data-flow-view]').forEach(btn=>btn.onclick=()=>setFlowView(btn.dataset.flowView));
+  $$('.canvas-view-toggle [data-flow-view]').forEach(btn=>btn.onclick=()=>setFlowView(btn.dataset.flowView));bindCanvasPan();
   const refreshRunnersBtn=$('#refreshRunners');if(refreshRunnersBtn)refreshRunnersBtn.onclick=()=>refreshRunners();
   $('#themeToggle').onclick=toggleTheme;renderThemeToggle();
+  $('#langToggle')&&($('#langToggle').onclick=()=>window.lfSetLang&&window.lfSetLang(window.lfLang&&window.lfLang()==='en'?'zh':'en'));
+  {const spotSel='.ap-card,.db-card,.db-stat,.kanban-card,.run-card,.sop-card,.hc-sop,.room-suggest,.room-bot-run,.pa-rules li,.metric-card,.catalog-card,.agent-card,.skill-card,.mcp-card';let spotEl=null;
+  document.addEventListener('pointermove',e=>{const el=e.target.closest?.(spotSel)||null;if(el!==spotEl){spotEl?.classList.remove('lf-spot-on');spotEl=el;el?.classList.add('lf-spot-on')}if(el){const r=el.getBoundingClientRect();el.style.setProperty('--mx',`${e.clientX-r.left}px`);el.style.setProperty('--my',`${e.clientY-r.top}px`)}},{passive:true});
+  document.addEventListener('pointerleave',()=>{spotEl?.classList.remove('lf-spot-on');spotEl=null});}
   const profileWrap = $('#userProfileWrap');
   const userBadge = $('#userBadge');
   const credentialsButton = $('#userCredentialsButton');
@@ -1197,6 +1215,12 @@ function bind(){
       const panel=$('#flowSettingsPanel');
       if(panel&&!panel.hidden){panel.hidden=true;$('#flowSettingsToggle')?.classList.remove('active');return}
     }
+    if(e.metaKey||e.ctrlKey||e.altKey||e.target.closest?.('input,textarea,select,[contenteditable="true"]')||$('.modal.open'))return;
+    if(e.key.toLowerCase()==='a'){
+      const scope=state.drawerOpen?$('#issueDetailBody'):activeViewName()==='approvals'?$('#approvalList'):activeViewName()==='runs'?$('#runDetail'):null;
+      const approve=scope?.querySelector('[data-approve]');
+      if(approve){e.preventDefault();approve.click()}
+    }
   });
 
   // --- 工作台 / 待办验收 / 可观测与分析 / Issue 详情抽屉 ---
@@ -1349,9 +1373,12 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'需求列表',rooms:'协作群聊',runs:'运行记录',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色定义',mcp:'MCP 管理',rules:'规则管理',skills:'技能管理',dockerfiles:'Dockerfile',environments:'环境安装脚本',sandboxes:'沙箱管理',observability:'用量分析',projects:'项目配置',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'需求看板',rooms:'协作群聊',runs:'运行',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'沙箱',observability:'用量分析',projects:'项目',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
 function activeViewName(){if(state.currentView)return state.currentView;const el=document.querySelector('.view.active');return el?el.id.replace(/View$/,''):''}
 function setCapabilityNavExpanded(expanded){const toggle=$('#capabilityNavToggle'),group=$('#capabilityNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.capabilityNavExpanded',String(expanded))}
+function setNavGroupExpanded(group,expanded){const toggle=$(`[data-nav-group="${group}"]`),body=$(`[data-nav-group-body="${group}"]`);if(!toggle||!body)return;toggle.setAttribute('aria-expanded',String(expanded));body.hidden=!expanded;localStorage.setItem(`loopforge.navGroup.${group}`,String(expanded))}
+function navIsCompact(){return window.matchMedia('(max-width: 960px)').matches}
+function syncNavGroups(name){$$('[data-nav-group-body]').forEach(body=>{const group=body.dataset.navGroupBody,owns=!!body.querySelector(`.nav[data-view="${name}"]`);$(`[data-nav-group="${group}"]`)?.classList.toggle('child-active',owns);if(!navIsCompact())setNavGroupExpanded(group,owns)})}
 function setEnvironmentNavExpanded(expanded){const toggle=$('#environmentNavToggle'),group=$('#environmentNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.environmentNavExpanded',String(expanded))}
 function restoredView(){
   const titles=viewTitles();
@@ -1431,7 +1458,61 @@ function persistView(name,push=false){
   if(push)history.pushState(null,'',next);
   else history.replaceState(null,'',next);
 }
+// 侧栏只留几个入口；入口下的页面用顶部标签（必要时再加一层子标签）切换。
+const VIEW_TABSETS=[
+  {nav:'issues',label:'交付',tabs:[{view:'issues',label:'需求看板'},{view:'runs',label:'运行'},{view:'approvals',label:'待我确认',count:true}]},
+  {nav:'build',label:'构建',tabs:[
+    {view:'sops',label:'流程',subs:[['sops','模板'],['flow','设计']]},
+    {view:'agents',label:'角色'},
+    {view:'skills',label:'能力',subs:[['skills','技能'],['mcp','MCP'],['rules','规则'],['knowledge','知识']]},
+    {view:'sandboxes',label:'环境',subs:[['sandboxes','沙箱'],['dockerfiles','Dockerfile'],['environments','安装脚本']]},
+    {view:'projects',label:'项目'}]},
+  {nav:'insights',label:'洞察',tabs:[{view:'metrics',label:'效能'},{view:'observability',label:'用量'},{view:'businessDomains',label:'汇报'}],plugins:true},
+  {nav:'admin',label:'平台',tabs:[{view:'platform',label:'账号与权限',when:()=>isPlatformAdmin()},{view:'businessDomainManagement',label:'业务领域'}]},
+  {nav:'me',label:'设置',tabs:[{view:'settings',label:'个人设置'},{view:'runners',label:'执行机器'},{view:'guide',label:'接入指南'}]},
+];
+function tabsetTabs(set){
+  const tabs=set.tabs.filter(t=>!t.when||t.when());
+  if(set.plugins)[...pluginViews.values()].forEach(v=>tabs.push({view:v.id,label:v.title}));
+  return tabs;
+}
+function tabOwns(tab,name){return tab.view===name||(tab.subs||[]).some(s=>s[0]===name)}
+function viewTabset(name){return VIEW_TABSETS.find(s=>tabsetTabs(s).some(t=>tabOwns(t,name)))||null}
+function resolveSectionView(name){
+  const set=VIEW_TABSETS.find(s=>s.nav===name&&!s.tabs.some(t=>t.view===name));
+  if(!set)return name;
+  const last=localStorage.getItem(`loopforge.section.${name}`);
+  const tabs=tabsetTabs(set);
+  return last&&tabs.some(t=>tabOwns(t,last))?last:(tabs[0]?.view||'chat');
+}
+function applyViewTabset(name,target){
+  const set=viewTabset(name);if(!set)return;
+  localStorage.setItem(`loopforge.section.${set.nav}`,name);
+  $(`.platform-sidebar .nav[data-view="${set.nav}"]`)?.classList.add('active');
+  const view=$(`#${target}View`);if(!view)return;
+  const tabs=tabsetTabs(set);
+  const cur=tabs.find(t=>tabOwns(t,name));
+  const count=$('#approvalNavBadge')?.textContent||'';
+  const title=$('#pageTitle');if(title)title.innerHTML=`<span class="crumb">${set.label}</span><i class="crumb-sep">/</i>${escapeHTML(cur?.label||title.textContent)}${cur?.subs?`<i class="crumb-sep">/</i>${escapeHTML((cur.subs.find(s=>s[0]===name)||[])[1]||'')}`:''}`;
+  let pagebar=view.querySelector(':scope>.lf-pagebar');
+  if(!pagebar){
+    pagebar=document.createElement('div');pagebar.className='lf-pagebar';
+    pagebar.innerHTML='<div class="lf-viewtabs" role="tablist"></div><div class="lf-pagebar-actions"></div>';
+    view.prepend(pagebar);
+    view.querySelectorAll(':scope>.page-heading>.heading-actions,:scope>.page-heading>button,:scope>.page-heading>.button').forEach(el=>pagebar.lastElementChild.appendChild(el));
+  }
+  const bar=pagebar.firstElementChild;
+  bar.setAttribute('aria-label',set.label);
+  bar.innerHTML=tabs.map(t=>{const on=t===cur;const go=on?name:(t.subs?(localStorage.getItem(`loopforge.sub.${t.view}`)||t.view):t.view);return `<button type="button" role="tab" class="lf-viewtab${on?' active':''}" data-view="${go}" aria-selected="${on}">${escapeHTML(t.label)}${t.count?`<span class="lf-viewtab-count" data-approval-count${count?'':' hidden'}>${count}</span>`:''}</button>`}).join('');
+  if(cur?.subs){
+    localStorage.setItem(`loopforge.sub.${cur.view}`,name);
+    const sub=document.createElement('div');sub.className='lf-subtabs';
+    sub.innerHTML=cur.subs.map(([v,l])=>`<button type="button" class="lf-subtab${v===name?' active':''}" data-view="${v}">${escapeHTML(l)}</button>`).join('');
+    bar.appendChild(sub);
+  }
+}
 function switchView(name){
+  name=resolveSectionView(name);
   const titles=viewTitles();
   if(name==='access')name='guide';
   if(name==='assets')name='dockerfiles';
@@ -1452,9 +1533,12 @@ function switchView(name){
   if(['mcp','rules','skills'].includes(name))setCapabilityNavExpanded(true);
   $('#environmentNavToggle')?.classList.toggle('child-active',['dockerfiles','environments','sandboxes'].includes(name));
   if(['dockerfiles','environments','sandboxes'].includes(name))setEnvironmentNavExpanded(true);
+  syncNavGroups(name);
+  document.body.dataset.page=name;
   $$('.view').forEach(v=>v.classList.remove('active'));
   $(`#${target}View`).classList.add('active');
   $('#pageTitle').textContent=titles[name]||name;
+  applyViewTabset(name,target);
   showDirectRunButton(name==='flow');
   closeIssueDrawer();
   // 仅真实用户切换时压栈：boot 首次进入（prevView 为空）与同视图重复调用
