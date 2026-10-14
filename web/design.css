@@ -1464,6 +1464,7 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 @layer pages {
   .rc-reasons,.hc-reasons{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
   .rc-reasons li,.hc-reasons li,.rc-reason{font-size:12px;line-height:1.45;color:var(--lf-text-2)}
+  .hc-route{display:grid;gap:4px;margin-top:8px}
   .hc-confidence{font-size:12px;font-weight:650;color:var(--lf-brand-ink)}
   .rc-handoff{margin-top:8px;padding:8px 10px;border:1px solid var(--lf-line);border-radius:10px;background:var(--lf-surface)}
   .rc-handoff summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--lf-text)}
