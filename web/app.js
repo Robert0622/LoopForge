@@ -877,9 +877,31 @@ function openSetupScreen(){
   setTimeout(()=>modal.querySelector('[name=loginName]')?.focus(),50);
 }
 
+function lfSyncOffline(){
+  const el=$('#lfOffline');
+  if(!el)return;
+  el.hidden=typeof navigator==='undefined'||navigator.onLine!==false;
+}
+function lfBindChrome(){
+  if(document.body.dataset.lfChrome)return;
+  document.body.dataset.lfChrome='1';
+  window.addEventListener('offline',lfSyncOffline);
+  window.addEventListener('online',()=>{lfSyncOffline();toast('网络已恢复','ok')});
+  $('#lfOfflineRetry')&&($('#lfOfflineRetry').onclick=()=>{lfSyncOffline();if(navigator.onLine)toast('网络是通的','ok');else toast('还是连不上','err')});
+  lfSyncOffline();
+}
+function bindGallery(){
+  const root=$('#lfGallery');
+  if(!root||root.dataset.bound)return;
+  root.dataset.bound='1';
+  root.querySelector('[data-gallery-danger]')?.addEventListener('click',async()=>{await afConfirm({title:'删除组件示例？',message:'此操作不可撤销。',confirmText:'删除',danger:true,confirmName:'组件示例'})});
+  root.querySelector('[data-gallery-dialog]')?.addEventListener('click',()=>afConfirm({title:'保存这份草稿？',message:'确认后才会写入。',confirmText:'保存'}));
+  root.querySelector('[data-gallery-toast]')?.addEventListener('click',()=>toast('已归档，8 秒内可以撤销','ok',8000,{undo(){toast('已撤销','ok')}}));
+  root.querySelector('[data-gallery-empty]')?.addEventListener('click',()=>toast('这是空态的主操作','ok'));
+}
 async function boot(){
   state.data = {runs:[],issues:[],tasks:[],workflowMetrics:[],syncLogs:[],agents:[],workflows:[],projects:[],repositories:[],users:[],rules:[],skills:[],mcpServers:[],executors:[],dockerfiles:[],environments:[],sandboxes:[]};
-  bind(); renderProjectSwitcher(); updateApprovalBadge();
+  bind(); lfBindChrome(); renderProjectSwitcher(); updateApprovalBadge();
 
   // 1. 获取当前登录身份（本地账号 Cookie 或受信反向代理身份头）
   if (!state.currentUser) {
@@ -1411,7 +1433,7 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'SOP 运行',rooms:'群聊',runs:'运行',metrics:'运行洞察',approvals:'待我确认',sops:'流程',flow:'流程设计',agents:'Bot',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'环境',observability:'成本',projects:'项目',businessDomains:'业务领域',platform:'成员与权限',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识库'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'SOP 运行',rooms:'群聊',runs:'运行',metrics:'运行洞察',approvals:'待我确认',sops:'流程',flow:'流程设计',agents:'Bot',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'环境',observability:'成本',projects:'项目',businessDomains:'业务领域',platform:'成员与权限',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识库',gallery:'组件'}}
 function sidebarViewFor(name){
   const map={runs:'issues',approvals:'issues',flow:'sops',skills:'agents',mcp:'agents',rules:'agents',dockerfiles:'sandboxes',environments:'sandboxes',businessDomains:'metrics',businessDomainManagement:'platform',runners:'settings',guide:'settings',access:'settings',build:'sops',me:'settings',admin:'platform',insights:'metrics'};
   return map[name]||name;
@@ -1664,6 +1686,7 @@ function switchView(name){
   if(name==='guide'){renderGuide();renderQuickstart()}
   if(name==='knowledge'&&typeof renderKnowledgeView==='function')renderKnowledgeView();
   if(name==='rooms'&&typeof loadRooms==='function')loadRooms();
+  if(name==='gallery')bindGallery();
   if(pluginViews.has(name))renderPluginView(pluginViews.get(name));
   if(name==='flow'){state.selectedNode=state.selectedNode||state.workflow?.nodes?.[0]?.id||null;renderWorkflowMeta();renderCanvas();renderProperties();setFlowView('canvas');refreshGenericWorkflowRoles()}
 }

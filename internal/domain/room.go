@@ -94,6 +94,8 @@ type ChatMessage struct {
 	ReassignNote string `json:"reassignNote,omitempty"`
 	// Pending marks a bot reply that is still being written.
 	Pending bool `json:"pending,omitempty"`
+	// Error is the human reason a streamed bot post failed.
+	Error string `json:"error,omitempty"`
 
 	CreatedAt time.Time `json:"createdAt"`
 }

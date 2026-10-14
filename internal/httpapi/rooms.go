@@ -20,6 +20,8 @@ type roomsHandlers struct {
 	// crewMu serialises crew mission writes; crewLoopOn guards the captain loop.
 	crewMu      sync.Mutex
 	crewLoopOn  atomic.Bool
+	crewSpecMu  sync.Mutex
+	crewSpecs   map[string]*fakeModelSpec
 	streamsOnce sync.Once
 	streams     *roomStreamHub
 	pulseOnce   sync.Once

@@ -271,11 +271,11 @@ let commandFilter='全部';
 const COMMAND_FILTERS=['全部','动作','跳转','设置'];
 function cycleCommandFilter(){commandFilter=COMMAND_FILTERS[(COMMAND_FILTERS.indexOf(commandFilter)+1)%COMMAND_FILTERS.length];renderCommandResults()}
 function commandCatalog(){
-  const pages=[['chat','首页','和平台助手对话：提需求、问进度、处理待确认'],['rooms','群聊','Bot 分工、交接、续跑'],['issues','SOP 运行','需求、运行和待确认'],['approvals','待我确认','批准或退回卡住的需求'],['sops','流程','SOP 模板与设计'],['runs','运行记录','查看节点日志和产物'],['metrics','运行洞察','产能、效率、质量与自动化'],['agents','Bot','角色和能力'],['mcp','MCP','添加项目级或个人自定义 MCP'],['rules','规则','当前项目的行为与执行约束'],['skills','技能','当前项目的技能和附加文件'],['sandboxes','环境','沙箱、Dockerfile 和安装脚本'],['observability','成本','Token 与质量'],['knowledge','知识库','团队知识与引用'],['businessDomains','业务域','分类管理与跨项目汇报'],['projects','项目','项目、成员和仓库'],['settings','个人设置','模型 Key 与账号'],['guide','接入指南','MCP 或 REST API 接入']].map(([view,title,meta])=>({kind:'页面',group:'跳转',title,meta,action:()=>switchView(view)}));
+  const pages=[['chat','首页','和平台助手对话：提需求、问进度、处理待确认'],['rooms','群聊','Bot 分工、交接、续跑'],['issues','SOP 运行','需求、运行和待确认'],['approvals','待我确认','批准或退回卡住的需求'],['sops','流程','SOP 模板与设计'],['runs','运行记录','查看节点日志和产物'],['metrics','运行洞察','产能、效率、质量与自动化'],['agents','Bot','角色和能力'],['mcp','MCP','添加项目级或个人自定义 MCP'],['rules','规则','当前项目的行为与执行约束'],['skills','技能','当前项目的技能和附加文件'],['sandboxes','环境','沙箱、Dockerfile 和安装脚本'],['observability','成本','Token 与质量'],['knowledge','知识库','团队知识与引用'],['businessDomains','业务域','分类管理与跨项目汇报'],['projects','项目','项目、成员和仓库'],['settings','个人设置','模型 Key 与账号'],['guide','接入指南','MCP 或 REST API 接入'],['gallery','组件','按钮、对话框、状态和空态']].map(([view,title,meta])=>{const kind=view==='rooms'?'群聊':view==='sops'?'SOP':view==='agents'?'Bot':'页面';return {kind,group:'跳转',title,meta,action:()=>switchView(view)}});
   const issues=(state.data.issues||[]).map(i=>({kind:'需求',title:i.title,meta:`${i.priority||'—'} · ${issueStatusLabel(i.status)}`,action:()=>openIssueDetail(i.id)}));
   const runs=(state.data.runs||[]).map(r=>({kind:'运行',title:runIssueTitle(r),meta:`${runDisplayStatus(r)} · ${r.workflowSnapshot?.name||r.workflowId}`,action:()=>openRunFromId(r.id)}));
   const sops=catalogWorkflows().map(w=>({kind:'SOP',title:w.name,meta:`${w.status==='published'?'已发布':'草稿'} · ${w.nodes?.length||0} 个节点`,action:()=>{state.workflow=clone(w);state.selectedNode=null;switchView('flow')}}));
-  const agents=(state.data.agents||[]).map(a=>({kind:'Agent',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
+  const agents=(state.data.agents||[]).map(a=>({kind:'Bot',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
   const waiting=typeof approvalItems==='function'?approvalItems():[];
   const approve=waiting.slice(0,3).map(r=>{const nodeId=waitingNodeId(r),node=(r.workflowSnapshot?.nodes||(state.data.workflows||[]).find(w=>w.id===r.workflowId)?.nodes||[]).find(n=>n.id===nodeId);return {kind:'审批',title:`通过：${runIssueTitle(r)}`,meta:`停在「${node?.name||nodeId||'确认'}」· 继续下游`,action:()=>nodeId?approveRun(r.id,nodeId):openRunFromId(r.id)}});
   const actions=[
@@ -304,8 +304,34 @@ function highlightCommandSelection(){
     if(on)el.scrollIntoView({block:'nearest'});
   });
 }
+function commandRowHTML(item,index){return `<button data-command-index="${index}" class="${index===commandSelectedIndex?'selected':''}"><span class="command-kind">${escapeHTML(item.kind)}</span><span><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.meta||'')}</small></span><em>↵</em></button>`}
+function commandRecentItems(){
+  let rows=[];
+  try{rows=JSON.parse(localStorage.getItem('loopforge.cmd.recent')||'[]')}catch(e){rows=[]}
+  const catalog=commandCatalog();
+  return rows.map(row=>catalog.find(item=>item.title===row.title&&item.kind===row.kind)).filter(Boolean).slice(0,5);
+}
+function commandRemember(item){
+  if(!item?.title)return;
+  let rows=[];
+  try{rows=JSON.parse(localStorage.getItem('loopforge.cmd.recent')||'[]')}catch(e){rows=[]}
+  rows=[{kind:item.kind,title:item.title},...rows.filter(row=>!(row.title===item.title&&row.kind===item.kind))].slice(0,6);
+  try{localStorage.setItem('loopforge.cmd.recent',JSON.stringify(rows))}catch(e){}
+}
+function renderCommandHome(){
+  const recent=commandRecentItems();
+  const common=commandCatalog().filter(item=>(item.group||'')==='动作').slice(0,6);
+  commandMatches=[...recent,...common];
+  commandSelectedIndex=0;
+  let html='<div class="command-group">最近</div>';
+  html+=recent.length?recent.map((item,index)=>commandRowHTML(item,index)).join(''):'<div class="command-empty"><b>还没有最近打开的页面</b><span>从下面的常用动作开始，或输入关键词搜索群聊、SOP 和 Bot。</span></div>';
+  html+='<div class="command-group">常用动作</div>';
+  html+=common.map((item,index)=>commandRowHTML(item,recent.length+index)).join('');
+  $('#commandResults').innerHTML=html;
+}
 function renderCommandResults(){
   const q=$('#commandSearch').value.trim().toLowerCase();
+  if(!q&&commandFilter==='全部'){renderCommandHome();return}
   const pool=commandCatalog().filter(x=>(commandFilter==='全部'||(x.group||'跳转')===commandFilter)&&(!q||`${x.group||''} ${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)));
   const grouped=['动作','跳转','设置'].flatMap(group=>pool.filter(x=>(x.group||'跳转')===group));
   commandMatches=grouped.slice(0,q?16:12);
@@ -315,10 +341,10 @@ function renderCommandResults(){
   groups.forEach(group=>{
     const rows=commandMatches.map((item,index)=>({item,index})).filter(row=>(row.item.group||'跳转')===group);
     if(!rows.length)return;
-    html+=`<div class="command-group">${group}${commandFilter!=='全部'&&commandFilter!==group?'':''}</div>`;
-    html+=rows.map(({item,index})=>`<button data-command-index="${index}" class="${index===0?'selected':''}"><span class="command-kind">${escapeHTML(item.kind)}</span><span><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.meta||'')}</small></span><em>↵</em></button>`).join('');
+    html+=`<div class="command-group">${group}</div>`;
+    html+=rows.map(({item,index})=>commandRowHTML(item,index)).join('');
   });
   $('#commandResults').innerHTML=html||`<div class="command-empty"><b>没有匹配结果</b><span>当前筛选：${escapeHTML(commandFilter)}。按 Tab 换一组，或换个关键词。</span></div>`;
 }
-function executeCommand(index){const item=commandMatches[index];if(!item)return;closeCommandPalette();item.action()}
+function executeCommand(index){const item=commandMatches[index];if(!item)return;commandRemember(item);closeCommandPalette();item.action()}
 

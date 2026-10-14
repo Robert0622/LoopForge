@@ -138,7 +138,7 @@ function kbSettingsPayload(){
 function kbRenderScope(host){
   const s=kb.settings||{};
   if(!s.ready){host.innerHTML='<div class="kb-empty">启用并保存连接后，这里会列出知识库中的全部来源，可按项目勾选授权范围。</div>';return}
-  if(kb.sourcesError){host.innerHTML=`<div class="kb-empty">知识库暂时不可达：${escapeHTML(kb.sourcesError)}</div>`;return}
+  if(kb.sourcesError){host.innerHTML=`<div class="kb-empty"><b>知识库暂时连不上</b><p>${escapeHTML(kb.sourcesError)}</p><button type="button" class="button primary small" data-kb-retry>重试连接</button></div>`;host.querySelector('[data-kb-retry]').onclick=()=>kbRefresh().then(()=>kbRender()).catch(err=>toast(err.message||'重试失败','err'));return}
   const list=kb.sources||[];
   const own=kbHasOwnScope();
   const pid=kbProjectId();
@@ -338,7 +338,7 @@ function kbRenderSearch(body){
 function kbHitsHTML(){
   const q=kb.search;
   if(q.loading)return '<div class="kb-empty">检索中…</div>';
-  if(q.error)return `<div class="kb-empty">检索失败：${escapeHTML(q.error)}</div>`;
+  if(q.error)return `<div class="kb-empty"><b>检索失败</b><p>${escapeHTML(q.error)}</p><p>点右上角「刷新」再试一次。</p></div>`;
   if(!q.result)return '';
   const r=q.result.result;
   const head=`<div class="kb-meta-row"><span>${r.results.length} 条结果</span><span>模式 ${escapeHTML(r.mode||'-')}</span><span>${q.result.latencyMs}ms</span>${r.degraded?'<span class="kb-pill warn">语义检索降级为词法检索</span>':''}</div>`;

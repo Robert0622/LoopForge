@@ -20,10 +20,11 @@ const crewMaxTasks = 8
 const crewCaptain = "LoopForge"
 
 type crewRequest struct {
-	Goal      string `json:"goal"`
-	Detail    string `json:"detail"`
-	AutoStart bool   `json:"autoStart"`
-	Source    string `json:"source"`
+	Goal      string         `json:"goal"`
+	Detail    string         `json:"detail"`
+	AutoStart bool           `json:"autoStart"`
+	Source    string         `json:"source"`
+	FakeModel *fakeModelSpec `json:"fakeModel"`
 }
 
 type crewTaskInput struct {
@@ -63,6 +64,9 @@ func (h *roomsHandlers) createCrew(c *gin.Context) {
 }
 
 func (h *roomsHandlers) startCrewMission(room domain.ChatRoom, userID int64, author string, req crewRequest) (domain.ChatMessage, error) {
+	if envOn("LOOPFORGE_DEMO_MODE") || (fakeModelAllowed() && req.FakeModel != nil && req.FakeModel.CrewStep) {
+		req.AutoStart = true
+	}
 	goal := strings.TrimSpace(req.Goal)
 	detail := strings.TrimSpace(req.Detail)
 	if goal == "" {
@@ -106,6 +110,11 @@ func (h *roomsHandlers) startCrewMission(room domain.ChatRoom, userID int64, aut
 	}
 	if err := h.repo.PutMessage(msg); err != nil {
 		return domain.ChatMessage{}, err
+	}
+	if req.FakeModel != nil && fakeModelAllowed() {
+		h.rememberCrewSpec(mission.ID, req.FakeModel)
+	} else if envOn("LOOPFORGE_DEMO_MODE") {
+		h.rememberCrewSpec(mission.ID, &fakeModelSpec{CrewStep: true, FirstTokenMs: 120, TokenMs: 12})
 	}
 	h.touchRoom(room)
 	go h.planCrew(room, msg.ID)
@@ -411,8 +420,13 @@ func (h *roomsHandlers) planCrew(room domain.ChatRoom, msgID string) {
 		lead += "分工可以先改，确认后点「开工」。"
 	}
 	h.crewSay(msg, crewCaptain, "", lead, "", "")
-	if m.AutoStart {
+	streamNow := m.AutoStart && h.useCrewFakeStream(msg.ID)
+	if m.AutoStart && !streamNow {
 		h.ensureCrewLoop()
+	}
+	if streamNow {
+		id := msg.ID
+		go h.launchNextCrewStep(id)
 	}
 }
 
@@ -521,6 +535,10 @@ func (h *roomsHandlers) advanceCrew(msgID string) {
 	for i := range m.Tasks {
 		t := &m.Tasks[i]
 		if t.Status != "running" {
+			continue
+		}
+		if t.StreamPost != "" || strings.HasPrefix(t.RunID, crewStreamPrefix) {
+			busy = true
 			continue
 		}
 		run, found := h.repo.Run(t.RunID)
@@ -713,6 +731,9 @@ func (h *roomsHandlers) startCrewTask(msg domain.ChatMessage, t *domain.CrewTask
 	if _, ok := h.repo.Agent(t.AgentID); !ok {
 		return fmt.Errorf("角色 %s 不存在", t.AgentID)
 	}
+	if h.useCrewFakeStream(m.ID) {
+		return h.openCrewFakeStep(msg, t)
+	}
 	// Each finished step closes the delivery loop on the issue; the mission
 	// is not done yet, so reopen it for the next bot. A person closing the
 	// issue by hand still blocks the mission.
@@ -735,6 +756,7 @@ func (h *roomsHandlers) startCrewTask(msg domain.ChatMessage, t *domain.CrewTask
 		return err
 	}
 	t.Status, t.RunID, t.WorkflowID, t.StartedAt, t.Error = "running", task.RunID, wf.ID, time.Now().UTC(), ""
+	h.attachCrewRunStream(msg, t)
 	return nil
 }
 
@@ -791,12 +813,19 @@ func (h *roomsHandlers) crewAction(c *gin.Context) {
 	if err == nil {
 		h.saveCrew(msg)
 	}
+	missionID := msg.ID
+	running := err == nil && msg.Crew != nil && msg.Crew.Status == "running"
+	fake := h.useCrewFakeStream(missionID)
 	h.crewMu.Unlock()
 	if err != nil {
 		respond(c, err)
 		return
 	}
-	h.ensureCrewLoop()
+	if running && fake {
+		go h.launchNextCrewStep(missionID)
+	} else {
+		h.ensureCrewLoop()
+	}
 	c.JSON(http.StatusOK, msg)
 }
 
@@ -816,7 +845,21 @@ func (h *roomsHandlers) applyCrewAction(msg *domain.ChatMessage, req crewActionR
 			return HTTPError{http.StatusConflict, "任务已经结束"}
 		}
 		for i := range m.Tasks {
-			if m.Tasks[i].Status == "running" && m.Tasks[i].RunID != "" {
+			if m.Tasks[i].Status != "running" {
+				continue
+			}
+			if m.Tasks[i].StreamPost != "" || strings.HasPrefix(m.Tasks[i].RunID, crewStreamPrefix) {
+				id := m.Tasks[i].StreamPost
+				if id == "" {
+					id = strings.TrimPrefix(m.Tasks[i].RunID, crewStreamPrefix)
+				}
+				if st := h.streamHub().get(id); st != nil && st.cancel != nil {
+					st.cancel()
+				}
+				m.Tasks[i].Status = "skipped"
+				continue
+			}
+			if m.Tasks[i].RunID != "" && h.engine != nil {
 				_ = h.engine.Cancel(m.Tasks[i].RunID)
 				m.Tasks[i].Status = "skipped"
 			}
@@ -950,7 +993,7 @@ func (h *roomsHandlers) crewHear(room domain.ChatRoom, said domain.ChatMessage, 
 			if len(lines) > 1 {
 				detail = lines[1]
 			}
-			if _, err := h.startCrewMission(room, said.UserID, said.Author, crewRequest{Goal: lines[0], Detail: detail, Source: "chat"}); err != nil {
+			if _, err := h.startCrewMission(room, said.UserID, said.Author, crewRequest{Goal: lines[0], Detail: detail, Source: "chat", FakeModel: spec}); err != nil {
 				h.crewSay(domain.ChatMessage{RoomID: room.ID}, crewCaptain, "", "没能接这个活："+err.Error(), "", "")
 			}
 		}

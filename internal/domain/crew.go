@@ -45,9 +45,14 @@ type CrewTask struct {
 	AddedBy     string `json:"addedBy,omitempty"`
 	WorkflowID  string `json:"workflowId,omitempty"`
 	RunID       string `json:"runId,omitempty"`
-	Summary     string `json:"summary,omitempty"`
-	Output      string `json:"output,omitempty"`
-	Error       string `json:"error,omitempty"`
+	// StreamPost is the room message that receives this step's tokens.
+	// A run id prefixed with "stream:" is that post, not an engine run.
+	StreamPost string `json:"streamPost,omitempty"`
+	// StreamGen increments every time the step's stream is restarted.
+	StreamGen int    `json:"streamGen,omitempty"`
+	Summary   string `json:"summary,omitempty"`
+	Output    string `json:"output,omitempty"`
+	Error     string `json:"error,omitempty"`
 	// Handoff is the only context the next bot receives from this step.
 	Handoff *CrewHandoff `json:"handoff,omitempty"`
 	// ReassignedFrom names the bot that was skipped because it was unavailable.

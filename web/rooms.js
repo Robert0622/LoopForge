@@ -242,7 +242,9 @@ function renderRoomList(rooms) {
   if (count) count.textContent = String(rooms.length);
   if (!host) return;
   if (!rooms.length) {
-    host.innerHTML = '<div class="room-empty"><b>还没有群</b><p>点右上角 ＋ 建一个群</p></div>';
+    host.innerHTML = '<div class="room-empty"><b>还没有群</b><p>建一个群，就可以 @LoopForge 让 Bot 自己分工。</p><button type="button" class="button primary small" id="roomEmptyCreate">新建群聊</button></div>';
+    const create = host.querySelector('#roomEmptyCreate');
+    if (create) create.onclick = () => createRoom();
     return;
   }
   host.innerHTML = rooms.map(room => `<button type="button" class="room-item ${room.id === roomState().activeId ? 'active' : ''}" data-room="${escapeHTML(room.id)}"><i>#</i><span>${escapeHTML(room.name)}</span><small title="群成员（即项目成员）">${(room.members || []).length} 人</small></button>`).join('');
@@ -909,8 +911,10 @@ function renderRoomBots() {
     });
   });
   const bots = roomBotsInProject();
+  const allOff = bots.length > 0 && bots.every(a => (typeof lfBotStatus === 'function' ? lfBotStatus(a).key : 'ok') === 'off');
   const row = (face, name, sub, statusKey, attrs = '') => `<button type="button" class="rb ${statusKey === 'busy' || statusKey === 'wait' ? 'is-live' : ''} ${statusKey === 'off' ? 'is-off' : ''}" ${attrs}>${face}<span><b>${escapeHTML(name)}</b><small>${escapeHTML(sub)}</small></span>${statusKey ? `<i class="lf-dot lf-dot-${statusKey}" title="${escapeHTML(sub)}"></i>` : ''}</button>`;
-  host.innerHTML = `<div class="rooms-pane-sub">Bot 队伍 <em>${bots.length + 1}</em></div>`
+  const banner = allOff ? '<div class="lf-callout"><p>现在没有能开工的 Bot。先去配置模型 Key，或换一个带演示执行器的角色。</p><button type="button" class="button primary small" data-bots-key>去配置 Key</button></div>' : '';
+  host.innerHTML = banner + `<div class="rooms-pane-sub">Bot 队伍 <em>${bots.length + 1}</em></div>`
     + row(roomFace({kind: 'lf'}), 'LoopForge', waiting ? `${waiting} 件事等你拍板` : '派活、交接、汇报', waiting ? 'wait' : 'ok', 'data-room-bot-help')
     + bots.map(a => {
       const st = typeof lfBotStatus === 'function' ? lfBotStatus(a) : {key: busy.has(a.id) ? 'busy' : 'ok', reason: ''};
@@ -918,6 +922,7 @@ function renderRoomBots() {
       const sub = st.key === 'off' ? (st.reason || '不可用') : st.key === 'busy' ? (busy.has(a.id) ? `正在做「${busy.get(a.id)}」` : `排队 ${st.queue || 1}`) : (a.description || '空闲').split('\n')[0].slice(0, 24);
       return row(roomFace({kind: 'bot', name}), name, sub, st.key, `data-room-bot="${escapeHTML(a.id)}"`);
     }).join('');
+  host.querySelector('[data-bots-key]')?.addEventListener('click', () => typeof openSettings === 'function' ? openSettings('models') : switchView('settings'));
   host.querySelector('[data-room-bot-help]')?.addEventListener('click', () => runRoomCommand('help'));
   host.querySelectorAll('[data-room-bot]').forEach(button => {
     button.onclick = () => {
@@ -1139,7 +1144,7 @@ function roomCrewPostHTML(m, merge) {
   const text = m.pending
     ? roomStreamHTML(m)
     : `<p class="msg-body ${long ? 'rm-clamp' : ''}">${roomTextHTML(body)}</p>${long ? '<button type="button" class="rm-more" data-rm-more>展开</button>' : ''}`;
-  const failed = m.status === 'failed' || m.error;
+  const failed = m.nodeStatus === 'error' || m.status === 'failed' || m.error;
   const err = !m.pending && failed ? roomErrorCardHTML({reason: m.error || m.body || '这一步没做成', crew: m.crewId || ''}) : '';
   return `<article class="rm rm-bot rm-crew ${lf ? 'is-captain' : ''}${merge ? ' is-merged' : ''}" data-mid="${escapeHTML(m.id)}">${face}<div class="rm-body"><header><b>${escapeHTML(name)}</b><span class="rm-tag">BOT</span><time>${roomTime(m.createdAt)}</time>${lf || !m.crewId ? '' : `<button type="button" class="rm-thread-link" data-open-crew="${escapeHTML(m.crewId || '')}">看过程</button>`}</header>${roomQuoteHTML(m)}${text}${err}${hand}</div>${m.pending ? '' : roomReplyActHTML(m.id)}</article>`;
 }
@@ -1353,9 +1358,9 @@ function roomGuideHTML() {
   return `<div class="room-guide">
     <span class="room-guide-orb"></span>
     <h2>${escapeHTML(roomGreeting())}</h2>
-    <p class="room-guide-lead">在群里聊需求，<b>@LoopForge</b> 选一条 SOP 就开跑。进度、待确认和交付都会回到这个群。</p>
+    <p class="room-guide-lead">这个群还是空的。@LoopForge 说一件要做的事，Bot 会自己分工并在这里交接。</p>
     <div class="room-guide-actions">
-      <button type="button" class="room-suggest" data-room-try-issue><b>@LoopForge 派一条需求</b><span>选 SOP，第一行写标题</span></button>
+      <button type="button" class="button primary" data-room-try-issue>让 LoopForge 开工</button>
       <button type="button" class="room-suggest" data-room-suggest="status"><b>/status</b><span>现在在跑什么、卡在哪</span></button>
       <button type="button" class="room-suggest" data-room-suggest="approve"><b>/approve</b><span>等我拍板的步骤</span></button>
       <button type="button" class="room-suggest" data-room-try-chat><b>发一条消息</b><span>@ 提醒同事</span></button>
@@ -1709,6 +1714,10 @@ async function sendRoomMessage() {
   let body = input?.value.trim();
   if (!id) return toast('先选择一个群');
   if (!body) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (typeof lfSyncOffline === 'function') lfSyncOffline();
+    return toast('网络已断开，草稿还留在输入框里');
+  }
   const rewritten = roomRewriteMentions(body);
   if (rewritten.blocked) {
     roomBotReply(roomErrorCardHTML({reason: rewritten.reason, swap: true}));

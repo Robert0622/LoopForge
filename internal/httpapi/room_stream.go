@@ -22,6 +22,11 @@ type fakeModelSpec struct {
 	StallAfter      int    `json:"stallAfter"`
 	StallMs         int    `json:"stallMs"`
 	DisconnectAfter int    `json:"disconnectAfter"`
+	// CrewStep asks a demo/fake model to stream a bot step instead of the captain.
+	CrewStep bool `json:"crewStep"`
+	// FailStep is the 1-based crew step that errors once, so retry can continue.
+	FailStep int `json:"failStep"`
+	failUsed bool
 }
 
 func fakeModelAllowed() bool {
@@ -222,6 +227,12 @@ func (h *roomsHandlers) retryMessage(c *gin.Context) {
 	}
 	if msg.Kind != domain.ChatKindCrewPost {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "只能重试 Bot 的回复"})
+		return
+	}
+	if msg.AgentID != "" && msg.CrewID != "" {
+		h.restartCrewPost(msg)
+		fresh, _ := h.repo.Message(msg.ID)
+		c.JSON(http.StatusOK, fresh)
 		return
 	}
 	prev := h.streamHub().get(msg.ID)

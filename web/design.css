@@ -1,4 +1,19 @@
-@import url("/collab.css?v=20261014p3");
+@import url("/styles.css?v=20260823v1");
+@import url("/assets.css?v=20260823v1");
+@import url("/platform.css?v=20261014p2");
+@import url("/observability.css?v=20260921r1");
+@import url("/artifacts.css?v=20260914r3");
+@import url("/sops.css?v=20260921r3");
+@import url("/sync.css?v=20260915r3");
+@import url("/access.css");
+@import url("/onboarding.css?v=20261014p2");
+@import url("/product-v3.css?v=20260917r2");
+@import url("/product-v4.css?v=20261001r1");
+@import url("/assistant.css?v=20260920r2");
+@import url("/knowledge.css?v=20261008r1");
+@import url("/metrics-dashboard.css?v=20260921r2");
+@import url("/business-domains.css?v=20261014p2");
+@import url("/collab.css?v=20261014p4");
 /* LoopForge design layer — loaded last. Chat layout (collab.css) is imported
    above so this file can own the final chat colors without a second link.
    Single source of truth for color, surface and motion tokens. The legacy
@@ -1393,3 +1408,35 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .rb .lf-dot{margin-left:auto}
 .platform-sidebar .nav-section{display:block!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:16px!important;overflow:visible!important;position:static!important}
 .platform-sidebar #pluginNavGroup,.platform-sidebar #pluginNavGroup .nav{display:flex!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:34px!important;position:static!important}
+
+/* Phase 3 density, command palette, gallery, offline. Colors stay on --lf-*. */
+.platform-sidebar .nav-section{font-size:12px;font-weight:500;letter-spacing:.04em}
+.platform-sidebar .nav-label{font-size:14px}
+.room-log{max-width:760px;margin-inline:auto;width:100%}
+.room-log .rm+.rm{margin-top:10px}
+.msg-body,.rm-body p{font-size:15px;line-height:1.55}
+.lf-status-off i,.lf-dot-off{background:var(--lf-text-2)}
+.command-dialog,.modal-card{background:var(--lf-elevated);border:1px solid var(--lf-line-2);box-shadow:var(--lf-shadow-lg)}
+.lf-offline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 16px 0;padding:10px 12px;border:1px solid var(--lf-line-2);border-radius:var(--lf-radius-sm);background:var(--lf-elevated);color:var(--lf-text);box-shadow:var(--lf-shadow-sm)}
+.lf-offline[hidden]{display:none}
+.hc-live-strip{display:flex;align-items:center;gap:8px;margin:12px 0 0;padding:8px 10px;border:1px solid var(--lf-line);border-radius:var(--lf-radius);background:var(--lf-surface)}
+.hc-live-strip>span{flex:none;font-size:12px;font-weight:500;color:var(--lf-text-2)}
+.hc-live-strip.is-empty p{margin:0;font-size:14px;color:var(--lf-text-2)}
+.hc-live-item{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;border:0;border-radius:8px;background:transparent;color:var(--lf-text);cursor:pointer}
+.hc-live-item i{width:8px;height:8px;border-radius:50%;background:var(--lf-wait);box-shadow:0 0 0 3px var(--lf-wait-soft)}
+.hc-live-item b{font-size:14px;font-weight:600}
+.hc-live-item small{color:var(--lf-text-3);font-size:12px}
+.hc-examples{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.hc-example{text-align:left;padding:12px 14px;border:1px solid var(--lf-line);border-radius:var(--lf-radius);background:var(--lf-surface);color:var(--lf-text);cursor:pointer}
+.hc-example b{display:block;font-size:14px}
+.hc-example small{display:block;margin-top:4px;color:var(--lf-text-2);font-size:12px;line-height:1.4}
+.hc-example:hover{border-color:var(--lf-line-2);background:var(--lf-elevated)}
+.lf-callout,.room-empty{padding:14px;border:1px dashed var(--lf-line-2);border-radius:var(--lf-radius);background:var(--lf-surface)}
+.lf-callout p,.room-empty p{margin:4px 0 10px;color:var(--lf-text-2);font-size:14px}
+.lf-gallery{display:grid;gap:18px;max-width:760px}
+.lf-gallery section{padding:16px;border:1px solid var(--lf-line);border-radius:var(--lf-radius);background:var(--lf-surface)}
+.lf-gallery h2{margin:0 0 10px;font-size:14px}
+.lf-gallery-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lf-gallery-field{display:grid;gap:6px;font-size:14px;color:var(--lf-text-2)}
+.room-send:disabled{opacity:.45}
+.room-send.ready{opacity:1}
