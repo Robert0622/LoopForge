@@ -94,6 +94,15 @@ function renderIssueDetailTab(){
     if(current?.clarification?.lastError){retryIssueClarifyTurn();return;}
     sendIssueClarification();
   });
+  const clarifyInput=$('#issueClarifyInput');
+  if(clarifyInput)clarifyInput.onkeydown=e=>{
+    if(e.key!=='Enter'||e.shiftKey||e.isComposing||e.keyCode===229)return;
+    e.preventDefault();
+    const current=state.issueDetailData?.issue;
+    if(current?.clarification?.status==='analyzing')return;
+    if(current?.clarification?.lastError){retryIssueClarifyTurn();return;}
+    sendIssueClarification();
+  };
   host.querySelectorAll('[data-stop-clarify]').forEach(b=>b.onclick=()=>stopIssueClarification(issue.id));
   host.querySelectorAll('[data-retry-clarify]').forEach(b=>b.onclick=()=>retryIssueClarificationWriteBack());
   host.querySelectorAll('[data-retry-clarify-turn]').forEach(b=>b.onclick=()=>retryIssueClarifyTurn());

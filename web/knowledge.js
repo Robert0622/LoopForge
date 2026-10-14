@@ -307,7 +307,7 @@ function kbRenderEditor(){
       if(act==='delete'){const name=values().title||d.title||'这条沉淀';if(!(await afConfirm({title:`删除「${name}」？`,message:'此操作不可撤销。',confirmText:'删除',danger:true,confirmName:name})))return;await api(`/api/knowledge/submissions/${encodeURIComponent(d.id)}`,{method:'DELETE'});kb.draft=null;kb.selected=null;toast('已删除')}
       if(act==='publish'){
         const v=values();if(!v.source)return toast('请选择写入的知识库来源');if(!/\.md$/i.test(v.path))return toast('路径必须以 .md 结尾');
-        if(!confirm(`确认写回知识库？\n\n来源：${v.source}\n路径：${v.path}\n\n将提交到知识库 Git 仓库并触发重建索引。`))return;
+        if(!(await afConfirm({title:'写回知识库？',message:`来源：${v.source}\n路径：${v.path}\n将提交到知识库 Git 仓库并触发重建索引。`,confirmText:'写回'})))return;
         await save();kb.draft=await api(`/api/knowledge/submissions/${encodeURIComponent(d.id)}/publish`,{method:'POST'});toast(`已写回知识库 · commit ${String(kb.draft.commit||'').slice(0,8)}`,'ok');
       }
       if(kb.draft)kb.subStatus=kb.draft.status;

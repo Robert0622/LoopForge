@@ -904,7 +904,7 @@ function lfBindChrome(){
   if(document.body.dataset.lfChrome)return;
   document.body.dataset.lfChrome='1';
   window.addEventListener('offline',lfSyncOffline);
-  window.addEventListener('online',()=>{lfSyncOffline();toast('网络已恢复','ok')});
+  window.addEventListener('online',()=>{lfSyncOffline();toast('网络已恢复','ok');if(typeof roomReattachOnline==='function')roomReattachOnline()});
   $('#lfOfflineRetry')&&($('#lfOfflineRetry').onclick=()=>{lfSyncOffline();if(navigator.onLine)toast('网络是通的','ok');else toast('还是连不上','err')});
   lfSyncOffline();
 }
@@ -1222,7 +1222,7 @@ function bind(){
   $('#chatCreateDirect')&&($('#chatCreateDirect').onclick=()=>createIssueDirect());
   $('#chatCreateLocal')&&($('#chatCreateLocal').onclick=()=>createIssueFromChat('local'));
   $('#chatCreateGitHub').onclick=()=>createIssueFromChat('github');
-  $('#chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){if(chatHistory.length>0){e.preventDefault();sendChatClarify()}}});
+  $('#chatInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229){e.preventDefault();sendChatClarify()}});
   $('#reqWorkflow')&&($('#reqWorkflow').onchange=()=>persistRequirementComposer());
   $('#chatInput').addEventListener('input',()=>{syncComposerReplyState();persistRequirementComposer()});
   window.addEventListener('beforeunload',()=>persistRequirementComposer());

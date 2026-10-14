@@ -228,6 +228,7 @@ function onboardingProgress() {
 
 function onboardingProgressHTML() {
   const p = onboardingProgress();
+  if (p.ask && p.crew && p.sop) return '';
   const item = (done, label) => `<b class="${done ? 'is-done' : ''}">${done ? '✓ ' : ''}${label}</b>`;
   return `<div class="lf-progress" aria-label="上手三步">${item(p.ask, '发请求')}${item(p.crew, '多 Bot')}${item(p.sop, '存 SOP')}</div>`;
 }

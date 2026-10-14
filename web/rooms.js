@@ -632,7 +632,7 @@ function renderRoomThread(room, messages, keepScroll) {
   if (order.length > digestKeep && !rs.digestOpen) {
     const hiddenCount = order.length - digestKeep;
     visible = order.slice(-digestKeep);
-    digest = `<div class="rm-digest"><b>较早的 ${hiddenCount} 条已收起</b><p>最近 ${digestKeep} 条还在下面。展开后可以往上翻完整记录。</p><button type="button" class="button ghost small" data-room-digest>展开全部</button></div>`;
+    digest = roomDigestHTML(order.slice(0, hiddenCount), hiddenCount);
   }
   let day = '';
   let prevSpeaker = '';
@@ -1040,7 +1040,42 @@ function roomHandoffHTML(t) {
   if (!h || (!h.conclusion && !(h.artifacts || []).length && !(h.openQuestions || []).length)) return '';
   const arts = (h.artifacts || []).map(a => `<li>${escapeHTML(a)}</li>`).join('') || '<li>无</li>';
   const open = (h.openQuestions || []).map(a => `<li>${escapeHTML(a)}</li>`).join('') || '<li>无</li>';
-  return `<details class="rc-handoff"><summary>${escapeHTML(t.agentName || '这一步')} · 结论 / 产物 / 未决</summary><p><b>结论</b> ${escapeHTML(h.conclusion || '无')}</p><p><b>产物</b></p><ul>${arts}</ul><p><b>未决</b></p><ul>${open}</ul></details>`;
+  return `<div class="rc-handoff"><p><b>结论</b> ${escapeHTML(h.conclusion || '无')}</p><details><summary>${escapeHTML(t.agentName || '这一步')} · 产物 / 未决</summary><p><b>产物</b></p><ul>${arts}</ul><p><b>未决</b></p><ul>${open}</ul></details></div>`;
+}
+function roomDigestLine(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+function roomDigestHTML(hiddenItems, hiddenCount) {
+  const conclusions = [];
+  const process = [];
+  (hiddenItems || []).forEach(item => {
+    const crew = item.crew && item.crew.crew;
+    if (crew) {
+      (crew.tasks || []).forEach(t => {
+        const who = t.agentName || 'Bot';
+        if (t.handoff && t.handoff.conclusion) conclusions.push(who + '：' + t.handoff.conclusion);
+        else if (t.summary) conclusions.push(who + '：' + t.summary);
+        if (t.title) process.push(who + (t.status === 'succeeded' ? ' 完成了' : t.status === 'failed' ? ' 没做成' : ' ') + '「' + t.title + '」');
+      });
+      if (crew.status === 'done' && crew.goal) conclusions.push('交付：' + crew.goal);
+      return;
+    }
+    const msg = item.msg;
+    if (!msg) return;
+    const body = roomDigestLine(msg.body);
+    if (!body) return;
+    if (msg.kind === 'decision') conclusions.push(body);
+    else process.push((msg.author || '消息') + '：' + body);
+  });
+  const points = [...new Set(conclusions.map(roomDigestLine).filter(Boolean))].slice(0, 4);
+  const steps = [...new Set(process.map(roomDigestLine).filter(Boolean))].slice(0, 8);
+  const conclusion = points.length
+    ? `<ul class="rm-digest-points">${points.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ul>`
+    : '<p>这几条里还没有写下结论。</p>';
+  const folded = steps.length
+    ? `<details class="rm-digest-process"><summary>过程 ${steps.length} 步，默认收着</summary><ul>${steps.map(t => `<li>${escapeHTML(t)}</li>`).join('')}</ul></details>`
+    : '';
+  return `<div class="rm-digest"><b>较早的 ${hiddenCount} 条 · 结论</b>${conclusion}${folded}<button type="button" class="button ghost small" data-room-digest>展开全部消息</button></div>`;
 }
 function roomErrorCardHTML(opts) {
   const reason = String(opts?.reason || '这一步没做成');
@@ -1062,15 +1097,16 @@ function roomStreamHTML(m) {
   const pulse = '<span class="rm-pulse" aria-hidden="true"></span>';
   const crew = escapeHTML(m.crewId || '');
   const mid = escapeHTML(m.id || '');
+  const stop = `<button type="button" class="button ghost small" data-stream-stop data-mid="${mid}" data-crew="${crew}">停止</button>`;
   if (gap >= 10000) {
     const sec = Math.max(1, Math.round(gap / 1000));
     const partial = m.body ? `<p class="msg-body">${roomTextHTML(m.body)}<i class="rm-caret"></i></p>` : '';
-    return `${partial}<div class="rm-stream is-slow" data-stream-age="${Date.parse(m.streamAt || m.createdAt || '') || Date.now()}">${pulse}<span>仍在处理，已用 ${sec} 秒</span><button type="button" class="button ghost small" data-stream-stop data-mid="${mid}" data-crew="${crew}">停止</button><button type="button" class="button ghost small" data-stream-retry data-mid="${mid}" data-crew="${crew}">重试</button></div>`;
+    return `${partial}<div class="rm-stream is-slow" data-stream-age="${Date.parse(m.streamAt || m.createdAt || '') || Date.now()}">${pulse}<span>仍在处理，已用 ${sec} 秒</span>${stop}<button type="button" class="button ghost small" data-stream-retry data-mid="${mid}" data-crew="${crew}">重试</button></div>`;
   }
   const phase = m.body ? 'out' : age >= 1500 ? 'think' : 'queue';
   const label = {queue: '排队中', think: '思考中', out: '输出中'}[phase] || '排队中';
   const body = phase === 'out' ? `<p class="msg-body">${roomTextHTML(m.body)}<i class="rm-caret"></i></p>` : '';
-  return `${body}<p class="rm-stream">${pulse}<span>${label}</span></p>`;
+  return `${body}<p class="rm-stream">${pulse}<span>${label}</span>${stop}</p>`;
 }
 function roomMergeStreams(messages) {
   const rs = roomState();
@@ -1093,6 +1129,16 @@ function loadBotStatus() {
     state.botStatusAt = Date.now();
     if (state.currentView === 'rooms') renderRoomBots();
   }).catch(() => {});
+}
+function roomDropStreams() {
+  const rs = roomState();
+  Object.values(rs.sse || {}).forEach(es => { try { es.close(); } catch (e) {} });
+  rs.sse = {};
+  rs.threadSignature = '';
+}
+function roomReattachOnline() {
+  roomDropStreams();
+  if (typeof state !== 'undefined' && state.currentView === 'rooms') refreshRoomMessages(true);
 }
 function roomAttachStreams(room, messages) {
   if (!room?.id || room.id === 'preview' || typeof EventSource === 'undefined') return;
