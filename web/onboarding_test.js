@@ -21,7 +21,10 @@ assert.equal(steps[1].target, '#homeChatForm');
 assert.ok(steps.slice(2).every(step => /\.nav\[data-(view|nav-group)=/.test(step.target)));
 assert.equal(steps.at(-1).finish, true);
 assert.equal(steps.at(-1).next, '去填写');
-assert.equal(steps.at(-1).target, '.nav[data-view="me"]');
+assert.equal(steps.at(-1).target, '.nav[data-view="settings"]');
+assert.equal(steps[2].target, '.nav[data-view="issues"]');
+assert.match(steps[2].title, /SOP 运行/);
+assert.equal(steps[4].target, '.nav[data-view="agents"]');
 
 const demoSteps = context.onboardingSteps(true);
 assert.equal(demoSteps.length, 6);

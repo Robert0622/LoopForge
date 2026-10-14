@@ -100,7 +100,23 @@ async function api(path, options={}) {
     }
   }
 }
-function toast(message, type='info', duration=type==='err'?6000:2600){
+let toastUndoHandler=null;
+function clearToastUndo(){
+  if(toastUndoHandler){document.removeEventListener('keydown',toastUndoHandler);toastUndoHandler=null}
+}
+function armToastUndo(fn,remove){
+  clearToastUndo();
+  toastUndoHandler=e=>{
+    if(!(e.metaKey||e.ctrlKey)||e.key.toLowerCase()!=='z'||e.shiftKey)return;
+    if(e.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+    e.preventDefault();
+    clearToastUndo();
+    remove();
+    try{fn()}catch(err){console.error(err)}
+  };
+  document.addEventListener('keydown',toastUndoHandler);
+}
+function toast(message, type='info', duration=type==='err'?6000:2600, extra){
   const container=$('#toastContainer');
   const legacy=$('#toast');
   if(!container&&legacy){
@@ -117,7 +133,7 @@ function toast(message, type='info', duration=type==='err'?6000:2600){
   const item=document.createElement('div');
   item.className=`toast-item toast-${kind}`;
   item.setAttribute('role','status');
-  item.innerHTML=`<span class="toast-item-icon">${icons[kind]}</span><span class="toast-item-msg">${escapeHTML(message)}</span><button type="button" class="toast-item-close" title="关闭">×</button>`;
+  item.innerHTML=`<span class="toast-item-icon">${icons[kind]}</span><span class="toast-item-msg">${escapeHTML(message)}</span>${extra?.undo?'<button type="button" class="toast-undo">撤销 ⌘Z</button>':''}<button type="button" class="toast-item-close" title="关闭">×</button>`;
   container.appendChild(item);
   let timer=null;
   const remove=()=>{
@@ -128,7 +144,13 @@ function toast(message, type='info', duration=type==='err'?6000:2600){
   timer=setTimeout(remove, duration);
   item.onmouseenter=()=>clearTimeout(timer);
   item.onmouseleave=()=>{timer=setTimeout(remove, 1400)};
-  item.querySelector('.toast-item-close').onclick=remove;
+  item.querySelector('.toast-item-close').onclick=()=>{clearToastUndo();remove()};
+  if(extra?.undo){
+    const undo=item.querySelector('.toast-undo');
+    const run=()=>{clearToastUndo();remove();extra.undo()};
+    if(undo)undo.onclick=run;
+    armToastUndo(extra.undo,remove);
+  }
 }
 
 let confirmPromiseResolve = null;
@@ -144,7 +166,8 @@ function afConfirm(options){
     const message=opt.message||'确定要继续吗？';
     const confirmText=opt.confirmText||(opt.danger?'确定执行':'确定');
     const cancelText=opt.cancelText||'取消';
-    const danger=!!opt.danger;
+    const danger=!!(opt.danger||opt.isDanger);
+    const confirmName=String(opt.confirmName||'').trim();
 
     $('#confirmTitle').textContent=title;
     $('#confirmMessage').textContent=message;
@@ -157,8 +180,16 @@ function afConfirm(options){
 
     promptWrap.hidden=true;
     if(rerunFields)rerunFields.hidden=true;
+    const nameWrap=$('#confirmNameWrap');
+    const nameInput=$('#confirmNameInput');
+    const nameHint=$('#confirmNameHint');
+    if(nameWrap)nameWrap.hidden=!confirmName;
+    if(nameInput){nameInput.value='';nameInput.placeholder=confirmName}
+    if(nameHint&&confirmName)nameHint.textContent=`输入 ${confirmName} 以确认`;
     okBtn.textContent=confirmText;
-    okBtn.className=`button ${danger?'danger-btn':'primary'}`;
+    okBtn.className=`button ${danger?'danger-outline':'primary'}`;
+    okBtn.disabled=!!confirmName;
+    if(nameInput&&confirmName)nameInput.oninput=()=>{okBtn.disabled=nameInput.value.trim()!==confirmName};
     cancelBtn.textContent=cancelText;
     cancelBtn.hidden=false;
 
@@ -166,10 +197,13 @@ function afConfirm(options){
     iconEl.textContent=danger?'🗑️':(opt.info?'ℹ️':'⚠️');
 
     modal.classList.add('open');
-    okBtn.focus();
+    if(confirmName&&nameInput)nameInput.focus();else okBtn.focus();
 
     confirmPromiseResolve=(val)=>{
+      if(val&&confirmName&&nameInput&&nameInput.value.trim()!==confirmName)return;
       modal.classList.remove('open');
+      okBtn.disabled=false;
+      if(nameWrap)nameWrap.hidden=true;
       confirmPromiseResolve=null;
       resolve(val);
     };
@@ -203,6 +237,8 @@ function afPrompt(options, defaultVal=''){
 
     promptWrap.hidden=false;
     if(rerunFields)rerunFields.hidden=true;
+    const nameWrap=$('#confirmNameWrap');if(nameWrap)nameWrap.hidden=true;
+    okBtn.disabled=false;
     promptLabel.textContent=opt.label||title;
     promptInput.value=defaultValue;
     promptInput.placeholder=placeholder;
@@ -239,6 +275,7 @@ function afAlert(options){
     $('#confirmTitle').textContent=opt.title||'提示';
     $('#confirmMessage').textContent=opt.message||'';
     $('#confirmPromptWrap').hidden=true;
+    const nameWrap=$('#confirmNameWrap');if(nameWrap)nameWrap.hidden=true;
     const rerunFields=$('#rerunFromNodeFields');
     if(rerunFields)rerunFields.hidden=true;
     const okBtn=$('#confirmOkBtn');
@@ -1202,6 +1239,7 @@ function bind(){
       if(e.key==='Escape'){closeCommandPalette();return}
       if(e.key==='ArrowDown'){e.preventDefault();moveCommandSelection(1);return}
       if(e.key==='ArrowUp'){e.preventDefault();moveCommandSelection(-1);return}
+      if(e.key==='Tab'){e.preventDefault();if(typeof cycleCommandFilter==='function')cycleCommandFilter();return}
       if(e.key==='Enter'){e.preventDefault();executeCommand(commandSelectedIndex);return}
     }
     if(e.key==='Escape'){
@@ -1373,7 +1411,42 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'需求看板',rooms:'协作群聊',runs:'运行',metrics:'研发效能',approvals:'待我确认',sops:'流程模板',flow:'流程设计',agents:'角色',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'沙箱',observability:'用量分析',projects:'项目',businessDomains:'业务领域',platform:'平台管理',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识中心'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'SOP 运行',rooms:'群聊',runs:'运行',metrics:'运行洞察',approvals:'待我确认',sops:'流程',flow:'流程设计',agents:'Bot',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'环境',observability:'成本',projects:'项目',businessDomains:'业务领域',platform:'成员与权限',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识库'}}
+function sidebarViewFor(name){
+  const map={runs:'issues',approvals:'issues',flow:'sops',skills:'agents',mcp:'agents',rules:'agents',dockerfiles:'sandboxes',environments:'sandboxes',businessDomains:'metrics',businessDomainManagement:'platform',runners:'settings',guide:'settings',access:'settings',build:'sops',me:'settings',admin:'platform',insights:'metrics'};
+  return map[name]||name;
+}
+function lfModelReady(){
+  const stored=(typeof userById==='function'?userById(state.currentUser?.id):null)||{};
+  return !!(stored.codeBuddyApiKeyConfigured||stored.codexApiKeyConfigured||stored.claudeCodeApiKeyConfigured);
+}
+function lfBotQueue(agentId){
+  let n=0;
+  (state.data?.runs||[]).forEach(r=>{
+    if(!['running','queued','waiting'].includes(r.status))return;
+    (r.workflowSnapshot?.nodes||[]).forEach(node=>{
+      if(node.agentId!==agentId)return;
+      const st=r.nodes?.[node.id]?.status;
+      if(st==='running'||st==='pending'||st==='queued')n++;
+    });
+  });
+  if(typeof roomState==='function'){
+    (roomState().lastMessages||[]).forEach(m=>{(m.crew?.tasks||[]).forEach(t=>{if(t.agentId===agentId&&(t.status==='running'||t.status==='pending'))n++})});
+  }
+  return n;
+}
+function lfBotStatus(agent){
+  if(!agent)return {key:'off',label:'不可用',reason:'找不到这个 Bot',queue:0};
+  if(!lfModelReady())return {key:'off',label:'缺 Key',reason:'还没配置模型 API Key',queue:0};
+  const queue=lfBotQueue(agent.id);
+  if(queue>0)return {key:'busy',label:'忙',reason:'排队 '+queue,queue};
+  return {key:'ok',label:'可用',reason:'可直接 @',queue:0};
+}
+function lfStatusBadge(agent){
+  const st=lfBotStatus(agent);
+  const extra=st.key==='busy'&&st.queue?' '+st.queue:'';
+  return `<span class="lf-status lf-status-${st.key}" title="${escapeHTML(st.reason)}"><i></i>${escapeHTML(st.label+extra)}</span>`;
+}
 function activeViewName(){if(state.currentView)return state.currentView;const el=document.querySelector('.view.active');return el?el.id.replace(/View$/,''):''}
 function setCapabilityNavExpanded(expanded){const toggle=$('#capabilityNavToggle'),group=$('#capabilityNavGroup');if(!toggle||!group)return;toggle.setAttribute('aria-expanded',String(expanded));group.hidden=!expanded;localStorage.setItem('loopforge.capabilityNavExpanded',String(expanded))}
 function setNavGroupExpanded(group,expanded){const toggle=$(`[data-nav-group="${group}"]`),body=$(`[data-nav-group-body="${group}"]`);if(!toggle||!body)return;toggle.setAttribute('aria-expanded',String(expanded));body.hidden=!expanded;localStorage.setItem(`loopforge.navGroup.${group}`,String(expanded))}
@@ -1460,16 +1533,13 @@ function persistView(name,push=false){
 }
 // 侧栏只留几个入口；入口下的页面用顶部标签（必要时再加一层子标签）切换。
 const VIEW_TABSETS=[
-  {nav:'issues',label:'交付',tabs:[{view:'issues',label:'需求看板'},{view:'runs',label:'运行'},{view:'approvals',label:'待我确认',count:true}]},
-  {nav:'build',label:'构建',tabs:[
-    {view:'sops',label:'流程',subs:[['sops','模板'],['flow','设计']]},
-    {view:'agents',label:'角色'},
-    {view:'skills',label:'能力',subs:[['skills','技能'],['mcp','MCP'],['rules','规则'],['knowledge','知识']]},
-    {view:'sandboxes',label:'环境',subs:[['sandboxes','沙箱'],['dockerfiles','Dockerfile'],['environments','安装脚本']]},
-    {view:'projects',label:'项目'}]},
-  {nav:'insights',label:'洞察',tabs:[{view:'metrics',label:'效能'},{view:'observability',label:'用量'},{view:'businessDomains',label:'汇报'}],plugins:true},
-  {nav:'admin',label:'平台',tabs:[{view:'platform',label:'账号与权限',when:()=>isPlatformAdmin()},{view:'businessDomainManagement',label:'业务领域'}]},
-  {nav:'me',label:'设置',tabs:[{view:'settings',label:'个人设置'},{view:'runners',label:'执行机器'},{view:'guide',label:'接入指南'}]},
+  {nav:'issues',label:'工作',tabs:[{view:'issues',label:'SOP 运行',count:true,subs:[['issues','需求'],['runs','运行'],['approvals','待确认']]}]},
+  {nav:'sops',label:'配置',tabs:[{view:'sops',label:'流程',subs:[['sops','模板'],['flow','设计']]}]},
+  {nav:'agents',label:'配置',tabs:[{view:'agents',label:'Bot',subs:[['agents','Bot'],['skills','技能'],['mcp','MCP'],['rules','规则']]}]},
+  {nav:'sandboxes',label:'配置',tabs:[{view:'sandboxes',label:'环境',subs:[['sandboxes','沙箱'],['dockerfiles','Dockerfile'],['environments','安装脚本']]}]},
+  {nav:'metrics',label:'洞察',tabs:[{view:'metrics',label:'运行洞察',subs:[['metrics','运行洞察'],['businessDomains','汇报']]}],plugins:true},
+  {nav:'platform',label:'管理',tabs:[{view:'platform',label:'成员与权限',when:()=>isPlatformAdmin()},{view:'businessDomainManagement',label:'领域',when:()=>canAccessPlatformManagement()}]},
+  {nav:'settings',label:'设置',tabs:[{view:'settings',label:'个人设置'},{view:'runners',label:'执行机器'},{view:'guide',label:'接入指南'}]},
 ];
 function tabsetTabs(set){
   const tabs=set.tabs.filter(t=>!t.when||t.when());
@@ -1493,7 +1563,6 @@ function applyViewTabset(name,target){
   const tabs=tabsetTabs(set);
   const cur=tabs.find(t=>tabOwns(t,name));
   const count=$('#approvalNavBadge')?.textContent||'';
-  const title=$('#pageTitle');if(title)title.innerHTML=`<span class="crumb">${set.label}</span><i class="crumb-sep">/</i>${escapeHTML(cur?.label||title.textContent)}${cur?.subs?`<i class="crumb-sep">/</i>${escapeHTML((cur.subs.find(s=>s[0]===name)||[])[1]||'')}`:''}`;
   let pagebar=view.querySelector(':scope>.lf-pagebar');
   if(!pagebar){
     pagebar=document.createElement('div');pagebar.className='lf-pagebar';
@@ -1512,6 +1581,8 @@ function applyViewTabset(name,target){
   }
 }
 function switchView(name){
+  const legacy={build:'sops',me:'settings',admin:'platform',insights:'metrics'};
+  if(legacy[name])name=legacy[name];
   name=resolveSectionView(name);
   const titles=viewTitles();
   if(name==='access')name='guide';
@@ -1528,7 +1599,8 @@ function switchView(name){
   const staying=activeViewName()===name;
   const prevView=state.currentView;
   state.currentView=name;
-  $$('.nav[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===name));
+  const side=sidebarViewFor(name);
+  $$('.nav[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===name||n.dataset.view===side));
   $('#capabilityNavToggle')?.classList.toggle('child-active',['mcp','rules','skills'].includes(name));
   if(['mcp','rules','skills'].includes(name))setCapabilityNavExpanded(true);
   $('#environmentNavToggle')?.classList.toggle('child-active',['dockerfiles','environments','sandboxes'].includes(name));

@@ -51,6 +51,12 @@ function bindRooms() {
   create.dataset.bound = '1';
   create.onclick = createRoom;
   $('#renameRoom').onclick = renameRoom;
+  const saveSOP = $('#roomSaveSOP');
+  if (saveSOP) saveSOP.onclick = () => {
+    const crew = [...(roomState().lastMessages || [])].reverse().find(m => m.kind === 'crew' && m.crew);
+    if (!crew) return toast('这个群还没有可以沉淀的分工');
+    roomCrewAct(crew.id, 'sop');
+  };
   $('#roomModeChat').onclick = () => setRoomMode('chat');
   const shell = $('#roomsShell');
   const infoBtn = $('#toggleRoomInfo');
@@ -215,7 +221,10 @@ function scheduleRoomPoll() {
   const delay = roomState().active ? 4000 : 15000;
   roomsPollTimer = setTimeout(async () => {
     if (state.currentView === 'rooms' && roomState().activeId && !document.hidden) await refreshRoomMessages();
-    if (state.currentView === 'rooms') scheduleRoomPoll();
+    if (state.currentView === 'rooms') {
+      renderRoomBots();
+      scheduleRoomPoll();
+    }
   }, delay);
 }
 
@@ -515,7 +524,9 @@ function roomRunCardHTML(m, mine, bare) {
   const key = b.issueNumber ? '#' + b.issueNumber : '需求';
   const pct = m.total ? Math.round(m.done * 100 / m.total) : 0;
   const ask = m.pending ? `<div class="rc-ask"><p>${escapeHTML(roomAskText(m))}</p><div class="rc-actions">${roomDecideButtons(m.pending)}</div></div>` : '';
-  const error = b.dispatchError ? `<p class="rc-error">${escapeHTML(b.dispatchError)}</p>` : '';
+  const failed = (m.steps || []).find(s => s.status === 'failed');
+  const error = b.dispatchError ? roomErrorCardHTML({reason: b.dispatchError, crew: ''}) : '';
+  const resume = failed && m.g.runId ? `<div class="rc-actions"><button type="button" class="rc-btn primary" data-rerun-from-here="${escapeHTML(failed.id)}" data-run="${escapeHTML(m.g.runId)}">从这步续跑</button></div>` : '';
   const people = [...new Map(m.steps.filter(s => s.status !== 'pending').map(s => [roomStepWho(s).name, roomStepWho(s)])).values()].slice(0, 4);
   const foot = m.g.runId
     ? `<footer class="rc-foot"><span class="rc-faces">${people.map(w => roomFace(w, 'xs')).join('')}</span><span>${m.updates ? m.updates + ' 条更新' : '刚开始'}</span><span class="rc-open">${open ? '过程已展开' : '看过程'}<i>›</i></span></footer>`
@@ -524,7 +535,7 @@ function roomRunCardHTML(m, mine, bare) {
     <div class="rc-top"><span class="rc-key">${escapeHTML(key)}</span><b>${escapeHTML(b.issueTitle || m.sop)}</b>${m.total ? `<span class="rc-count">${m.done}/${m.total}</span>` : ''}</div>
     <div class="rc-now is-${escapeHTML(head.cls)}"><i></i><span>${escapeHTML(head.text)}</span></div>
     ${m.total ? `<div class="rc-bar"><i style="width:${pct}%"></i></div>` : ''}
-    ${roomChainHTML(m.steps, true)}${error}${ask}${foot}
+    ${roomChainHTML(m.steps, true)}${error}${resume}${ask}${foot}
   </div>`;
   if (bare) return card;
   return roomAskHTML(m, mine) + roomBotHTML(card, false, m.sop, b.lane ? '' : roomTime(m.g.events[0]?.createdAt || b.createdAt));
@@ -543,13 +554,21 @@ function roomReplyActHTML(id) {
   return `<div class="rm-acts"><button type="button" data-rm-reply="${escapeHTML(id)}" title="回复这条消息">↩ 回复</button></div>`;
 }
 
-function roomTextMessageHTML(message, mine) {
+function roomTextMessageHTML(message, mine, merge) {
   const own = mine > 0 && Number(message.userId) === mine;
   if (message.kind === 'decision') return `<div class="rm-system"><b>${escapeHTML(roomPerson(message.author).name)}</b> ${escapeHTML(message.body || '')}</div>`;
   if (message.kind === 'dispatch') return roomRunCardHTML(roomRunModel({runId: '', head: message, events: []}), mine);
-  if (message.kind === 'crew_post') return roomCrewPostHTML(message);
+  if (message.kind === 'crew_post') return roomCrewPostHTML(message, merge);
   const who = roomPerson(message.author);
-  return `<article class="rm ${own ? 'mine' : ''}" data-mid="${escapeHTML(message.id)}">${roomFace({kind: 'person', name: who.name})}<div class="rm-body"><header><b>${escapeHTML(who.name)}</b>${own ? '<span class="rm-you">你</span>' : ''}<time>${roomTime(message.createdAt)}</time></header>${roomQuoteHTML(message)}<p>${roomTextHTML(message.body || '')}</p></div>${roomReplyActHTML(message.id)}</article>`;
+  const hide = own ? `<button type="button" data-rm-hide="${escapeHTML(message.id)}" title="删除这条消息">删除</button>` : '';
+  return `<article class="rm ${own ? 'mine' : ''}${merge ? ' is-merged' : ''}" data-mid="${escapeHTML(message.id)}">${roomFace({kind: 'person', name: who.name})}<div class="rm-body"><header><b>${escapeHTML(who.name)}</b>${own ? '<span class="rm-you">你</span>' : ''}<time>${roomTime(message.createdAt)}</time></header>${roomQuoteHTML(message)}<p class="msg-body">${roomTextHTML(message.body || '')}</p></div><div class="rm-acts"><button type="button" data-rm-reply="${escapeHTML(message.id)}" title="回复这条消息">↩ 回复</button>${hide}</div></article>`;
+}
+function roomSpeakerKey(item) {
+  const m = item && item.msg;
+  if (!m) return '';
+  if (m.kind === 'crew_post') return 'bot:' + (m.agentId || 'lf');
+  if (!m.kind || m.kind === 'message' || m.kind === 'text') return 'user:' + (m.userId || m.author || '');
+  return '';
 }
 
 function roomDayKey(iso) {
@@ -583,20 +602,32 @@ function renderRoomThread(room, messages, keepScroll) {
   rs.threadSignature = signature;
   renderRoomBots();
   if (!room) {
-    log.innerHTML = `<div class="room-hero"><h2>${escapeHTML(roomGreeting())}</h2><p>${roomProjectId() ? '在左侧新建或选择一个群开始协作' : '先在顶栏选择项目'}</p></div>`;
-    renderRoomThreadPane();
-    return;
+    const pendingPreview = rs.preview || [];
+    if (!pendingPreview.length) {
+      log.innerHTML = `<div class="room-hero"><h2>${escapeHTML(roomGreeting())}</h2><p>${roomProjectId() ? '在左侧新建或选择一个群开始协作' : '先在顶栏选择项目'}</p></div>`;
+      renderRoomThreadPane();
+      return;
+    }
+    room = rs.previewRoom || {id: 'preview', name: '预览', members: []};
   }
+  const hidden = rs.hidden instanceof Set ? rs.hidden : (rs.hidden = new Set());
+  const preview = (rs.preview || []).filter(m => !messages.some(x => x.id === m.id) && !hidden.has(m.id));
+  messages = messages.filter(m => !hidden.has(m.id)).concat(preview);
+  rs.lastMessages = messages;
   const mine = Number(state.currentUser?.id) || 0;
   const {order, groups} = roomRunGroups(messages);
   rs.runGroups = groups;
   let day = '';
+  let prevSpeaker = '';
   const rows = order.map(item => {
     const at = item.msg ? item.msg.createdAt : item.crew ? item.crew.createdAt : (item.run.head || item.run.events[0] || {}).createdAt;
     const key = roomDayKey(at);
     const divider = key && key !== day ? `<div class="rm-day"><span>${escapeHTML(roomDayLabel(at))}</span></div>` : '';
     if (key) day = key;
-    return divider + (item.msg ? roomTextMessageHTML(item.msg, mine) : item.crew ? roomCrewHTML(item.crew, mine) : roomRunCardHTML(roomRunModel(item.run), mine));
+    const speaker = divider ? '' : roomSpeakerKey(item);
+    const merge = !!(speaker && speaker === prevSpeaker);
+    prevSpeaker = roomSpeakerKey(item);
+    return divider + (item.msg ? roomTextMessageHTML(item.msg, mine, merge) : item.crew ? roomCrewHTML(item.crew, mine) : roomRunCardHTML(roomRunModel(item.run), mine));
   });
   const body = rows.join('') + ephemeral.map(e => roomBotHTML(e.html, true)).join('');
   log.innerHTML = body ? `<div class="rm-intro">${roomFace({kind: 'lf'}, 'lg')}<div><b>#${escapeHTML(room.name)}</b><p><b>@LoopForge</b> 提问或派活，Bot 们自己分工交接；<b>@</b> 一条 SOP 按固定流程跑。悬停消息点「回复」可以接着问，<b>/</b> 看命令。</p></div></div>` + body : roomGuideHTML();
@@ -604,8 +635,25 @@ function renderRoomThread(room, messages, keepScroll) {
   if (keepScroll) log.scrollTop = previous;
   else log.scrollTop = log.scrollHeight;
   renderRoomThreadPane();
+  roomArmStreamTick(messages);
 }
 
+function roomHideMessage(id) {
+  const rs = roomState();
+  const msg = (rs.lastMessages || []).find(m => m.id === id);
+  if (!msg) return;
+  if (!(rs.hidden instanceof Set)) rs.hidden = new Set();
+  rs.hidden.add(id);
+  rs.threadSignature = '';
+  const label = String(msg.body || '消息').replace(/\s+/g, ' ').slice(0, 18);
+  renderRoomThread(activeRoom(), (rs.lastMessages || []).filter(m => m.id !== id && !(rs.preview || []).some(p => p.id === m.id)), true);
+  toast('已删除「' + label + '」', 'ok', 8000, {undo() {
+    rs.hidden.delete(id);
+    rs.threadSignature = '';
+    const room = activeRoom();
+    if (room) renderRoomThread(room, (rs.lastMessages || []).filter(m => !(rs.preview || []).some(p => p.id === m.id)), true);
+  }});
+}
 function roomStartReply(id) {
   const m = (roomState().lastMessages || []).find(x => x.id === id);
   if (!m) return;
@@ -619,6 +667,49 @@ function roomStartReply(id) {
 function bindRoomLog(log) {
   log.querySelectorAll('[data-rm-reply]').forEach(button => {
     button.onclick = event => { event.stopPropagation(); roomStartReply(button.dataset.rmReply); };
+  });
+  log.querySelectorAll('[data-rm-hide]').forEach(button => {
+    button.onclick = event => { event.stopPropagation(); roomHideMessage(button.dataset.rmHide); };
+  });
+  log.querySelectorAll('[data-stream-stop]').forEach(button => {
+    button.onclick = async event => {
+      event.stopPropagation();
+      if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'stop', button);
+      roomState().preview = [];
+      roomState().threadSignature = '';
+      const room = activeRoom() || roomState().previewRoom;
+      if (room) renderRoomThread(room, (roomState().lastMessages || []).filter(m => m.id !== 'lf-preview-stream'), true);
+    };
+  });
+  log.querySelectorAll('[data-stream-retry]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'retry', button);
+      const preview = (roomState().preview || [])[0];
+      if (preview) preview.createdAt = new Date().toISOString();
+      roomState().threadSignature = '';
+      const room = activeRoom() || roomState().previewRoom;
+      if (room) renderRoomThread(room, (roomState().lastMessages || []).filter(m => m.id !== 'lf-preview-stream'), true);
+    };
+  });
+  log.querySelectorAll('[data-err-act]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      const act = button.dataset.errAct;
+      if (act === 'key') return typeof openSettings === 'function' ? openSettings('models') : switchView('settings');
+      if (act === 'swap') return openRoomMention({token: {start: ($('#roomInput')?.value.length || 0), query: ''}});
+      if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'retry', button);
+      toast('可以再发一次，或换一个可用的 Bot');
+    };
+  });
+  log.querySelectorAll('[data-rerun-from-here]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      const run = (state.data?.runs || []).find(r => r.id === button.dataset.run);
+      if (run && typeof openRerunFromNode === 'function') openRerunFromNode(run, button.dataset.rerunFromHere);
+      else if (button.dataset.crew) roomCrewAct(button.dataset.crew, 'retry', button);
+      else toast('这一步现在不能从这里续跑');
+    };
   });
   log.querySelectorAll('[data-rm-jump]').forEach(button => {
     button.onclick = event => {
@@ -813,10 +904,15 @@ function renderRoomBots() {
     });
   });
   const bots = roomBotsInProject();
-  const row = (face, name, sub, live, attrs = '') => `<button type="button" class="rb ${live ? 'is-live' : ''}" ${attrs}>${face}<span><b>${escapeHTML(name)}</b><small>${escapeHTML(sub)}</small></span>${live ? '<i class="rb-dot"></i>' : ''}</button>`;
+  const row = (face, name, sub, statusKey, attrs = '') => `<button type="button" class="rb ${statusKey === 'busy' || statusKey === 'wait' ? 'is-live' : ''} ${statusKey === 'off' ? 'is-off' : ''}" ${attrs}>${face}<span><b>${escapeHTML(name)}</b><small>${escapeHTML(sub)}</small></span>${statusKey ? `<i class="lf-dot lf-dot-${statusKey}" title="${escapeHTML(sub)}"></i>` : ''}</button>`;
   host.innerHTML = `<div class="rooms-pane-sub">Bot 队伍 <em>${bots.length + 1}</em></div>`
-    + row(roomFace({kind: 'lf'}), 'LoopForge', waiting ? `${waiting} 件事等你拍板` : '派活、交接、汇报', waiting > 0, 'data-room-bot-help')
-    + bots.map(a => row(roomFace({kind: 'bot', name: roomAgentName(a.id, a.name)}), roomAgentName(a.id, a.name), busy.has(a.id) ? `正在做「${busy.get(a.id)}」` : (a.description || '空闲').split('\n')[0].slice(0, 24), busy.has(a.id), `data-room-bot="${escapeHTML(a.id)}"`)).join('');
+    + row(roomFace({kind: 'lf'}), 'LoopForge', waiting ? `${waiting} 件事等你拍板` : '派活、交接、汇报', waiting ? 'wait' : 'ok', 'data-room-bot-help')
+    + bots.map(a => {
+      const st = typeof lfBotStatus === 'function' ? lfBotStatus(a) : {key: busy.has(a.id) ? 'busy' : 'ok', reason: ''};
+      const name = roomAgentName(a.id, a.name);
+      const sub = st.key === 'off' ? (st.reason || '不可用') : st.key === 'busy' ? (busy.has(a.id) ? `正在做「${busy.get(a.id)}」` : `排队 ${st.queue || 1}`) : (a.description || '空闲').split('\n')[0].slice(0, 24);
+      return row(roomFace({kind: 'bot', name}), name, sub, st.key, `data-room-bot="${escapeHTML(a.id)}"`);
+    }).join('');
   host.querySelector('[data-room-bot-help]')?.addEventListener('click', () => runRoomCommand('help'));
   host.querySelectorAll('[data-room-bot]').forEach(button => {
     button.onclick = () => {
@@ -865,7 +961,7 @@ function roomCrewActionsHTML(msg, inPane) {
   const stuck = c.status === 'waiting' && !c.question;
   const parts = [];
   if (c.status === 'proposed') parts.push(btn('start', '开工', true), btn('edit', '改分工'));
-  if (stuck) parts.push(btn('retry', '重试', true), btn('skip', '跳过'));
+  if (stuck) parts.push(btn('retry', '从这步续跑', true), btn('skip', '跳过'));
   if (c.status === 'running' || c.status === 'waiting') {
     if (inPane) parts.push(btn('edit', '改后面的分工'));
     parts.push(btn('stop', '停止'));
@@ -902,19 +998,76 @@ function roomCrewHTML(msg, mine) {
   return ask + roomBotHTML(card, false, 'LoopForge', roomTime(msg.createdAt)).replace('<span class="rm-tag">BOT</span>', '<span class="rm-tag">BOT</span><span class="rm-only">队长</span>').replace('<article class="rm rm-bot ', `<article data-mid="${escapeHTML(msg.id)}" class="rm rm-bot `).replace(/<\/article>$/, roomReplyActHTML(msg.id) + '</article>');
 }
 
-function roomCrewPostHTML(m) {
+function roomErrorCardHTML(opts) {
+  const reason = String(opts?.reason || '这一步没做成');
+  const key = /key|凭据|401|unauthorized|api key/i.test(reason);
+  const primary = key ? 'key' : (opts?.swap ? 'swap' : 'retry');
+  const btn = (id, label) => `<button type="button" class="button ${primary === id ? 'primary' : 'ghost'} small" data-err-act="${id}" data-crew="${escapeHTML(opts?.crew || '')}">${label}</button>`;
+  return `<div class="rm-error-card"><b>${key ? '还不能调用这个 Bot' : '这一步没做成'}</b><p>${escapeHTML(reason)}</p><div class="rm-error-actions">${btn('retry', '重试')}${btn('key', '配置 Key')}${btn('swap', '换个 Bot')}</div></div>`;
+}
+function roomStreamHTML(m) {
+  const age = Math.max(0, Date.now() - Date.parse(m.createdAt || Date.now()));
+  if (m.error) return roomErrorCardHTML({reason: m.error, crew: m.crewId || ''});
+  if (age > 180000) return roomErrorCardHTML({reason: '超过 3 分钟还没有新内容', crew: m.crewId || ''});
+  const phase = m.body ? 'out' : age >= 10000 ? 'slow' : age >= 1500 ? 'think' : 'queue';
+  const label = {queue: '排队中', think: '思考中', out: '输出中'}[phase] || '排队中';
+  const pulse = '<span class="rm-pulse" aria-hidden="true"></span>';
+  const crew = escapeHTML(m.crewId || '');
+  if (phase === 'slow') {
+    const sec = Math.max(1, Math.round(age / 1000));
+    return `<div class="rm-stream is-slow" data-stream-age="${Date.parse(m.createdAt || '') || Date.now()}">${pulse}<span>仍在处理，已用 ${sec} 秒</span><button type="button" class="button ghost small" data-stream-stop data-crew="${crew}">停止</button><button type="button" class="button ghost small" data-stream-retry data-crew="${crew}">重试</button></div>`;
+  }
+  const body = phase === 'out' ? `<p class="msg-body">${roomTextHTML(m.body)}<i class="rm-caret"></i></p>` : '';
+  return `${body}<p class="rm-stream">${pulse}<span>${label}</span></p>`;
+}
+function roomArmStreamTick(messages) {
+  const rs = roomState();
+  clearTimeout(rs.streamTick);
+  if (!(messages || []).some(m => m.pending)) return;
+  rs.streamTick = setTimeout(() => {
+    if (state.currentView !== 'rooms') return;
+    rs.threadSignature = '';
+    const room = activeRoom() || rs.previewRoom;
+    if (room) renderRoomThread(room, (rs.lastMessages || []).filter(m => !(rs.preview || []).some(p => p.id === m.id)), true);
+  }, 1000);
+}
+function roomCrewPostHTML(m, merge) {
   const lf = !m.agentId;
   const name = lf ? 'LoopForge' : roomAgentName(m.agentId, m.author);
   const face = lf ? roomFace({kind: 'lf'}) : roomFace({kind: 'bot', name});
   const body = String(m.body || '');
   const long = body.split('\n').length > 4 || body.length > 260;
   const hand = m.targetName ? `<div class="rt-hand"><span>交给</span>${roomFace({kind: 'bot', name: m.targetName}, 'xs')}<b>${escapeHTML(m.targetName)}</b><span>·「${escapeHTML(m.nodeName || '')}」</span></div>` : '';
-  const stale = m.pending && Date.now() - Date.parse(m.createdAt || '') > 180000;
   const text = m.pending
-    ? (stale ? '<p class="rm-sub">这次没答上来，可以再问一次。</p>' : '<p class="rm-typing" aria-label="正在思考"><i></i><i></i><i></i><span>正在思考…</span></p>')
-    : `<p class="${long ? 'rm-clamp' : ''}">${roomTextHTML(body)}</p>${long ? '<button type="button" class="rm-more" data-rm-more>展开</button>' : ''}`;
-  return `<article class="rm rm-bot rm-crew ${lf ? 'is-captain' : ''}" data-mid="${escapeHTML(m.id)}">${face}<div class="rm-body"><header><b>${escapeHTML(name)}</b><span class="rm-tag">BOT</span><time>${roomTime(m.createdAt)}</time>${lf || !m.crewId ? '' : `<button type="button" class="rm-thread-link" data-open-crew="${escapeHTML(m.crewId || '')}">看过程</button>`}</header>${roomQuoteHTML(m)}${text}${hand}</div>${m.pending ? '' : roomReplyActHTML(m.id)}</article>`;
+    ? roomStreamHTML(m)
+    : `<p class="msg-body ${long ? 'rm-clamp' : ''}">${roomTextHTML(body)}</p>${long ? '<button type="button" class="rm-more" data-rm-more>展开</button>' : ''}`;
+  const failed = m.status === 'failed' || m.error;
+  const err = !m.pending && failed ? roomErrorCardHTML({reason: m.error || m.body || '这一步没做成', crew: m.crewId || ''}) : '';
+  return `<article class="rm rm-bot rm-crew ${lf ? 'is-captain' : ''}${merge ? ' is-merged' : ''}" data-mid="${escapeHTML(m.id)}">${face}<div class="rm-body"><header><b>${escapeHTML(name)}</b><span class="rm-tag">BOT</span><time>${roomTime(m.createdAt)}</time>${lf || !m.crewId ? '' : `<button type="button" class="rm-thread-link" data-open-crew="${escapeHTML(m.crewId || '')}">看过程</button>`}</header>${roomQuoteHTML(m)}${text}${err}${hand}</div>${m.pending ? '' : roomReplyActHTML(m.id)}</article>`;
 }
+function lfPreviewRoomStream(opts) {
+  const phase = opts?.phase || 'think';
+  const age = phase === 'queue' ? 400 : phase === 'out' ? 4000 : phase === 'slow' ? 12000 : phase === 'error' ? 2000 : 2500;
+  const msg = {
+    id: 'lf-preview-stream',
+    kind: 'crew_post',
+    pending: phase !== 'error',
+    agentId: 'preview-bot',
+    author: opts?.name || '研究员',
+    body: phase === 'out' ? (opts?.body || '正在把三家定价整理成表') : '',
+    error: phase === 'error' ? (opts?.error || '缺少 API Key') : '',
+    createdAt: new Date(Date.now() - age).toISOString(),
+    crewId: opts?.crewId || '',
+  };
+  const rs = roomState();
+  rs.preview = [msg];
+  rs.threadSignature = '';
+  const room = activeRoom() || {id: 'preview', name: '预览', members: []};
+  rs.previewRoom = room;
+  if (typeof switchView === 'function' && state.currentView !== 'rooms') switchView('rooms');
+  renderRoomThread(room, (rs.lastMessages || []).filter(m => m.id !== msg.id), true);
+}
+window.lfPreviewRoomStream = lfPreviewRoomStream;
 
 async function roomCrewAct(id, act, button) {
   const rs = roomState();
@@ -1036,6 +1189,7 @@ function renderRoomCrewPane(pane, msg) {
         ${t.instruction ? `<small class="rt-brief">要求：${escapeHTML(t.instruction)}</small>` : ''}
         ${sum.title ? `<div class="rt-out ${t.status === 'failed' ? 'is-bad' : ''}"><b>${escapeHTML(sum.title)}</b>${sum.body ? `<p>${escapeHTML(sum.body)}</p>` : ''}</div>` : ''}
         ${meta.length ? `<small class="rt-meta">${escapeHTML(meta.join(' · '))}</small>` : ''}
+        ${t.status === 'failed' ? `<button type="button" class="rc-btn primary" data-rerun-from-here="${escapeHTML(t.nodeId || t.id)}" data-run="${escapeHTML(t.runId || '')}" data-crew="${escapeHTML(msg.id)}">从这步续跑</button>` : ''}
         ${t.runId ? `<button type="button" class="room-link rt-run-link" data-open-run="${escapeHTML(t.runId)}">看这一步的运行 ›</button>` : ''}
         ${next && t.status === 'succeeded' ? `<div class="rt-hand"><span>交给</span>${roomFace(roomStepWho(next), 'xs')}<b>${escapeHTML(roomStepWho(next).name)}</b><span>·「${escapeHTML(next.name)}」</span></div>` : ''}
       </div></div>`;
@@ -1141,7 +1295,8 @@ function roomMentionItems(query, targetsOnly) {
   if (!targetsOnly) {
     roomBotsInProject().forEach(a => {
       const name = roomAgentName(a.id, a.name);
-      if (hit(name, a.id)) items.push({kind: 'bot', id: a.id, name, sub: '协作进行中 @ 它，就给它加一步'});
+      const st = typeof lfBotStatus === 'function' ? lfBotStatus(a) : {key: 'ok', reason: '', queue: 0};
+      if (hit(name, a.id, st.reason)) items.push({kind: 'bot', id: a.id, name, agent: a, status: st, sub: st.key === 'off' ? st.reason : st.key === 'busy' ? '排队 ' + st.queue : '可直接 @'});
     });
     (activeRoom()?.members || []).forEach(m => {
       if (hit(m.name)) items.push({kind: 'member', id: String(m.userId), name: m.name || '用户 ' + m.userId, sub: roomMemberRoleLabel(m.role)});
@@ -1182,7 +1337,7 @@ function roomSlashQuery(input) {
 function roomAutosize(input) {
   if (!input) return;
   input.style.height = 'auto';
-  input.style.height = Math.min(200, input.scrollHeight) + 'px';
+  input.style.height = Math.min(176, input.scrollHeight) + 'px';
 }
 
 function updateRoomMention() {
@@ -1213,7 +1368,7 @@ function renderRoomMention(query) {
   const groups = [['cmd', '命令'], ['crew', '自由协作 · 交给群聊'], ['sop', '按 SOP 跑 · 固定流程'], ['bot', '角色 Bot'], ['member', '提醒群成员']];
   const icon = item => item.kind === 'crew'
     ? `<span class="rmn-team">${roomFace({kind: 'lf'}, 'sm')}${(item.bots || []).slice(0, 3).map(a => roomFace({kind: 'bot', name: roomAgentName(a.id, a.name)}, 'sm')).join('')}</span>`
-    : item.kind === 'bot' ? `<span class="rmn-team">${roomFace({kind: 'bot', name: item.name}, 'sm')}</span>`
+    : item.kind === 'bot' ? `<span class="rmn-status"><i class="lf-dot lf-dot-${item.status?.key || 'ok'}"></i>${roomFace({kind: 'bot', name: item.name}, 'sm')}</span>`
     : item.kind === 'sop'
     ? `<span class="rmn-team">${[...new Map((item.steps || []).map(n => [roomStepWho(n).name, roomStepWho(n)])).values()].slice(0, 4).map(w => roomFace(w, 'sm')).join('') || roomFace({kind: 'lf'}, 'sm')}</span>`
     : item.kind === 'cmd' ? `<span class="rmn-cmd">/</span>` : roomFace({kind: 'person', name: roomPerson(item.name).name}, 'sm');
@@ -1223,7 +1378,7 @@ function renderRoomMention(query) {
     if (!rows.length && !(kind === 'sop' && !query && !roomWorkflowChoices().length)) return;
     html += `<div class="room-mention-group">${escapeHTML(label)}</div>`;
     if (!rows.length) html += roomNoSOPHint();
-    html += rows.map(({item, index}) => `<button type="button" class="room-mention-item ${index === ms.index ? 'active' : ''}" data-mention="${index}">${icon(item)}<span><b>${escapeHTML(item.name)}</b><small>${escapeHTML(item.sub || '')}</small></span></button>`).join('');
+    html += rows.map(({item, index}) => `<button type="button" class="room-mention-item ${index === ms.index ? 'active' : ''} ${item.status?.key === 'off' ? 'is-off' : ''}" data-mention="${index}">${icon(item)}<span><b>${escapeHTML(item.name)}</b><small>${escapeHTML(item.sub || '')}</small></span></button>`).join('');
   });
   if (!ms.items.length && !html.includes('room-mention-group')) html += `<div class="room-mention-empty">没有匹配「${escapeHTML(query)}」的${roomState().mode === 'issue' || ms.targetsOnly ? ' SOP 或成员' : '成员'}</div>`;
   box.innerHTML = html;
@@ -1270,6 +1425,18 @@ function pickRoomMention(item) {
     closeRoomMention();
     runRoomCommand(item.id);
     return;
+  }
+  if (item.kind === 'bot' && item.status?.key === 'off') {
+    const origin = item.name;
+    const reason = item.status?.reason || '不可用';
+    const fallback = roomBotsInProject().find(a => lfBotStatus(a).key === 'ok');
+    if (!fallback) {
+      toast(reason);
+      closeRoomMention();
+      return;
+    }
+    item = {...item, id: fallback.id, name: roomAgentName(fallback.id, fallback.name), status: lfBotStatus(fallback)};
+    toast('已改由 ' + item.name + ' 负责（' + origin + ' ' + reason + '）');
   }
   if (ms.start >= 0) {
     const caret = input.selectionStart;
@@ -1417,12 +1584,40 @@ async function runRoomCommand(id) {
   }
 }
 
+function roomRewriteMentions(body) {
+  let next = String(body || '');
+  let note = '';
+  const bots = roomBotsInProject();
+  for (const agent of bots) {
+    const st = typeof lfBotStatus === 'function' ? lfBotStatus(agent) : {key: 'ok'};
+    if (st.key !== 'off') continue;
+    const name = roomAgentName(agent.id, agent.name);
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp('(^|\\s)@' + escaped + '(?=\\s|$)', 'g');
+    if (!re.test(next)) continue;
+    re.lastIndex = 0;
+    const fallback = bots.find(b => b.id !== agent.id && lfBotStatus(b).key === 'ok');
+    if (!fallback) return {body: next, blocked: true, reason: name + '：' + (st.reason || '现在不可用'), note: ''};
+    const fb = roomAgentName(fallback.id, fallback.name);
+    next = next.replace(re, '$1@' + fb);
+    note = '已改由 ' + fb + ' 负责（' + name + ' ' + (st.reason || '不可用') + '）';
+  }
+  return {body: next, blocked: false, reason: '', note};
+}
+
 async function sendRoomMessage() {
   const id = roomState().activeId;
   const input = $('#roomInput');
-  const body = input?.value.trim();
+  let body = input?.value.trim();
   if (!id) return toast('先选择一个群');
   if (!body) return;
+  const rewritten = roomRewriteMentions(body);
+  if (rewritten.blocked) {
+    roomBotReply(roomErrorCardHTML({reason: rewritten.reason, swap: true}));
+    return;
+  }
+  body = rewritten.body;
+  if (rewritten.note) roomBotReply(`<p class="rm-sub">${escapeHTML(rewritten.note)}</p>`);
   try {
     await api('/api/rooms/' + encodeURIComponent(id) + '/messages', {method: 'POST', body: JSON.stringify({body, replyTo: roomState().reply?.id || ''})});
     input.value = '';

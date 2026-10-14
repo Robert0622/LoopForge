@@ -62,7 +62,7 @@ async function deleteAsset(id){
   const blocked=assetDeleteBlocked(item);
   if(blocked)return toast(blocked);
   const label=assetKindLabel();
-  if(!await afConfirm({title:`删除${label}确认`,message:`确认删除${label}「${item.name}」？此操作不可恢复。`,confirmText:'确认删除',isDanger:true}))return;
+  if(!await afConfirm({title:`删除${label}「${item.name}」？`,message:'此操作不可撤销。',confirmText:`删除${label}`,danger:true,confirmName:item.name}))return;
   try{
     await api(`/api/${state.assetType}?id=${encodeURIComponent(id)}`,{method:'DELETE'});
     state.data[state.assetType]=(state.data[state.assetType]||[]).filter(x=>x.id!==id);

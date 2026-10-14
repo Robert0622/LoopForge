@@ -742,10 +742,15 @@ function renderPreviewBuildProperties(host,n){
   if(spaBox)spaBox.onchange=()=>{updatePreviewContract({spaFallback:spaBox.checked});dirty();};
   const del=$('#deletePropertyNode');
   if(del)del.onclick=async()=>{
-    if(!(await afConfirm({title:'移除前端预览',message:'将移除「构建静态站点」节点，并不再归档预览。',danger:true,confirmText:'移除节点'})))return;
+    if(!(await afConfirm({title:'移除前端预览',message:'将移除「构建静态站点」节点，并不再归档预览。',danger:true,confirmText:'移除节点',confirmName:'构建静态站点'})))return;
     state.selectedNode=n.id;
     deleteSelected();
   };
+}
+function flowFailedRun(node){
+  if(!node||typeof canRerunFromHere!=='function')return null;
+  const id=state.workflow?.id;
+  return (state.data?.runs||[]).find(r=>(r.workflowId===id||r.workflowSnapshot?.id===id)&&r.nodes?.[node.id]?.status==='failed'&&canRerunFromHere(r,node.id))||null;
 }
 function renderProperties(){
   const host=$('#properties');if(!host)return;
@@ -807,10 +812,14 @@ function renderProperties(){
     ? `<p class="prop-hint">子 SOP 成功后，下列文件会出现在本节点，供下一步读取。留空则收下子流程交出的全部产物。</p><div id="artifactContractRows">${artifactRowsHTML(n)}</div><button type="button" class="button ghost small" id="addSOPHandoff">＋ 增加下游产物</button>`
     : '';
   const panes={basic,task:taskPane,gates:nodeGatePane(n),fail,handoff:handoffPane};
+  const failedRun=flowFailedRun(n);
+  const resume=failedRun?'<div class="rm-error-card lf-resume-card"><b>上次运行失败于此步</b><p>可以从这一步续跑，上游已完成的步骤会保留。</p><button type="button" class="button primary small" id="resumeFromHere">从这步续跑</button></div>':'';
   host.innerHTML=`<div class="prop-header sticky"><div><h3>${escapeHTML(n.name)}</h3><small>${typeLabel}</small></div></div>
     <div class="prop-tabs">${tabs.map(t=>`<button type="button" data-prop-tab="${t.id}" class="${tab===t.id?'active':''}">${t.label}</button>`).join('')}</div>
+    ${resume}
     <div class="prop-body"><div class="prop-pane">${panes[tab]||basic}</div>
     <div class="prop-footer">${state.connectFrom===n.id?'<div class="connection-mode">正在连线：再点目标步骤，或按 Esc 取消</div>':'<button id="connectNode" class="button ghost">连接到下一步</button>'}<button id="deletePropertyNode" class="button ghost danger">删除步骤</button></div></div>`;
+  host.querySelector('#resumeFromHere')?.addEventListener('click',()=>openRerunFromNode(failedRun,n.id));
   host.querySelectorAll('[data-prop-tab]').forEach(b=>b.onclick=()=>{state.propTab=b.dataset.propTab;renderProperties()});
   host.querySelectorAll('[data-del-edge]').forEach(b=>{b.onclick=async ev=>{ev.stopPropagation();await deleteEdgeById(b.dataset.delEdge)}});
   host.querySelectorAll('[data-del-reject]').forEach(b=>{b.onclick=async ev=>{ev.stopPropagation();await deleteRejectEdgeByNodeId(b.dataset.delReject)}});
@@ -834,7 +843,7 @@ function renderProperties(){
   host.querySelectorAll('input[name="onFailure"]').forEach(el=>el.onchange=()=>{n.onFailure=el.value;if(el.value==='fail')n.rejectTo='';host.querySelectorAll('.failure-choice label').forEach(l=>l.classList.toggle('active',l.querySelector('input').value===el.value));const route=host.querySelector('.failure-route'),sel=$('#rejectTarget');if(route)route.classList.toggle('disabled',el.value!=='reject');if(sel)sel.disabled=el.value!=='reject';dirty();renderCanvas()});
   const reject=$('#rejectTarget');if(reject)reject.onchange=e=>{n.rejectTo=e.target.value;n.onFailure=n.rejectTo?'reject':'fail';dirty();renderCanvas()};
   const connectButton=$('#connectNode');if(connectButton)connectButton.onclick=()=>{state.connectFrom=n.id;renderCanvas();renderProperties()};
-  const del=$('#deletePropertyNode');if(del)del.onclick=async()=>{if(!(await afConfirm({title:'删除步骤',message:`确定删除步骤「${n.name}」？关联连线将被一并移除。`,danger:true,confirmText:'删除步骤'})))return;state.workflow.nodes=state.workflow.nodes.filter(x=>x.id!==n.id);state.workflow.edges=state.workflow.edges.filter(e=>e.source!==n.id&&e.target!==n.id);state.workflow.nodes.forEach(x=>{if(x.rejectTo===n.id){x.rejectTo='';x.onFailure='fail'}});state.selectedNode=null;dirty();renderCanvas();renderProperties()};
+  const del=$('#deletePropertyNode');if(del)del.onclick=async()=>{if(!(await afConfirm({title:`删除步骤「${n.name}」？`,message:'关联连线会一并移除。此操作不可撤销。',danger:true,confirmText:'删除步骤',confirmName:n.name})))return;state.workflow.nodes=state.workflow.nodes.filter(x=>x.id!==n.id);state.workflow.edges=state.workflow.edges.filter(e=>e.source!==n.id&&e.target!==n.id);state.workflow.nodes.forEach(x=>{if(x.rejectTo===n.id){x.rejectTo='';x.onFailure='fail'}});state.selectedNode=null;dirty();renderCanvas();renderProperties()};
   const openScriptBtn=$('#openScriptNodeEditor');
   const previewScriptBtn=$('#previewScriptNodeEditor');
   const triggerScriptEditor=()=>{
@@ -944,7 +953,7 @@ async function cloneWorkflow(id){const src=id?(state.data.workflows||[]).find(w=
 async function deleteWorkflow(id){
   const w=(state.data.workflows||[]).find(x=>x.id===id);
   if(!w)return toast('SOP 不存在或已删除');
-  if(!await afConfirm({title:'删除 SOP 确认',message:`确认删除 SOP「${w.name}」？此操作不可恢复，关联的运行记录会保留但流程定义将移除。`,confirmText:'确认删除',isDanger:true}))return;
+  if(!await afConfirm({title:`删除流程「${w.name}」？`,message:'此操作不可撤销。已有运行记录会保留，流程定义会被移除。',confirmText:'删除流程',danger:true,confirmName:w.name}))return;
   try{
     await api(`/api/workflows/${encodeURIComponent(id)}`,{method:'DELETE'});
     state.data.workflows=state.data.workflows.filter(x=>x.id!==id);

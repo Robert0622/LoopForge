@@ -304,7 +304,7 @@ function kbRenderEditor(){
     try{
       if(act==='save'){kb.draft=await save();toast('已保存','ok')}
       if(act==='reject'){await save();kb.draft=await api(`/api/knowledge/submissions/${encodeURIComponent(d.id)}/reject`,{method:'POST',body:JSON.stringify({reviewNote:values().reviewNote})});toast('已驳回')}
-      if(act==='delete'){if(!confirm('删除这条沉淀条目？'))return;await api(`/api/knowledge/submissions/${encodeURIComponent(d.id)}`,{method:'DELETE'});kb.draft=null;kb.selected=null;toast('已删除')}
+      if(act==='delete'){const name=values().title||d.title||'这条沉淀';if(!(await afConfirm({title:`删除「${name}」？`,message:'此操作不可撤销。',confirmText:'删除',danger:true,confirmName:name})))return;await api(`/api/knowledge/submissions/${encodeURIComponent(d.id)}`,{method:'DELETE'});kb.draft=null;kb.selected=null;toast('已删除')}
       if(act==='publish'){
         const v=values();if(!v.source)return toast('请选择写入的知识库来源');if(!/\.md$/i.test(v.path))return toast('路径必须以 .md 结尾');
         if(!confirm(`确认写回知识库？\n\n来源：${v.source}\n路径：${v.path}\n\n将提交到知识库 Git 仓库并触发重建索引。`))return;

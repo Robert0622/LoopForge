@@ -60,7 +60,7 @@
 .room-chip select{border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:12px;max-width:140px;cursor:pointer}
 .room-chip.on{border-color:rgba(83,109,254,.45);background:rgba(83,109,254,.06)}
 .room-composer-spacer{flex:1}
-.room-send{width:30px;height:30px;border:0;border-radius:50%;background:#98a2b3;color:#fff;font-size:16px;cursor:pointer}
+.room-send{width:30px;height:30px;border:0;border-radius:50%;background:var(--lf-text-3);color:var(--lf-on-accent);font-size:16px;cursor:pointer}
 .room-send.ready{background:#1f2937}
 
 .room-resources{padding:14px 16px}
@@ -74,7 +74,7 @@
 .room-res-item.static{cursor:default}
 .room-res-item.static:hover{background:transparent}
 .room-res-icon{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:var(--bg-soft);font-size:12px;font-weight:700;color:#536dfe}
-.room-res-icon.role{background:linear-gradient(135deg,#8b7bff,#5b8cff);color:#fff}
+.room-res-icon.role{background:var(--lf-grad);color:var(--lf-on-accent)}
 .room-res-icon.sop{background:rgba(34,197,94,.12);color:#16a34a}
 .room-res-icon.repo{background:rgba(236,72,153,.1);color:#db2777}
 .room-res-text{min-width:0;flex:1}
@@ -115,7 +115,7 @@ button.room-res-expand:hover{text-decoration:underline}
 .ai-orchestrator-form{padding:10px 14px 12px}
 .ai-orchestrator-box{position:relative;border:1px solid rgba(83,109,254,.45);border-radius:12px;background:var(--panel)}
 .ai-orchestrator-box textarea{display:block;width:100%;box-sizing:border-box;border:0;outline:0;padding:10px 12px 34px;background:transparent;color:var(--text);resize:none;font:inherit;font-size:13px}
-.ai-orchestrator-send{position:absolute;right:8px;bottom:8px;width:28px;height:28px;border:0;border-radius:8px;background:#4f7bff;color:#fff;cursor:pointer;font-size:15px}
+.ai-orchestrator-send{position:absolute;right:8px;bottom:8px;width:28px;height:28px;border:0;border-radius:8px;background:var(--lf-brand);color:var(--lf-on-accent);cursor:pointer;font-size:15px}
 .ai-orchestrator-send:disabled{opacity:.5;cursor:default}
 .ai-orchestrator-form small{display:block;margin-top:6px;color:var(--muted);font-size:11px}
 .canvas-ai-entry{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:3;display:flex;flex-direction:column;align-items:center;gap:8px;padding:18px 22px;border:1.5px dashed rgba(83,109,254,.5);border-radius:12px;background:var(--panel);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;box-shadow:0 6px 20px rgba(15,23,42,.06)}
@@ -148,7 +148,7 @@ button.room-res-expand:hover{text-decoration:underline}
 .room-run small{color:var(--muted);font-size:11.5px}
 @keyframes roomFlow{from{background-position:0 0}to{background-position:-200% 0}}
 .room-progress{display:flex;gap:10px;align-items:flex-start;max-width:100%;animation:roomIn .3s ease}
-.room-avatar{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:linear-gradient(135deg,#8b7bff,#5b8cff);color:#fff;font-size:12px;font-weight:700}
+.room-avatar{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:var(--lf-grad);color:var(--lf-on-accent);font-size:12px;font-weight:700}
 .room-avatar.sop{background:rgba(34,197,94,.12);color:#16a34a;font-size:9px;letter-spacing:.2px}
 .room-progress header{display:flex;gap:8px;align-items:baseline;font-size:12px}
 .room-progress header span{color:var(--muted);font-size:11px}

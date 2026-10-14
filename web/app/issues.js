@@ -783,6 +783,7 @@ function afRerunFromNode(run,nodeId){
     $('#confirmTitle').textContent='从这里重跑';
     $('#confirmMessage').textContent=`从「${node.name}」及其下游重跑，上游已完成的步骤会保留。`;
     $('#confirmPromptWrap').hidden=true;
+    const nameWrap=$('#confirmNameWrap');if(nameWrap)nameWrap.hidden=true;
     fields.hidden=false;
     context.value='';
     const allowsContext=runNodeAllowsContext(node);
@@ -792,6 +793,7 @@ function afRerunFromNode(run,nodeId){
     const cancelBtn=$('#confirmCancelBtn');
     okBtn.textContent='开始重跑';
     okBtn.className='button primary';
+    okBtn.disabled=false;
     cancelBtn.textContent='取消';
     cancelBtn.hidden=false;
     $('#confirmIconWrap').className='confirm-icon-wrap info';
