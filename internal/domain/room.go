@@ -86,6 +86,12 @@ type ChatMessage struct {
 	ReplyTo     string `json:"replyTo,omitempty"`
 	ReplyAuthor string `json:"replyAuthor,omitempty"`
 	ReplyText   string `json:"replyText,omitempty"`
+	// ParentID is the thread root the model may see. A thread reply carries
+	// only that chain, not the rest of the room timeline.
+	ParentID string `json:"parentId,omitempty"`
+	// ReassignNote is set when an @ of an unavailable bot was rewritten
+	// before the message was stored.
+	ReassignNote string `json:"reassignNote,omitempty"`
 	// Pending marks a bot reply that is still being written.
 	Pending bool `json:"pending,omitempty"`
 

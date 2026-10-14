@@ -1,4 +1,6 @@
-/* LoopForge design layer — loaded last.
+@import url("/collab.css?v=20261014p3");
+/* LoopForge design layer — loaded last. Chat layout (collab.css) is imported
+   above so this file can own the final chat colors without a second link.
    Single source of truth for color, surface and motion tokens. The legacy
    variable sets (styles.css base, --v3-*, --v4-*) are remapped onto these, so
    older component rules follow the same palette in both themes. */
@@ -658,8 +660,9 @@ html[data-lang="zh"] .lang-toggle [data-l="zh"],html[data-lang="en"] .lang-toggl
 .room-chip{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 10px;border-radius:10px;border:1px dashed var(--lf-line-2);font-size:12px;color:var(--lf-text-2);position:relative}
 .room-chip select{position:absolute;inset:0;opacity:0;cursor:pointer}
 .room-target-hint{margin:0!important;font-size:11.5px!important;color:var(--lf-text-3)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.room-send{width:34px!important;height:34px!important;display:grid!important;place-items:center;background:var(--lf-surface-3)!important;color:var(--lf-text-3)!important;transition:background .2s,transform .15s}
-.room-send.ready{background:var(--lf-grad)!important;color:var(--lf-on-accent)!important;box-shadow:0 6px 16px -6px var(--lf-brand-glow)}
+.room-send{width:34px;height:34px;display:grid;place-items:center;background:var(--lf-surface-3);color:var(--lf-text-3);transition:background .2s,transform .15s}
+.room-send.ready{background:var(--lf-grad);color:var(--lf-on-accent);box-shadow:0 6px 16px -6px var(--lf-brand-glow)}
+.rc-reassign{margin:8px 0 0;font-size:12.5px;line-height:1.45;color:var(--lf-brand-ink)}
 .room-send.ready:hover{transform:scale(1.06)}
 .room-mention{border-radius:14px!important;border:1px solid var(--lf-line-2)!important;background:var(--lf-surface)!important;box-shadow:var(--lf-shadow)!important;padding:6px!important}
 .room-mention-group{font-size:10.5px!important;font-weight:650;letter-spacing:.06em;color:var(--lf-text-3)!important;padding:8px 10px 4px!important}
@@ -1244,7 +1247,7 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .rt-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--lf-line)}
 
 /* composer: @ decides */
-.room-send.is-dispatch{width:auto!important;padding:0 14px 0 12px!important;gap:6px;background:var(--lf-grad,linear-gradient(90deg,#7c5cff,#3aa0ff))!important;color:var(--lf-on-accent)!important;opacity:1!important}
+.room-send.is-dispatch{width:auto!important;padding:0 14px 0 12px!important;gap:6px;background:var(--lf-grad)!important;color:var(--lf-on-accent)!important;opacity:1!important}
 .room-send.is-dispatch::after{content:"派活";font-size:13px;font-weight:650}
 .room-composer-picks .room-pick{border-radius:99px!important;background:var(--lf-brand-soft)!important;color:var(--lf-brand)!important;border:1px solid color-mix(in srgb,var(--lf-brand) 30%,transparent)!important}
 .room-composer-picks .room-pick::before{content:"@";margin-right:1px;opacity:.7}

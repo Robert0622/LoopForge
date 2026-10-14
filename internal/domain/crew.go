@@ -36,20 +36,33 @@ type CrewMission struct {
 // CrewTask is one bot's step. Status: pending, running, succeeded, failed,
 // skipped.
 type CrewTask struct {
-	ID          string    `json:"id"`
-	AgentID     string    `json:"agentId"`
-	AgentName   string    `json:"agentName"`
-	Title       string    `json:"title"`
-	Instruction string    `json:"instruction,omitempty"`
-	Status      string    `json:"status"`
-	AddedBy     string    `json:"addedBy,omitempty"`
-	WorkflowID  string    `json:"workflowId,omitempty"`
-	RunID       string    `json:"runId,omitempty"`
-	Summary     string    `json:"summary,omitempty"`
-	Output      string    `json:"output,omitempty"`
-	Error       string    `json:"error,omitempty"`
-	StartedAt   time.Time `json:"startedAt,omitempty"`
-	FinishedAt  time.Time `json:"finishedAt,omitempty"`
+	ID          string `json:"id"`
+	AgentID     string `json:"agentId"`
+	AgentName   string `json:"agentName"`
+	Title       string `json:"title"`
+	Instruction string `json:"instruction,omitempty"`
+	Status      string `json:"status"`
+	AddedBy     string `json:"addedBy,omitempty"`
+	WorkflowID  string `json:"workflowId,omitempty"`
+	RunID       string `json:"runId,omitempty"`
+	Summary     string `json:"summary,omitempty"`
+	Output      string `json:"output,omitempty"`
+	Error       string `json:"error,omitempty"`
+	// Handoff is the only context the next bot receives from this step.
+	Handoff *CrewHandoff `json:"handoff,omitempty"`
+	// ReassignedFrom names the bot that was skipped because it was unavailable.
+	ReassignedFrom   string    `json:"reassignedFrom,omitempty"`
+	ReassignedReason string    `json:"reassignedReason,omitempty"`
+	StartedAt        time.Time `json:"startedAt,omitempty"`
+	FinishedAt       time.Time `json:"finishedAt,omitempty"`
+}
+
+// CrewHandoff is the structured packet passed between crew steps.
+// The next bot sees this, not the previous bot's full transcript.
+type CrewHandoff struct {
+	Conclusion    string   `json:"conclusion"`
+	Artifacts     []string `json:"artifacts,omitempty"`
+	OpenQuestions []string `json:"openQuestions,omitempty"`
 }
 
 // CrewNote is something a person said in the room while the mission ran;

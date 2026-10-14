@@ -222,6 +222,7 @@ function scheduleRoomPoll() {
   roomsPollTimer = setTimeout(async () => {
     if (state.currentView === 'rooms' && roomState().activeId && !document.hidden) await refreshRoomMessages();
     if (state.currentView === 'rooms') {
+      loadBotStatus();
       renderRoomBots();
       scheduleRoomPoll();
     }
@@ -591,7 +592,9 @@ function renderRoomThread(room, messages, keepScroll) {
   const previous = log.scrollTop;
   const rs = roomState();
   rs.active = messages.some(m => (m.kind === 'dispatch' && m.runId && !m.runFinal && !roomRunTerminal(m.runStatus || '')) || (m.kind === 'crew' && ROOM_CREW_ACTIVE.includes(m.crew?.status)) || m.pending);
-  rs.lastMessages = messages;
+  rs.lastMessages = roomMergeStreams(messages);
+  messages = rs.lastMessages;
+  roomAttachStreams(room, messages);
   const ephemeral = (rs.ephemeral || []).filter(e => e.roomId === undefined || e.roomId === room?.id);
   const runsSig = (state.data?.runs || []).map(r => r.id + ':' + (r.revision || r.updatedAt || r.status)).join(',');
   const signature = (room?.id || '') + '|' + JSON.stringify(messages) + '|' + ephemeral.map(e => e.id).join(',') + '|' + runsSig + '|' + (rs.threadRun || '');
@@ -674,6 +677,7 @@ function bindRoomLog(log) {
   log.querySelectorAll('[data-stream-stop]').forEach(button => {
     button.onclick = async event => {
       event.stopPropagation();
+      if (button.dataset.mid && !String(button.dataset.mid).startsWith('lf-preview')) return roomStopStream(button.dataset.mid);
       if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'stop', button);
       roomState().preview = [];
       roomState().threadSignature = '';
@@ -684,9 +688,10 @@ function bindRoomLog(log) {
   log.querySelectorAll('[data-stream-retry]').forEach(button => {
     button.onclick = event => {
       event.stopPropagation();
+      if (button.dataset.mid && !String(button.dataset.mid).startsWith('lf-preview')) return roomRetryStream(button.dataset.mid);
       if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'retry', button);
       const preview = (roomState().preview || [])[0];
-      if (preview) preview.createdAt = new Date().toISOString();
+      if (preview) { preview.createdAt = new Date().toISOString(); preview.streamAt = ''; }
       roomState().threadSignature = '';
       const room = activeRoom() || roomState().previewRoom;
       if (room) renderRoomThread(room, (roomState().lastMessages || []).filter(m => m.id !== 'lf-preview-stream'), true);
@@ -992,6 +997,7 @@ function roomCrewHTML(msg, mine) {
     <div class="rc-top"><span class="rc-key">${msg.issueNumber ? '#' + msg.issueNumber : '协作'}</span><b>${escapeHTML(c.goal || '')}</b>${tasks.length ? `<span class="rc-count">${done}/${tasks.length}</span>` : ''}</div>
     <div class="rc-now is-${escapeHTML(head.cls)}"><i></i><span>${escapeHTML(head.text)}</span></div>
     ${tasks.length ? `<div class="rc-bar"><i style="width:${pct}%"></i></div>` : ''}
+    ${tasks.filter(t => t.reassignedFrom).map(t => `<p class="rc-reassign">已改由 ${escapeHTML(t.agentName || '')} 负责（${escapeHTML(t.reassignedFrom)}${t.reassignedReason ? ' ' + escapeHTML(t.reassignedReason) : ''}）</p>`).join('')}
     ${roomChainHTML(roomCrewSteps(c), true)}${question}${actions ? `<div class="rc-row">${actions}</div>` : ''}
     <footer class="rc-foot"><span class="rc-faces">${faces.map(w => roomFace(w, 'xs')).join('')}</span><span>自由协作${c.planner === 'ai' ? ' · AI 排的分工' : ''}</span><span class="rc-open">${open ? '过程已展开' : '看过程'}<i>›</i></span></footer>
   </div>`;
@@ -1005,20 +1011,112 @@ function roomErrorCardHTML(opts) {
   const btn = (id, label) => `<button type="button" class="button ${primary === id ? 'primary' : 'ghost'} small" data-err-act="${id}" data-crew="${escapeHTML(opts?.crew || '')}">${label}</button>`;
   return `<div class="rm-error-card"><b>${key ? '还不能调用这个 Bot' : '这一步没做成'}</b><p>${escapeHTML(reason)}</p><div class="rm-error-actions">${btn('retry', '重试')}${btn('key', '配置 Key')}${btn('swap', '换个 Bot')}</div></div>`;
 }
+function roomStreamGap(m) {
+  const last = Date.parse(m.streamAt || m.createdAt || '') || Date.now();
+  return Math.max(0, Date.now() - last);
+}
 function roomStreamHTML(m) {
-  const age = Math.max(0, Date.now() - Date.parse(m.createdAt || Date.now()));
+  const age = Math.max(0, Date.now() - (Date.parse(m.createdAt || '') || Date.now()));
+  const gap = roomStreamGap(m);
   if (m.error) return roomErrorCardHTML({reason: m.error, crew: m.crewId || ''});
-  if (age > 180000) return roomErrorCardHTML({reason: '超过 3 分钟还没有新内容', crew: m.crewId || ''});
-  const phase = m.body ? 'out' : age >= 10000 ? 'slow' : age >= 1500 ? 'think' : 'queue';
-  const label = {queue: '排队中', think: '思考中', out: '输出中'}[phase] || '排队中';
+  if (!m.body && age > 180000) return roomErrorCardHTML({reason: '超过 3 分钟还没有新内容', crew: m.crewId || ''});
   const pulse = '<span class="rm-pulse" aria-hidden="true"></span>';
   const crew = escapeHTML(m.crewId || '');
-  if (phase === 'slow') {
-    const sec = Math.max(1, Math.round(age / 1000));
-    return `<div class="rm-stream is-slow" data-stream-age="${Date.parse(m.createdAt || '') || Date.now()}">${pulse}<span>仍在处理，已用 ${sec} 秒</span><button type="button" class="button ghost small" data-stream-stop data-crew="${crew}">停止</button><button type="button" class="button ghost small" data-stream-retry data-crew="${crew}">重试</button></div>`;
+  const mid = escapeHTML(m.id || '');
+  if (gap >= 10000) {
+    const sec = Math.max(1, Math.round(gap / 1000));
+    const partial = m.body ? `<p class="msg-body">${roomTextHTML(m.body)}<i class="rm-caret"></i></p>` : '';
+    return `${partial}<div class="rm-stream is-slow" data-stream-age="${Date.parse(m.streamAt || m.createdAt || '') || Date.now()}">${pulse}<span>仍在处理，已用 ${sec} 秒</span><button type="button" class="button ghost small" data-stream-stop data-mid="${mid}" data-crew="${crew}">停止</button><button type="button" class="button ghost small" data-stream-retry data-mid="${mid}" data-crew="${crew}">重试</button></div>`;
   }
+  const phase = m.body ? 'out' : age >= 1500 ? 'think' : 'queue';
+  const label = {queue: '排队中', think: '思考中', out: '输出中'}[phase] || '排队中';
   const body = phase === 'out' ? `<p class="msg-body">${roomTextHTML(m.body)}<i class="rm-caret"></i></p>` : '';
   return `${body}<p class="rm-stream">${pulse}<span>${label}</span></p>`;
+}
+function roomMergeStreams(messages) {
+  const rs = roomState();
+  const prev = new Map((rs.lastMessages || []).map(m => [m.id, m]));
+  return (messages || []).map(m => {
+    const local = prev.get(m.id);
+    if (!local || !m.pending) return m;
+    if ((local.body || '').length > (m.body || '').length) m.body = local.body;
+    if (local.streamAt) m.streamAt = local.streamAt;
+    return m;
+  });
+}
+function loadBotStatus() {
+  const projectId = typeof roomProjectId === 'function' ? roomProjectId() : '';
+  if (!projectId || typeof api !== 'function') return;
+  if (state.botStatusAt && Date.now() - state.botStatusAt < 15000) return;
+  state.botStatusAt = Date.now();
+  api('/api/bots/status?projectId=' + encodeURIComponent(projectId), {silent: true}).then(rows => {
+    state.botStatus = rows || [];
+    state.botStatusAt = Date.now();
+    if (state.currentView === 'rooms') renderRoomBots();
+  }).catch(() => {});
+}
+function roomAttachStreams(room, messages) {
+  if (!room?.id || room.id === 'preview' || typeof EventSource === 'undefined') return;
+  const rs = roomState();
+  const open = rs.sse || (rs.sse = {});
+  (messages || []).forEach(m => {
+    if (!m?.pending || m.kind !== 'crew_post' || !m.id || String(m.id).startsWith('lf-preview')) return;
+    if (open[m.id]) return;
+    const es = new EventSource('/api/rooms/' + encodeURIComponent(room.id) + '/messages/' + encodeURIComponent(m.id) + '/stream');
+    open[m.id] = es;
+    const apply = (ev, done) => {
+      let data = {};
+      try { data = JSON.parse(ev.data || '{}'); } catch { data = {}; }
+      const cur = (rs.lastMessages || []).find(item => item.id === m.id);
+      if (!cur) return;
+      if (data.type === 'token' && data.text) {
+        cur.body = (cur.body || '') + data.text;
+        cur.streamAt = new Date().toISOString();
+      }
+      if (done) {
+        cur.pending = false;
+        if (data.type === 'error') cur.error = data.text || '输出中断';
+        if (data.type === 'stopped') cur.body = data.text || cur.body;
+        if (data.type === 'done' && data.text) cur.body = data.text;
+        es.close();
+        delete open[m.id];
+      }
+      rs.threadSignature = '';
+      const live = activeRoom() || room;
+      if (live) renderRoomThread(live, rs.lastMessages || [], true);
+    };
+    es.addEventListener('token', ev => apply(ev, false));
+    es.addEventListener('done', ev => apply(ev, true));
+    es.addEventListener('stopped', ev => apply(ev, true));
+    es.addEventListener('error', ev => {
+      if (ev?.data) apply(ev, true);
+    });
+  });
+}
+async function roomStopStream(mid) {
+  const rs = roomState();
+  const es = rs.sse?.[mid];
+  if (es) { es.close(); delete rs.sse[mid]; }
+  try {
+    await api('/api/rooms/' + encodeURIComponent(rs.activeId) + '/messages/' + encodeURIComponent(mid) + '/stop', {method: 'POST', body: '{}'});
+  } catch (error) {
+    toast(error.message);
+  }
+  await refreshRoomMessages(true);
+}
+async function roomRetryStream(mid) {
+  const rs = roomState();
+  const es = rs.sse?.[mid];
+  if (es) { es.close(); delete rs.sse[mid]; }
+  const cur = (rs.lastMessages || []).find(item => item.id === mid);
+  if (cur) { cur.body = ''; cur.pending = true; cur.streamAt = new Date().toISOString(); cur.error = ''; }
+  try {
+    await api('/api/rooms/' + encodeURIComponent(rs.activeId) + '/messages/' + encodeURIComponent(mid) + '/retry', {method: 'POST', body: '{}'});
+  } catch (error) {
+    toast(error.message);
+  }
+  rs.threadSignature = '';
+  await refreshRoomMessages(true);
 }
 function roomArmStreamTick(messages) {
   const rs = roomState();
@@ -1619,7 +1717,8 @@ async function sendRoomMessage() {
   body = rewritten.body;
   if (rewritten.note) roomBotReply(`<p class="rm-sub">${escapeHTML(rewritten.note)}</p>`);
   try {
-    await api('/api/rooms/' + encodeURIComponent(id) + '/messages', {method: 'POST', body: JSON.stringify({body, replyTo: roomState().reply?.id || ''})});
+    const sent = await api('/api/rooms/' + encodeURIComponent(id) + '/messages', {method: 'POST', body: JSON.stringify({body, replyTo: roomState().reply?.id || '', parentId: roomState().reply?.id || ''})});
+    if (sent?.reassignNote) toast(sent.reassignNote);
     input.value = '';
     roomState().reply = null;
     closeRoomMention();

@@ -1437,6 +1437,12 @@ function lfBotQueue(agentId){
 }
 function lfBotStatus(agent){
   if(!agent)return {key:'off',label:'不可用',reason:'找不到这个 Bot',queue:0};
+  const live=(state.botStatus||[]).find(item=>item.agentId===agent.id);
+  if(live){
+    const key=live.status==='online'?'ok':live.status==='busy'?'busy':live.status==='degraded'?'wait':'off';
+    const label=live.status==='online'?'可用':live.status==='busy'?'忙':live.status==='degraded'?'降级':(/key/i.test(live.reason||'')?'缺 Key':'不可用');
+    return {key,label,reason:live.reason||label,queue:live.queue||0};
+  }
   if(!lfModelReady())return {key:'off',label:'缺 Key',reason:'还没配置模型 API Key',queue:0};
   const queue=lfBotQueue(agent.id);
   if(queue>0)return {key:'busy',label:'忙',reason:'排队 '+queue,queue};

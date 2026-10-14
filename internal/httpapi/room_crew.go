@@ -115,6 +115,91 @@ func (h *roomsHandlers) startCrewMission(room domain.ChatRoom, userID int64, aut
 // crewRoster lists the roles a crew may use: visible to the project and
 // runnable by this user (the mock executor always is; real CLIs need a key,
 // the engine falls back between built-in CLIs).
+func (h *roomsHandlers) crewVisible(projectID string) []domain.AgentDefinition {
+	var out []domain.AgentDefinition
+	for _, a := range h.repo.Agents() {
+		if catalogVisible(a.ProjectID, a.Shared, projectID) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func (h *roomsHandlers) reassignUnavailableTasks(projectID string, userID int64, tasks []domain.CrewTask) []domain.CrewTask {
+	statuses := h.botStatuses(projectID, userID)
+	byID := map[string]botStatusView{}
+	var fallback *botStatusView
+	for i := range statuses {
+		byID[statuses[i].AgentID] = statuses[i]
+		if fallback == nil && statuses[i].Status != "unavailable" {
+			fb := statuses[i]
+			fallback = &fb
+		}
+	}
+	for i := range tasks {
+		st, ok := byID[tasks[i].AgentID]
+		if !ok || st.Status != "unavailable" || fallback == nil || fallback.AgentID == tasks[i].AgentID {
+			continue
+		}
+		tasks[i].ReassignedFrom = tasks[i].AgentName
+		tasks[i].ReassignedReason = st.Reason
+		tasks[i].AgentID = fallback.AgentID
+		tasks[i].AgentName = fallback.Name
+	}
+	return tasks
+}
+
+// annotateIdealSkip records when the best-named bot for a step cannot run,
+// even if the planner already picked someone who can. The card then says
+// 「已改由 yy 负责」.
+func (h *roomsHandlers) annotateIdealSkip(goal string, tasks []domain.CrewTask, visible []domain.AgentDefinition, userID int64, projectID string) {
+	_ = goal
+	statuses := map[string]botStatusView{}
+	for _, st := range h.botStatuses(projectID, userID) {
+		statuses[st.AgentID] = st
+	}
+	for i := range tasks {
+		if tasks[i].ReassignedFrom != "" {
+			continue
+		}
+		k := -1
+		for n, kind := range crewRoleKinds {
+			if kind.title == tasks[i].Title {
+				k = n
+				break
+			}
+		}
+		if k < 0 {
+			continue
+		}
+		best, bestScore := -1, 0
+		for j, a := range visible {
+			score := crewRoleScore(a, k)
+			if score == 0 {
+				continue
+			}
+			better := score > bestScore
+			tieReal := score == bestScore && best >= 0 && visible[best].ExecutorID == "mock" && a.ExecutorID != "mock"
+			if better || tieReal {
+				best, bestScore = j, score
+			}
+		}
+		if best < 0 {
+			continue
+		}
+		ideal := visible[best]
+		if ideal.ID == tasks[i].AgentID {
+			continue
+		}
+		st := statuses[ideal.ID]
+		if st.Status != "unavailable" {
+			continue
+		}
+		tasks[i].ReassignedFrom = crewAgentName(ideal)
+		tasks[i].ReassignedReason = firstNonEmpty(st.Reason, "不可用")
+	}
+}
+
 func (h *roomsHandlers) crewRoster(projectID string, userID int64) []domain.AgentDefinition {
 	hasKey := false
 	if user, ok := h.repo.User(userID); ok {
@@ -286,6 +371,8 @@ func (h *roomsHandlers) planCrew(room domain.ChatRoom, msgID string) {
 	if err != nil {
 		tasks, planner = crewPlanRules(m.Goal+" "+m.Detail, roster), "rules"
 	}
+	tasks = h.reassignUnavailableTasks(room.ProjectID, m.StartedBy, tasks)
+	h.annotateIdealSkip(m.Goal+" "+m.Detail, tasks, h.crewVisible(room.ProjectID), m.StartedBy, room.ProjectID)
 	h.crewMu.Lock()
 	defer h.crewMu.Unlock()
 	msg, ok = h.repo.Message(msgID)
@@ -313,6 +400,11 @@ func (h *roomsHandlers) planCrew(room domain.ChatRoom, msgID string) {
 		names[i] = t.AgentName + "「" + t.Title + "」"
 	}
 	lead := "收到。我拉了 " + fmt.Sprint(len(crewDistinctAgents(tasks))) + " 个 Bot 一起做：" + strings.Join(names, " → ") + "。"
+	for _, t := range tasks {
+		if t.ReassignedFrom != "" {
+			lead += "\n已改由 " + t.AgentName + " 负责（" + t.ReassignedFrom + " " + t.ReassignedReason + "）。"
+		}
+	}
 	if m.AutoStart {
 		lead += "已经开工，做完一步我会在群里交接。"
 	} else {
@@ -445,6 +537,8 @@ func (h *roomsHandlers) advanceCrew(msgID string) {
 				output = node.Output
 			}
 			t.Status, t.Output, t.Summary = "succeeded", roomTrim(output, 6000), crewSummary(output)
+			t.Handoff = parseCrewHandoff(output, t.Summary)
+			h.clearBotDegraded(t.AgentID)
 			if q := crewQuestion(output); q != "" {
 				m.Status, m.Question, m.QuestionAgent = "waiting", q, t.AgentID
 				h.crewSay(msg, t.AgentName, t.AgentID, firstNonEmpty(t.Summary, "做完了「"+t.Title+"」。"), "", "")
@@ -464,6 +558,7 @@ func (h *roomsHandlers) advanceCrew(msgID string) {
 			reason = node.Error
 		}
 		t.Status, t.Error = "failed", roomTrim(reason, 400)
+		h.markBotDegraded(t.AgentID, t.Error)
 		m.Status, m.Question, m.QuestionAgent = "waiting", "", t.AgentID
 		h.crewSay(msg, crewCaptain, "", "@"+crewMention(m.StartedByName)+" "+t.AgentName+" 在「"+t.Title+"」卡住了："+t.Error+"\n回复「重试」「跳过」或「停止」，也可以直接说怎么改，我交给它重做。", "", "")
 	}
@@ -482,6 +577,72 @@ func (h *roomsHandlers) advanceCrew(msgID string) {
 	if changed {
 		h.saveCrew(msg)
 	}
+}
+
+func parseCrewHandoff(output, summary string) *domain.CrewHandoff {
+	h := &domain.CrewHandoff{}
+	cut := func(line, a, b string) (string, bool) {
+		if strings.HasPrefix(line, a) {
+			return strings.TrimSpace(strings.TrimPrefix(line, a)), true
+		}
+		if strings.HasPrefix(line, b) {
+			return strings.TrimSpace(strings.TrimPrefix(line, b)), true
+		}
+		return "", false
+	}
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(strings.Trim(line, "-* "))
+		if rest, ok := cut(line, "结论：", "结论:"); ok && h.Conclusion == "" {
+			h.Conclusion = rest
+			continue
+		}
+		if rest, ok := cut(line, "产物：", "产物:"); ok && rest != "" && rest != "无" {
+			h.Artifacts = append(h.Artifacts, rest)
+			continue
+		}
+		if rest, ok := cut(line, "未决问题：", "未决问题:"); ok && rest != "" && rest != "无" {
+			h.OpenQuestions = append(h.OpenQuestions, rest)
+		}
+	}
+	if h.Conclusion == "" {
+		head := strings.TrimSpace(strings.SplitN(firstNonEmpty(summary, output), "\n", 2)[0])
+		h.Conclusion = roomTrim(head, 200)
+	}
+	if q := crewQuestion(output); q != "" {
+		h.OpenQuestions = append(h.OpenQuestions, q)
+	}
+	return h
+}
+
+func crewHandoffBlock(t domain.CrewTask) string {
+	h := t.Handoff
+	if h == nil {
+		h = parseCrewHandoff("", t.Summary)
+	}
+	arts := "无"
+	if len(h.Artifacts) > 0 {
+		arts = strings.Join(h.Artifacts, "；")
+	}
+	open := "无"
+	if len(h.OpenQuestions) > 0 {
+		open = strings.Join(h.OpenQuestions, "；")
+	}
+	return "### " + t.AgentName + "「" + t.Title + "」\n结论：" + roomTrim(h.Conclusion, 400) + "\n产物：" + arts + "\n未决问题：" + open
+}
+
+func (h *roomsHandlers) fallbackBot(projectID string, userID int64, skipID string) (domain.AgentDefinition, string) {
+	reason := "不可用"
+	for _, st := range h.botStatuses(projectID, userID) {
+		if st.AgentID == skipID && st.Reason != "" {
+			reason = st.Reason
+		}
+	}
+	for _, a := range h.crewRoster(projectID, userID) {
+		if a.ID != skipID {
+			return a, reason
+		}
+	}
+	return domain.AgentDefinition{}, reason
 }
 
 func crewMention(name string) string {
@@ -525,11 +686,11 @@ func crewBrief(m *domain.CrewMission, t *domain.CrewTask) string {
 	var done []string
 	for _, prev := range m.Tasks {
 		if prev.Status == "succeeded" && prev.ID != t.ID {
-			done = append(done, "### "+prev.AgentName+"「"+prev.Title+"」\n"+roomTrim(firstNonEmpty(prev.Output, prev.Summary), 2500))
+			done = append(done, crewHandoffBlock(prev))
 		}
 	}
 	if len(done) > 0 {
-		b.WriteString("\n## 队友已经交付的\n" + strings.Join(done, "\n\n") + "\n")
+		b.WriteString("\n## 交接单（只含结论、产物、未决问题，不含完整过程）\n" + strings.Join(done, "\n\n") + "\n")
 	}
 	var notes []string
 	for i := range m.Notes {
@@ -539,7 +700,7 @@ func crewBrief(m *domain.CrewMission, t *domain.CrewTask) string {
 	if len(notes) > 0 {
 		b.WriteString("\n## 群里同事的要求（必须遵守）\n" + strings.Join(notes, "\n") + "\n")
 	}
-	b.WriteString("\n## 回复方式\n- 第一行写一句话结论，下面列要点；结果会原样发到群里给大家看。\n- 缺关键信息没法继续时，单独一行写「需要确认：你的问题」，队长会去群里问人。\n")
+	b.WriteString("\n## 回复方式\n用交接单收尾，下一步只能看到这三项，不要贴完整过程：\n结论：一句话\n产物：文件或结果，没有就写无\n未决问题：没有就写无\n缺关键信息时另起一行写「需要确认：你的问题」。\n")
 	return b.String()
 }
 
@@ -767,7 +928,7 @@ func (h *roomsHandlers) crewInsertNext(m *domain.CrewMission, t domain.CrewTask)
 // post adds a step for it, any message unblocks a waiting mission, and a reply
 // to a mission's messages is handed to the next bot as a requirement.
 // Plain chatter between people is left alone.
-func (h *roomsHandlers) crewHear(room domain.ChatRoom, said domain.ChatMessage) {
+func (h *roomsHandlers) crewHear(room domain.ChatRoom, said domain.ChatMessage, spec *fakeModelSpec) {
 	body := strings.TrimSpace(said.Body)
 	quoted, hasQuote := domain.ChatMessage{}, false
 	if said.ReplyTo != "" {
@@ -780,7 +941,7 @@ func (h *roomsHandlers) crewHear(room domain.ChatRoom, said domain.ChatMessage) 
 	if strings.HasPrefix(lower, "@loopforge") {
 		goal := strings.TrimSpace(body[len("@loopforge"):])
 		if goal == "" || crewWantsAnswer(goal) {
-			h.answerInRoom(room, said, firstNonEmpty(goal, "你好，你能做什么？"))
+			h.answerInRoom(room, said, firstNonEmpty(goal, "你好，你能做什么？"), spec)
 			return
 		}
 		{
@@ -836,7 +997,23 @@ func (h *roomsHandlers) crewHear(room domain.ChatRoom, said domain.ChatMessage) 
 			continue
 		}
 		if !usable[a.ID] {
-			h.crewSay(msg, crewCaptain, "", name+" 现在叫不动：它用的模型 CLI 还没配 Key。去「设置 · 个人设置」配好后再 @ 它。", "", "")
+			fb, reason := h.fallbackBot(room.ProjectID, m.StartedBy, a.ID)
+			if fb.ID == "" {
+				h.crewSay(msg, crewCaptain, "", name+" 不可用："+reason+"。现在没有能接替的 Bot。", "", "")
+				return
+			}
+			from := name
+			a = fb
+			name = crewAgentName(a)
+			ask := strings.TrimSpace(strings.Replace(body, "@"+from, "", 1))
+			t := domain.CrewTask{AgentID: a.ID, AgentName: name, Title: roomTrim(firstNonEmpty(strings.SplitN(ask, "\n", 2)[0], "按群里的要求补一步"), 24), Instruction: ask, Status: "pending", AddedBy: said.Author, ReassignedFrom: from, ReassignedReason: reason}
+			m.Tasks = append(m.Tasks, t)
+			for i := range m.Tasks {
+				m.Tasks[i].ID = fmt.Sprintf("t%d", i+1)
+			}
+			h.crewSay(msg, crewCaptain, "", "已改由 "+name+" 负责（"+from+" "+reason+"）。给它加了一步「"+t.Title+"」。", "", "")
+			h.saveCrew(msg)
+			h.ensureCrewLoop()
 			return
 		}
 		if len(m.Tasks) >= crewMaxTasks {

@@ -55,20 +55,21 @@ func roomQuoteText(m domain.ChatMessage) string {
 }
 
 // answerInRoom posts a pending captain reply right away so everyone sees the
-// bot is on it, then fills it in.
-func (h *roomsHandlers) answerInRoom(room domain.ChatRoom, said domain.ChatMessage, question string) {
+// bot is on it, then streams the answer token by token.
+func (h *roomsHandlers) answerInRoom(room domain.ChatRoom, said domain.ChatMessage, question string, spec *fakeModelSpec) {
+	parent := said.ParentID
+	if parent == "" {
+		parent = said.ReplyTo
+	}
 	reply := domain.ChatMessage{
 		ID: newChatID("msg"), RoomID: room.ID, Author: crewCaptain, Kind: domain.ChatKindCrewPost, Pending: true,
-		ReplyTo: said.ID, ReplyAuthor: roomQuoteAuthor(said), ReplyText: roomTrim(said.Body, 200), CreatedAt: time.Now().UTC(),
+		ReplyTo: said.ID, ReplyAuthor: roomQuoteAuthor(said), ReplyText: roomTrim(said.Body, 200),
+		ParentID: parent, CreatedAt: time.Now().UTC(),
 	}
 	if err := h.repo.PutMessage(reply); err != nil {
 		return
 	}
-	go func() {
-		reply.Body = h.crewAnswer(room, said, question)
-		reply.Pending = false
-		_ = h.repo.PutMessage(reply)
-	}()
+	h.beginReplyStream(room, said, reply, question, spec)
 }
 
 func (h *roomsHandlers) crewAnswer(room domain.ChatRoom, said domain.ChatMessage, question string) string {
@@ -80,23 +81,9 @@ func (h *roomsHandlers) crewAnswer(room domain.ChatRoom, said domain.ChatMessage
 		}
 		return "直接回答问题要用模型，你还没配 Key：去「设置 · 个人设置」配好就行。\n现在我能做的：\n- 「@LoopForge + 要做的事」我来拉 Bot 组队干活\n- 问「进度」我汇报群里的任务\n\n" + status
 	}
-	var history []string
-	for _, m := range h.repo.Messages(room.ID, 40) {
-		if m.ID == said.ID || m.Pending {
-			continue
-		}
-		if text := strings.TrimSpace(roomQuoteText(m)); text != "" {
-			history = append(history, roomQuoteAuthor(m)+"："+roomTrim(text, 240))
-		}
-	}
-	quote := "无"
-	if said.ReplyTo != "" {
-		quote = said.ReplyAuthor + "：" + said.ReplyText
-	}
-	prompt := fmt.Sprintf(crewAnswerPrompt, status, strings.Join(history, "\n"), quote, roomQuoteAuthor(said), question)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	raw, err := generateAssistantReply(ctx, prompt, user)
+	raw, err := generateAssistantReply(ctx, h.captainPrompt(room, said, question, status), user)
 	if text := strings.TrimSpace(raw); err == nil && text != "" {
 		return roomTrim(text, 2000)
 	}
@@ -138,13 +125,14 @@ func (h *roomsHandlers) roomStatusDigest(room domain.ChatRoom) string {
 }
 
 const crewAnswerPrompt = `你是群聊里的 Bot「LoopForge」，这个项目的 PM 兼 Bot 团队队长。像同事在群里回话一样回答：中文、口语、简短（一般不超过 8 行），可以用 Markdown 列表。
-只根据下面的群任务、群聊记录和引用的消息回答；不知道就直说，不要编。
+只根据下面的群任务、上下文和引用的消息回答；不知道就直说，不要编。
 如果对方其实是想让人动手干活，告诉他用「@LoopForge + 要做的事」交给 Bot 团队，或 @ 一条 SOP 按流程跑。
+线程里的提问只带 parent_id 这条链，不要假设你看过群里的其它消息。
 
 ## 群任务
 %s
 
-## 最近群聊
+## 上下文（parent_id=%s）
 %s
 
 ## 引用的消息
@@ -152,3 +140,59 @@ const crewAnswerPrompt = `你是群聊里的 Bot「LoopForge」，这个项目�
 
 ## 提问（来自 %s）
 %s`
+
+func (h *roomsHandlers) captainPrompt(room domain.ChatRoom, said domain.ChatMessage, question, status string) string {
+	history := h.captainHistory(room, said)
+	quote := "无"
+	if said.ReplyTo != "" {
+		quote = said.ReplyAuthor + "：" + said.ReplyText
+	}
+	parent := said.ParentID
+	if parent == "" {
+		parent = "主时间线"
+	}
+	return fmt.Sprintf(crewAnswerPrompt, status, parent, strings.Join(history, "\n"), quote, roomQuoteAuthor(said), question)
+}
+
+// captainHistory is the thread chain when the message has a parent, and a
+// short slice of the room otherwise. A thread never receives the whole timeline.
+func (h *roomsHandlers) captainHistory(room domain.ChatRoom, said domain.ChatMessage) []string {
+	all := h.repo.Messages(room.ID, 40)
+	if said.ParentID != "" || said.ReplyTo != "" {
+		return roomThreadLines(all, said)
+	}
+	var history []string
+	for _, m := range all {
+		if m.ID == said.ID || m.Pending {
+			continue
+		}
+		if text := strings.TrimSpace(roomQuoteText(m)); text != "" {
+			history = append(history, roomQuoteAuthor(m)+"："+roomTrim(text, 240))
+		}
+	}
+	return history
+}
+
+func roomThreadLines(all []domain.ChatMessage, leaf domain.ChatMessage) []string {
+	byID := map[string]domain.ChatMessage{}
+	for _, m := range all {
+		byID[m.ID] = m
+	}
+	var chain []domain.ChatMessage
+	seen := map[string]bool{}
+	id := firstNonEmpty(leaf.ParentID, leaf.ReplyTo)
+	for id != "" && len(chain) < 8 && !seen[id] {
+		seen[id] = true
+		m, ok := byID[id]
+		if !ok {
+			break
+		}
+		chain = append(chain, m)
+		id = firstNonEmpty(m.ParentID, m.ReplyTo)
+	}
+	lines := make([]string, 0, len(chain))
+	for i := len(chain) - 1; i >= 0; i-- {
+		lines = append(lines, "parent_id="+chain[i].ID+" "+roomQuoteAuthor(chain[i])+"："+roomTrim(roomQuoteText(chain[i]), 240))
+	}
+	return lines
+}
