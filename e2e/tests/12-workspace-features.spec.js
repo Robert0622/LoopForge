@@ -68,8 +68,8 @@ test('the chat page demo shows progress in the side panel', async ({ page }) => 
   await login(page);
   await page.locator('.nav[data-view="chat"]').click();
   const home = page.locator('#homeChat');
-  await expect(home.locator('.hc-key-hint')).toBeVisible();
-  await home.locator('.hc-key-hint [data-chat-action="demo"]').click();
+  await expect(home.locator('.hc-key-line')).toBeVisible();
+  await home.locator('.hc-key-line [data-chat-action="demo"]').click();
   await expect(home.locator('.hc-msg.is-bot').last()).toContainText('已按「演示交付流程」开跑', { timeout: 15_000 });
   await expect(page.locator('#issueDetailDrawer')).toBeHidden();
 
@@ -108,6 +108,10 @@ test('the quick-start demo button runs the demo SOP end to end', async ({ page }
   await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
   await visibleButton(page, '确认通过，继续下游').click();
   await expect(drawer).toContainText('已完成', { timeout: 30_000 });
+  await expect.poll(async () => {
+    const runs = await api(page, '/api/runs');
+    return runs.some(run => run.status === 'succeeded' && (run.workflowId === 'demo-delivery' || run.workflowSnapshot?.id === 'demo-delivery'));
+  }, { timeout: 30_000 }).toBe(true);
   await closeDrawer(page);
 
   await page.locator('.nav[data-view="issues"]').click();
@@ -311,8 +315,10 @@ test('a room lists only SOPs and expands the remainder on demand', async ({ page
   await page.locator('#confirmPromptInput').fill('浏览器 SOP 列表群');
   await page.locator('#confirmOkBtn').click();
   await expect(page.locator('#roomTitle')).toContainText('浏览器 SOP 列表群');
+  await page.locator('#toggleRoomInfo').click();
 
   const list = page.locator('#roomSOPList');
+  await expect(list).toBeVisible();
   await expect(list.locator('[data-room-pick]')).toHaveCount(4);
   const expand = list.locator('[data-room-sop-expand="expand"]');
   await expect(expand).toHaveText(/^展开其余 \d+ 条$/);

@@ -6,7 +6,7 @@ test('phase 1 sidebar, command palette, destructive confirm and stream states', 
   await login(page);
 
   const side = page.locator('.platform-sidebar');
-  await expect(side).toContainText('工作');
+  await expect(side.locator('.nav-section', { hasText: '工作' })).toBeVisible();
   await expect(side).toContainText('配置');
   await expect(side).toContainText('洞察');
   await expect(side.locator('.nav[data-view="issues"] .nav-label')).toHaveText('SOP 运行');
@@ -70,9 +70,10 @@ test('phase 1 sidebar, command palette, destructive confirm and stream states', 
     const host = document.createElement('div');
     host.innerHTML = lfStatusBadge({ id: 'missing-key', name: '研究员' });
     document.body.appendChild(host);
+    const badgeEl = host.querySelector('.lf-status');
     const dot = host.querySelector('i');
     const bg = getComputedStyle(dot).backgroundColor;
-    return { text: host.textContent, bg, off: dot.className };
+    return { text: host.textContent, bg, off: badgeEl.className };
   });
   expect(badge.text).toContain('缺 Key');
   expect(badge.off).toContain('lf-status-off');

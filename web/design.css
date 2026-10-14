@@ -935,7 +935,9 @@ html[data-theme="dark"] .ac-tile{color:hsl(var(--h) 85% 72%)}
 .platform-sidebar nav{display:flex!important;flex-direction:column;gap:2px;flex:1;min-height:0;padding-top:8px!important}
 .platform-sidebar .nav-spacer{flex:1;min-height:16px}
 .platform-sidebar .nav-sep{height:1px;margin:10px 12px;background:var(--lf-line)}
-.platform-sidebar #pluginNavGroup,.platform-sidebar nav>p{display:none!important}
+.platform-sidebar nav>p:not(.nav-section){display:none!important}
+.platform-sidebar #pluginNavGroup{display:flex!important;flex-direction:column}
+.platform-sidebar #pluginNavGroup>p{display:block!important;margin:16px 8px 6px;font-size:12px;font-weight:500;color:var(--lf-text-3)}
 .platform-sidebar #platformNavGroup>p{display:none!important}
 .platform-sidebar .nav{height:38px!important;border-radius:10px!important;font-size:13.5px!important}
 .platform-sidebar .nav .nav-icon{width:20px!important}
@@ -1386,3 +1388,5 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .role-card h3{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rb.is-off{opacity:.72}
 .rb .lf-dot{margin-left:auto}
+.platform-sidebar .nav-section{display:block!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:16px!important;overflow:visible!important;position:static!important}
+.platform-sidebar #pluginNavGroup,.platform-sidebar #pluginNavGroup .nav{display:flex!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:34px!important;position:static!important}
