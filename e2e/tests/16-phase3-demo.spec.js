@@ -14,10 +14,11 @@ test('demo path: command palette, example crew, save SOP, fail-resume, stall', a
   await page.locator('#commandSearch').fill('组件');
   await page.locator('#commandResults button', { hasText: '组件' }).first().click();
   await expect(page.locator('#pageTitle')).toHaveText('组件');
-  await expect(page.locator('.button.danger-outline')).toBeVisible();
-  await expect(page.locator('.lf-status-ok')).toContainText('可用');
-  await expect(page.locator('.lf-status-busy')).toContainText('忙');
-  await expect(page.locator('.lf-status-off')).toContainText('缺 Key');
+  const gallery = page.locator('#galleryView');
+  await expect(gallery.locator('.button.danger-outline')).toBeVisible();
+  await expect(gallery.locator('.lf-status-ok')).toContainText('可用');
+  await expect(gallery.locator('.lf-status-busy')).toContainText('忙');
+  await expect(gallery.locator('.lf-status-off')).toContainText('缺 Key');
 
   await page.locator('.nav[data-view="chat"]').click();
   await expect(page.locator('.hc-live-strip')).toContainText('进行中');
