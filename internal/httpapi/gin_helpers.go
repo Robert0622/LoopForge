@@ -23,6 +23,21 @@ type HTTPError struct {
 
 func (e HTTPError) Error() string { return e.Message }
 
+// codedError is the unified error body: message plus a stable code and the
+// next action the client should offer.
+type codedError struct {
+	Status  int
+	Message string
+	Code    string
+	Action  string
+}
+
+func (e codedError) Error() string { return e.Message }
+
+func apiError(status int, code, action, message string) error {
+	return codedError{Status: status, Message: message, Code: code, Action: action}
+}
+
 // respond 渲染操作结果，是唯一的统一响应入口：
 //   - err == nil → 200 {"ok": true}；
 //   - 否则渲染统一 JSON 错误形态，状态码取 HTTPError 自带值，
@@ -32,13 +47,22 @@ func respond(c *gin.Context, err error) {
 		c.JSON(http.StatusOK, map[string]bool{"ok": true})
 		return
 	}
+	var ce codedError
+	if errors.As(err, &ce) {
+		body := map[string]string{"error": ce.Message, "code": ce.Code}
+		if ce.Action != "" {
+			body["action"] = ce.Action
+		}
+		c.JSON(ce.Status, body)
+		return
+	}
 	var he HTTPError
 	if errors.As(err, &he) {
 		c.JSON(he.Status, map[string]string{"error": he.Message})
 		return
 	}
 	if ae, ok := apperr.As(err); ok {
-		body := map[string]any{"error": ae.Message}
+		body := map[string]any{"error": ae.Message, "code": appErrCode(ae.Kind)}
 		for key, value := range ae.Fields {
 			body[key] = value
 		}
@@ -50,6 +74,23 @@ func respond(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+}
+
+func appErrCode(kind apperr.Kind) string {
+	switch kind {
+	case apperr.NotFound:
+		return "not_found"
+	case apperr.Conflict:
+		return "conflict"
+	case apperr.Forbidden:
+		return "forbidden"
+	case apperr.Unavailable:
+		return "unavailable"
+	case apperr.Upstream:
+		return "upstream"
+	default:
+		return "invalid"
+	}
 }
 
 func appErrStatus(kind apperr.Kind) int {

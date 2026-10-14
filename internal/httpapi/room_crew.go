@@ -32,6 +32,7 @@ type crewTaskInput struct {
 	AgentID     string `json:"agentId"`
 	Title       string `json:"title"`
 	Instruction string `json:"instruction"`
+	Reason      string `json:"reason"`
 }
 
 type crewActionRequest struct {
@@ -79,7 +80,7 @@ func (h *roomsHandlers) startCrewMission(room domain.ChatRoom, userID int64, aut
 		return domain.ChatMessage{}, HTTPError{http.StatusBadRequest, "描述过长"}
 	}
 	if len(h.crewRoster(room.ProjectID, userID)) == 0 {
-		return domain.ChatMessage{}, HTTPError{http.StatusBadRequest, "这个项目还没有能干活的角色 Bot，先去「构建 · 角色」建一个"}
+		return domain.ChatMessage{}, apiError(http.StatusBadRequest, "no_bot", "open_agents", "这个项目还没有能干活的 Bot，先到「Bot」里准备一个")
 	}
 	issue := domain.Issue{
 		ID: newChatID("iss"), ProjectID: room.ProjectID, Title: goal, Description: detail,
@@ -156,6 +157,18 @@ func (h *roomsHandlers) reassignUnavailableTasks(projectID string, userID int64,
 		tasks[i].AgentName = fallback.Name
 	}
 	return tasks
+}
+
+func (h *roomsHandlers) crewAudit(issueID, actor, action, detail string) {
+	if h == nil || h.repo == nil || issueID == "" {
+		return
+	}
+	issue, ok := h.repo.Issue(issueID)
+	if !ok {
+		return
+	}
+	issue.AppendOperation(domain.IssueOperation{Actor: actor, Action: action, Detail: detail})
+	_ = h.repo.PutIssue(issue)
 }
 
 // annotateIdealSkip records when the best-named bot for a step cannot run,
@@ -297,7 +310,7 @@ func crewPlanRules(goal string, roster []domain.AgentDefinition) []domain.CrewTa
 		}
 		a := roster[best]
 		used[a.ID] = true
-		tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: crewRoleKinds[k].title, Instruction: crewRoleKinds[k].brief, AddedBy: crewCaptain})
+		tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: crewRoleKinds[k].title, Instruction: crewRoleKinds[k].brief, AddedBy: crewCaptain, PlanReason: "名称最接近「" + crewRoleKinds[k].title + "」，所以这一步交给它。"})
 		if len(tasks) == 4 {
 			break
 		}
@@ -307,7 +320,7 @@ func crewPlanRules(goal string, roster []domain.AgentDefinition) []domain.CrewTa
 			if i == 2 {
 				break
 			}
-			tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: map[bool]string{true: "先做一版", false: "接着完善"}[i == 0], Instruction: "围绕目标完成你职责范围内的部分。", AddedBy: crewCaptain})
+			tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: map[bool]string{true: "先做一版", false: "接着完善"}[i == 0], Instruction: "围绕目标完成你职责范围内的部分。", AddedBy: crewCaptain, PlanReason: "没有更贴的角色名，按可用名单接着排。"})
 		}
 	}
 	return tasks
@@ -316,7 +329,7 @@ func crewPlanRules(goal string, roster []domain.AgentDefinition) []domain.CrewTa
 const crewPlanPrompt = `你是 LoopForge 协作群里的队长 Bot。用户把一件没有固定流程的事交给了群里的 Bot 团队。
 请从下面的角色里挑人，排出 2 到 5 步的分工，每一步由一个角色完成，前一步的产出会交给后一步。
 只输出一个 JSON 对象，不要任何其它文字：
-{"tasks":[{"agentId":"角色 id","title":"这一步做什么（10 字以内）","instruction":"给这个 Bot 的具体要求（1-3 句）"}]}
+{"tasks":[{"agentId":"角色 id","title":"这一步做什么（10 字以内）","instruction":"给这个 Bot 的具体要求（1-3 句）","reason":"为什么是这个角色（一句话）"}]}
 
 目标：%s
 补充说明：%s
@@ -357,7 +370,11 @@ func (h *roomsHandlers) crewPlanAI(goal, detail string, roster []domain.AgentDef
 		if !ok || strings.TrimSpace(t.Title) == "" {
 			continue
 		}
-		tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: roomTrim(strings.TrimSpace(t.Title), 40), Instruction: roomTrim(strings.TrimSpace(t.Instruction), 600), AddedBy: crewCaptain})
+		reason := roomTrim(strings.TrimSpace(t.Reason), 80)
+		if reason == "" {
+			reason = "队长按目标和角色说明选的。"
+		}
+		tasks = append(tasks, domain.CrewTask{AgentID: a.ID, AgentName: crewAgentName(a), Title: roomTrim(strings.TrimSpace(t.Title), 40), Instruction: roomTrim(strings.TrimSpace(t.Instruction), 600), AddedBy: crewCaptain, PlanReason: reason})
 		if len(tasks) == 5 {
 			break
 		}
@@ -418,6 +435,11 @@ func (h *roomsHandlers) planCrew(room domain.ChatRoom, msgID string) {
 		lead += "已经开工，做完一步我会在群里交接。"
 	} else {
 		lead += "分工可以先改，确认后点「开工」。"
+	}
+	for _, t := range tasks {
+		if t.ReassignedFrom != "" {
+			h.crewAudit(m.IssueID, crewCaptain, "reassign", t.ReassignedFrom+" → "+t.AgentName+"（"+t.ReassignedReason+"）· "+t.Title)
+		}
 	}
 	h.crewSay(msg, crewCaptain, "", lead, "", "")
 	streamNow := m.AutoStart && h.useCrewFakeStream(msg.ID)
@@ -935,8 +957,22 @@ func (h *roomsHandlers) crewResolveStuck(msg *domain.ChatMessage, action, author
 		}
 		h.crewSay(*msg, crewCaptain, "", "好，跳过「"+stuck.Title+"」，继续往下。", "", "")
 	case action == "retry" && stuck.Status == "failed":
+		var prior []string
+		for _, prev := range m.Tasks {
+			if prev.ID == stuck.ID || prev.Status != "succeeded" || prev.Handoff == nil {
+				continue
+			}
+			prior = append(prior, crewHandoffBlock(prev))
+		}
+		if stuck.Handoff != nil {
+			prior = append(prior, "上次做到："+crewHandoffBlock(*stuck))
+		}
+		if len(prior) > 0 && !strings.Contains(stuck.Instruction, "交接单") {
+			stuck.Instruction = strings.TrimSpace(stuck.Instruction + "\n\n交接单（接着做，不要重头推翻）：\n" + strings.Join(prior, "\n\n"))
+		}
 		stuck.Status, stuck.Error, stuck.RunID = "pending", "", ""
-		h.crewSay(*msg, crewCaptain, "", "让 "+stuck.AgentName+" 再试一次「"+stuck.Title+"」。", "", "")
+		h.crewAudit(m.IssueID, author, "resume", "从「"+stuck.Title+"」接着做，带上已有交接")
+		h.crewSay(*msg, crewCaptain, "", "让 "+stuck.AgentName+" 再试一次「"+stuck.Title+"」，交接单还在。", "", "")
 	default:
 		if stuck.Status == "failed" {
 			stuck.Status = "skipped"

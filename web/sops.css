@@ -20,15 +20,15 @@
 
 .sop-catalog{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));justify-content:stretch;gap:16px;width:100%;margin:0}
 .sop-card{min-height:320px;max-width:none;padding:20px 20px 18px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 1px 2px rgba(15,23,42,.05);cursor:pointer;transition:transform .14s,border-color .14s,box-shadow .14s;color:var(--text)}
-.sop-card.health-blocked{border-color:rgba(248,113,113,.4)}
-.sop-card.health-active{border-color:rgba(139,92,246,.4)}
-.sop-card.health-closed{border-color:rgba(52,211,153,.4)}
-.sop-card:hover{transform:translateY(-2px);border-color:rgba(91,140,255,.45);box-shadow:var(--shadow)}
+.sop-card.health-blocked{border-color:color-mix(in srgb, var(--lf-bad) 40%, transparent)}
+.sop-card.health-active{border-color:color-mix(in srgb, var(--lf-brand) 40%, transparent)}
+.sop-card.health-closed{border-color:color-mix(in srgb, var(--lf-ok) 40%, transparent)}
+.sop-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb, var(--lf-brand-2) 45%, transparent);box-shadow:var(--shadow)}
 .sop-card-head,.sop-card-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--muted);font-size:10px}
 .sop-card-head>div{display:flex;align-items:center;gap:8px;min-width:0}
 .sop-card-head>div small{display:block;font-size:10px;color:var(--muted-2);line-height:1.35}
 .health-dot-card{width:8px;height:8px;border-radius:50%;background:var(--muted-2);flex-shrink:0}
-.health-dot-card.active{background:var(--purple);box-shadow:0 0 0 4px rgba(139,92,246,.16)}
+.health-dot-card.active{background:var(--purple);box-shadow:0 0 0 4px color-mix(in srgb, var(--lf-brand) 16%, transparent)}
 .health-dot-card.closed{background:var(--green)}
 .health-dot-card.blocked{background:var(--red)}
 .health-dot-card.never{background:var(--muted-2)}
@@ -41,18 +41,18 @@
 .sop-card-foot{border-top:1px solid var(--line);margin-top:16px;padding-top:14px;color:var(--muted-2);flex-wrap:wrap}
 .sop-card-foot time{color:var(--muted-2)}
 .sop-status{border-radius:10px;padding:3px 7px;font-weight:700;font-size:9px}
-.sop-status.published{color:var(--green);background:rgba(52,211,153,.15)}
-.sop-status.draft{color:var(--amber);background:rgba(251,191,36,.16)}
+.sop-status.published{color:var(--green);background:color-mix(in srgb, var(--lf-ok) 15%, transparent)}
+.sop-status.draft{color:var(--amber);background:color-mix(in srgb, var(--lf-wait) 16%, transparent)}
 .sop-status.archived{color:var(--muted-2);background:var(--panel-2)}
 
 /* SOP 创建向导起点选择 */
 .template-choice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
 .template-choice{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid var(--line-strong);border-radius:11px;cursor:pointer;transition:all .14s ease;background:var(--bg-soft)}
-.template-choice:hover{border-color:rgba(91,140,255,.4)}
+.template-choice:hover{border-color:color-mix(in srgb, var(--lf-brand-2) 40%, transparent)}
 .template-choice.active{border-color:var(--blue);background:var(--blue-soft)}
 .template-choice input{display:none}
 .template-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:var(--panel-2);color:var(--muted);font-size:15px;flex-shrink:0}
-.template-choice.active .template-icon{background:var(--accent-gradient);color:#fff}
+.template-choice.active .template-icon{background:var(--accent-gradient);color:var(--lf-on-accent)}
 .template-icon.blank{font-weight:800}
 .template-choice b,.template-choice p,.template-choice small{display:block}
 .template-choice b{font-size:12px;color:var(--text)}

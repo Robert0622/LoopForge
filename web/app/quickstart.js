@@ -132,6 +132,7 @@ async function startDemoRequirement(button, opts = {}) {
         if (run?.id) state.data.runs = sortRunsDescending([run, ...(state.data.runs || []).filter(r => r.id !== run.id)]);
       } catch (e) {}
     }
+    if (typeof onboardingMark === 'function') onboardingMark('ask');
     renderIssues();
     renderQuickstart();
     if (!opts.stay) {

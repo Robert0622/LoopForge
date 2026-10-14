@@ -56,7 +56,7 @@ function kbRender(){
       <div class="kb-summary-main"><span>📚</span><div><b>团队知识库 · ${escapeHTML(kbProjectName())}</b><small>${escapeHTML(s.url||'尚未配置知识库地址')}</small></div></div>
       <div class="kb-fact ${conn[1]}"><span>连接状态</span><b>${conn[0]}</b></div>
       <div class="kb-fact"><span>本项目可用来源</span><b>${s.ready&&kb.sources?sourceCount:'-'}</b></div>
-      <div class="kb-fact"><span>已接入角色</span><b>${kb.usage?.agents?.length??0}<small style="font-size:11px;color:var(--muted-2)"> / ${kb.usage?.totalAgents??0}</small></b></div>
+      <div class="kb-fact"><span>已接入 Bot</span><b>${kb.usage?.agents?.length??0}<small style="font-size:11px;color:var(--muted-2)"> / ${kb.usage?.totalAgents??0}</small></b></div>
       <div class="kb-fact ${pending?'warn':''}"><span>待审核沉淀</span><b>${pending}</b></div>
     </div>
     <div class="kb-tabs" id="kbTabs">
@@ -102,7 +102,7 @@ function kbRenderSetup(body){
         <div class="kb-card-title"><i>?</i>接入后怎么工作</div>
         <ol class="kb-flow">
           <li><i>1</i><div><b>管理员连接知识库</b><p>平台保存知识库地址和 Token，并按项目限定可访问的知识库来源。</p></div></li>
-          <li><i>2</i><div><b>角色开启「接入团队知识库」</b><p>在「角色定义 → 能力」中打开开关。节点运行时平台自动注入 <code>团队知识库</code> MCP 和一条「知识库使用规范」规则。</p></div></li>
+          <li><i>2</i><div><b>Bot 开启「接入团队知识库」</b><p>在「Bot → 能力」中打开开关。节点运行时平台自动注入 <code>团队知识库</code> MCP 和一条「知识库使用规范」规则。</p></div></li>
           <li><i>3</i><div><b>Agent 只读检索</b><p>只开放 <code>kb_search</code>、<code>kb_fetch</code>、<code>kb_list_sources</code>、<code>kb_get_source</code>，并自动限定在本项目授权的来源内。</p></div></li>
           <li><i>4</i><div><b>新知识写 knowledge.md</b><p>Agent 把可复用的新知识写到工作区 <code>knowledge.md</code>，运行结束后出现在「知识沉淀」候选中。</p></div></li>
           <li><i>5</i><div><b>人工审核后写回</b><p>审核人编辑标题、目标来源和路径，确认后平台写回知识库并记录 commit。</p></div></li>
@@ -137,7 +137,7 @@ function kbSettingsPayload(){
 
 function kbRenderScope(host){
   const s=kb.settings||{};
-  if(!s.ready){host.innerHTML='<div class="kb-empty">启用并保存连接后，这里会列出知识库中的全部来源，可按项目勾选授权范围。</div>';return}
+  if(!s.ready){host.innerHTML='<div class="kb-empty lf-callout"><b>还没接上知识库</b><p>启用并保存连接后，这里会列出全部来源，可按项目勾选授权范围。</p><button type="button" class="button primary small" data-kb-focus-url>去填写地址</button></div>';host.querySelector('[data-kb-focus-url]').onclick=()=>document.querySelector('#kbSettingsForm [name="url"]')?.focus();return}
   if(kb.sourcesError){host.innerHTML=`<div class="kb-empty"><b>知识库暂时连不上</b><p>${escapeHTML(kb.sourcesError)}</p><button type="button" class="button primary small" data-kb-retry>重试连接</button></div>`;host.querySelector('[data-kb-retry]').onclick=()=>kbRefresh().then(()=>kbRender()).catch(err=>toast(err.message||'重试失败','err'));return}
   const list=kb.sources||[];
   const own=kbHasOwnScope();
@@ -154,7 +154,7 @@ function kbRenderScope(host){
       const on=allowed.size===0||allowed.has(src.id);
       const st=src.status==='ready'?'<span class="kb-pill ok">就绪</span>':`<span class="kb-pill err">${escapeHTML(src.status||'-')}</span>`;
       return `<div class="kb-source ${on?'on':''} ${own&&!ro?'':'disabled'}" data-kb-source="${escapeHTML(src.id)}"><input type="checkbox" ${on?'checked':''} ${own&&!ro?'':'disabled'}><div><b>${escapeHTML(src.id)}</b><small>${src.doc_count} 篇文档</small></div>${st}</div>`;
-    }).join('')||'<div class="kb-empty">知识库没有返回任何来源</div>'}</div>`;
+    }).join('')||'<div class="kb-empty lf-callout"><b>知识库没有返回来源</b><p>连接是通的，但列表是空的。检查地址后再拉一次。</p><button type="button" class="button ghost small" data-kb-recheck>检查连接</button></div>'}</div>`;
   const persist=async next=>{
     const payload=kbSettingsPayload();
     payload.projectSources={...payload.projectSources};
@@ -196,7 +196,7 @@ function kbRenderUsage(body){
         </div>
         <div class="kb-card">
           <div class="kb-card-title"><i>✓</i>已接入知识库的角色<small>${usage.agents.length} 个</small></div>
-          ${usage.agents.length?`<table class="kb-table"><thead><tr><th>角色</th><th>使用它的流程</th><th></th></tr></thead><tbody>${usage.agents.map(a=>`<tr><td><b>${escapeHTML(a.name)}</b>${a.shared?' <span class="kb-pill blue">共享</span>':''}<br><small class="mono">${escapeHTML(a.id)}</small></td><td>${a.workflows.length?a.workflows.map(w=>`<span class="kb-pill">${escapeHTML(w)}</span>`).join(' '):'<small>尚未放进任何流程</small>'}</td><td style="text-align:right"><button type="button" class="button ghost small" data-kb-toggle="${escapeHTML(a.id)}" data-kb-on="0">关闭</button></td></tr>`).join('')}</tbody></table>`:'<div class="kb-empty">还没有角色接入知识库。在下方为需要查资料的角色（需求澄清、技术方案、排障、评审）一键开启。</div>'}
+          ${usage.agents.length?`<table class="kb-table"><thead><tr><th>Bot</th><th>使用它的流程</th><th></th></tr></thead><tbody>${usage.agents.map(a=>`<tr><td><b>${escapeHTML(a.name)}</b>${a.shared?' <span class="kb-pill blue">共享</span>':''}<br><small class="mono">${escapeHTML(a.id)}</small></td><td>${a.workflows.length?a.workflows.map(w=>`<span class="kb-pill">${escapeHTML(w)}</span>`).join(' '):'<small>尚未放进任何流程</small>'}</td><td style="text-align:right"><button type="button" class="button ghost small" data-kb-toggle="${escapeHTML(a.id)}" data-kb-on="0">关闭</button></td></tr>`).join('')}</tbody></table>`:'<div class="kb-empty lf-callout"><b>还没有 Bot 接入知识库</b><p>给需要查资料的 Bot 打开开关，或先到 Bot 页准备一个。</p><button type="button" class="button primary small" data-kb-go="agents">去 Bot</button></div>'}
           ${candidates.length?`<div class="kb-section-label">可以开启的角色</div><table class="kb-table"><tbody>${candidates.map(a=>`<tr><td><b>${escapeHTML(a.name)}</b><br><small class="mono">${escapeHTML(a.id)}</small></td><td>${escapeHTML((a.description||'').slice(0,60))}</td><td style="text-align:right"><button type="button" class="button primary small" data-kb-toggle="${escapeHTML(a.id)}" data-kb-on="1">开启</button></td></tr>`).join('')}</tbody></table>`:''}
         </div>
       </div>
@@ -209,7 +209,7 @@ function kbRenderUsage(body){
         </div>
         <div class="kb-card">
           <div class="kb-card-title"><i>◷</i>最近的 Agent 检索<small>平台重启后清空</small></div>
-          ${(usage.activity||[]).length?`<table class="kb-table"><thead><tr><th>时间</th><th>角色</th><th>工具 / 查询</th><th>结果</th></tr></thead><tbody>${usage.activity.slice(0,20).map(x=>`<tr><td>${relativeTime(x.at)}</td><td>${escapeHTML(kbAgentName(x.agentId))}</td><td><code>${escapeHTML(x.tool)}</code> ${escapeHTML(x.query||'')}</td><td>${x.ok?`<span class="kb-pill ok">${x.tool==='kb_search'?`${x.hits} 条`:'成功'}</span>`:`<span class="kb-pill err" title="${escapeHTML(x.error||'')}">失败</span>`} <small>${x.latencyMs}ms</small></td></tr>`).join('')}</tbody></table>`:'<div class="kb-empty">还没有 Agent 调用过知识库。开启角色并运行一次流程后，这里会显示检索记录。</div>'}
+          ${(usage.activity||[]).length?`<table class="kb-table"><thead><tr><th>时间</th><th>Bot</th><th>工具 / 查询</th><th>结果</th></tr></thead><tbody>${usage.activity.slice(0,20).map(x=>`<tr><td>${relativeTime(x.at)}</td><td>${escapeHTML(kbAgentName(x.agentId))}</td><td><code>${escapeHTML(x.tool)}</code> ${escapeHTML(x.query||'')}</td><td>${x.ok?`<span class="kb-pill ok">${x.tool==='kb_search'?`${x.hits} 条`:'成功'}</span>`:`<span class="kb-pill err" title="${escapeHTML(x.error||'')}">失败</span>`} <small>${x.latencyMs}ms</small></td></tr>`).join('')}</tbody></table>`:'<div class="kb-empty lf-callout"><b>还没有检索记录</b><p>Bot 接上知识库并跑过一次流程后，调用会出现在这里。</p><button type="button" class="button ghost small" data-kb-go="sops">去流程</button></div>'}
         </div>
       </div>
     </div>`;
@@ -242,7 +242,7 @@ function kbRenderDistill(body){
       <div class="kb-card">
         <div class="kb-card-title"><i>↥</i>沉淀队列<small><button type="button" class="button ghost small" id="kbNewSub">＋ 手动新建</button></small></div>
         <div class="kb-section-label">运行产出的候选（knowledge.md）</div>
-        <div class="kb-list">${fresh.length?fresh.map(c=>`<div class="kb-item" data-kb-cand="${escapeHTML(c.artifact.id)}"><div class="kb-item-top"><span class="kb-pill blue">候选</span><b>${escapeHTML(c.artifact.path||c.artifact.name)}</b></div><small>运行 ${escapeHTML(c.artifact.runId)} · 节点 ${escapeHTML(c.artifact.nodeId)} · ${relativeTime(c.artifact.createdAt)}</small><button type="button" class="button ghost small" data-kb-queue="${escapeHTML(c.artifact.runId)}|${escapeHTML(c.artifact.id)}">加入审核</button></div>`).join(''):'<div class="kb-empty">暂无新的候选。开启知识库的角色在运行中写出 knowledge.md 后会出现在这里。</div>'}</div>
+        <div class="kb-list">${fresh.length?fresh.map(c=>`<div class="kb-item" data-kb-cand="${escapeHTML(c.artifact.id)}"><div class="kb-item-top"><span class="kb-pill blue">候选</span><b>${escapeHTML(c.artifact.path||c.artifact.name)}</b></div><small>运行 ${escapeHTML(c.artifact.runId)} · 节点 ${escapeHTML(c.artifact.nodeId)} · ${relativeTime(c.artifact.createdAt)}</small><button type="button" class="button ghost small" data-kb-queue="${escapeHTML(c.artifact.runId)}|${escapeHTML(c.artifact.id)}">加入审核</button></div>`).join(''):'<div class="kb-empty lf-callout"><b>暂无新的候选</b><p>接上知识库的 Bot 在运行中写出 knowledge.md 后会出现在这里。</p><button type="button" class="button ghost small" data-kb-go="runs">去看运行</button></div>'}</div>
         <div class="kb-section-label">审核条目</div>
         <div class="kb-subtabs">${[['pending','待审核'],['published','已写回'],['rejected','已驳回']].map(([k,t])=>`<button type="button" data-kb-status="${k}" class="${kb.subStatus===k?'active':''}">${t} ${counts[k]||0}</button>`).join('')}</div>
         <div class="kb-list">${subs.length?subs.map(x=>`<div class="kb-item ${kb.selected===x.id?'active':''}" data-kb-sub="${escapeHTML(x.id)}"><div class="kb-item-top">${kbStatusPill(x.status)}<b>${escapeHTML(x.title)}</b></div><small>${escapeHTML(x.source||'未选来源')} · ${escapeHTML(x.path||'未填路径')} · ${relativeTime(x.updatedAt)}</small></div>`).join(''):'<div class="kb-empty">没有条目</div>'}</div>
@@ -338,7 +338,7 @@ function kbRenderSearch(body){
 function kbHitsHTML(){
   const q=kb.search;
   if(q.loading)return '<div class="kb-empty">检索中…</div>';
-  if(q.error)return `<div class="kb-empty"><b>检索失败</b><p>${escapeHTML(q.error)}</p><p>点右上角「刷新」再试一次。</p></div>`;
+  if(q.error)return `<div class="kb-empty lf-callout"><b>检索失败</b><p>${q.code?`<code>${escapeHTML(q.code)}</code> `:''}${escapeHTML(q.error)}</p><button type="button" class="button primary small" data-kb-search-retry>再试一次</button></div>`;
   if(!q.result)return '';
   const r=q.result.result;
   const head=`<div class="kb-meta-row"><span>${r.results.length} 条结果</span><span>模式 ${escapeHTML(r.mode||'-')}</span><span>${q.result.latencyMs}ms</span>${r.degraded?'<span class="kb-pill warn">语义检索降级为词法检索</span>':''}</div>`;
@@ -348,12 +348,13 @@ function kbHitsHTML(){
 
 function kbBindHits(){
   $$('#kbHits [data-kb-hit]').forEach(el=>el.onclick=()=>kbOpenDocument(kb.search.result.result.results[Number(el.dataset.kbHit)]));
+  $$('#kbHits [data-kb-search-retry]').forEach(el=>el.onclick=()=>kbDoSearch());
 }
 
 async function kbDoSearch(){
   const q=kb.search;q.loading=true;q.error='';$('#kbHits').innerHTML=kbHitsHTML();
   try{q.result=await api('/api/knowledge/search',{method:'POST',body:JSON.stringify({query:q.query,projectId:kbProjectId(),sources:q.sources})})}
-  catch(err){q.error=err.message;q.result=null}
+  catch(err){q.error=err.message;q.code=err.code||'';q.result=null}
   q.loading=false;
   const hits=$('#kbHits');if(hits){hits.innerHTML=kbHitsHTML();kbBindHits()}
 }
@@ -369,10 +370,13 @@ async function kbOpenDocument(hit){
     const doc=await api(`/api/knowledge/document?source=${encodeURIComponent(hit.source)}&path=${encodeURIComponent(hit.path)}&projectId=${encodeURIComponent(kbProjectId())}`);
     $('#kbDocBody').innerHTML=`<div class="kb-doc">${(doc.lines||[]).map(l=>`<div class="${l.number>=hit.start_line&&l.number<=hit.end_line?'hl':''}" ${l.number===hit.start_line?'id="kbDocAnchor"':''}><span>${l.number}</span><code>${escapeHTML(l.text)}</code></div>`).join('')}</div>`;
     $('#kbDocAnchor')?.scrollIntoView({block:'center'});
-  }catch(err){$('#kbDocBody').innerHTML=`<div class="kb-empty">读取失败：${escapeHTML(err.message)}</div>`}
+  }catch(err){$('#kbDocBody').innerHTML=`<div class="kb-empty lf-callout"><b>读取失败</b><p>${err.code?`<code>${escapeHTML(err.code)}</code> `:''}${escapeHTML(err.message)}</p><button type="button" class="button ghost small" data-kb-doc-retry>重试</button></div>`;$('#kbDocBody [data-kb-doc-retry]').onclick=()=>kbOpenDocument(hit)}
 }
 
 document.addEventListener('click',e=>{
   if(e.target.closest('[data-kb-doc-close]')||e.target.id==='kbDocModal')$('#kbDocModal')?.classList.remove('open');
   if(e.target.closest('#kbRefreshBtn'))renderKnowledgeView();
+  const go=e.target.closest('[data-kb-go]');
+  if(go&&typeof switchView==='function')switchView(go.dataset.kbGo);
+  if(e.target.closest('[data-kb-recheck]'))$('#kbCheckBtn')?.click();
 });

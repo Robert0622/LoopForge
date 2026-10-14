@@ -1,25 +1,36 @@
-@import url("/styles.css?v=20260823v1");
-@import url("/assets.css?v=20260823v1");
-@import url("/platform.css?v=20261014p2");
-@import url("/observability.css?v=20260921r1");
-@import url("/artifacts.css?v=20260914r3");
-@import url("/sops.css?v=20260921r3");
-@import url("/sync.css?v=20260915r3");
-@import url("/access.css");
-@import url("/onboarding.css?v=20261014p2");
-@import url("/product-v3.css?v=20260917r2");
-@import url("/product-v4.css?v=20261001r1");
-@import url("/assistant.css?v=20260920r2");
-@import url("/knowledge.css?v=20261008r1");
-@import url("/metrics-dashboard.css?v=20260921r2");
-@import url("/business-domains.css?v=20261014p2");
-@import url("/collab.css?v=20261014p4");
+/* Cascade: @layer tokens, base, legacy, components, pages.
+   Token values sit in tokens. Rail and phone unhide sit in base, because an
+   earlier layer's !important beats a later layer's !important.
+   Legacy sheets share one layer. New class names sit in pages.
+   Component overrides in this file stay unlayered so normal rules beat legacy.
+   The components layer stays empty on purpose.
+   Page surfaces that must beat an unlayered .panel also stay unlayered. */
+@layer tokens, base, legacy, components, pages;
+@import url("/styles.css?v=20261014p5") layer(legacy);
+@import url("/assets.css?v=20261014p5") layer(legacy);
+@import url("/platform.css?v=20261014p5") layer(legacy);
+@import url("/observability.css?v=20261014p5") layer(legacy);
+@import url("/artifacts.css?v=20261014p5") layer(legacy);
+@import url("/sops.css?v=20261014p5") layer(legacy);
+@import url("/sync.css?v=20261014p5") layer(legacy);
+@import url("/access.css?v=20261014p5") layer(legacy);
+@import url("/onboarding.css?v=20261014p5") layer(legacy);
+@import url("/product-v3.css?v=20261014p5") layer(legacy);
+@import url("/product-v4.css?v=20261014p5") layer(legacy);
+@import url("/assistant.css?v=20261014p5") layer(legacy);
+@import url("/knowledge.css?v=20261014p5") layer(legacy);
+@import url("/metrics-dashboard.css?v=20261014p5") layer(legacy);
+@import url("/business-domains.css?v=20261014p5") layer(legacy);
+@import url("/collab.css?v=20261014p5") layer(legacy);
 /* LoopForge design layer — loaded last. Chat layout (collab.css) is imported
    above so this file can own the final chat colors without a second link.
    Single source of truth for color, surface and motion tokens. The legacy
    variable sets (styles.css base, --v3-*, --v4-*) are remapped onto these, so
-   older component rules follow the same palette in both themes. */
+   older component rules follow the same palette in both themes.
+   Token values live in @layer tokens. Alias remaps (--bg and friends) are in
+   that same block; legacy sheets only reference var(--lf-*). */
 
+@layer tokens {
 html[data-theme="dark"]{
   color-scheme:dark;
   --lf-bg:#08090C;--lf-bg-2:#08090C;--lf-surface:#111217;--lf-elevated:#1A1B22;--lf-surface-2:#16171E;--lf-surface-3:#1A1B22;
@@ -71,6 +82,14 @@ html[data-theme]{
   --v3-positive:var(--lf-ok);--v3-positive-soft:var(--lf-ok-soft);--v3-warning:var(--lf-wait);--v3-warning-soft:var(--lf-wait-soft);
   --v3-danger:var(--lf-bad);--v3-danger-soft:var(--lf-bad-soft);--v3-info:var(--lf-brand-2);--v3-shadow:var(--lf-shadow);
   --v4-canvas:var(--lf-bg);--v4-navy:var(--lf-surface);--v4-blue:var(--lf-brand);--v4-shadow:var(--lf-shadow);
+}
+}
+/* Earlier-layer !important beats legacy !important, so rail/phone hides stay overridable. */
+@layer base {
+  .platform-sidebar .nav-section{display:block!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:16px!important;overflow:visible!important;position:static!important}
+  @media (max-width:760px){
+    .platform-sidebar nav>.nav .nav-label{display:block!important}
+  }
 }
 
 /* ---------- Base ---------- */
@@ -580,10 +599,10 @@ html[data-lang="zh"] .lang-toggle [data-l="zh"],html[data-lang="en"] .lang-toggl
 .rooms-head-actions{display:flex;align-items:center;gap:6px}
 .rooms-bot-pill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:99px;font-size:11.5px;color:var(--lf-text-2);border:1px solid var(--lf-line-2);background:var(--lf-surface)}
 .rooms-bot-pill i{width:7px;height:7px;border-radius:50%;background:var(--lf-ok);box-shadow:0 0 8px var(--lf-ok)}
-.room-log{gap:0!important;padding:16px max(20px,calc((100% - 760px) / 2)) 20px!important;background:var(--lf-bg)!important}
-/* avatars */
-.room-avatar{flex:0 0 32px!important;width:32px!important;height:32px!important;border-radius:50%!important;font-size:12.5px!important;background:hsl(var(--hue,250) 55% 52%)!important;color:var(--lf-on-accent)!important}
-.room-avatar.bot{position:relative;background:conic-gradient(from 210deg,#8b7bff,#5b8cff,#38c6f4,#8b7bff)!important;box-shadow:0 0 0 2px var(--lf-bg),0 0 18px -2px var(--lf-brand-glow)}
+.room-log{gap:0;padding:16px max(20px,calc((100% - 760px) / 2)) 20px;background:var(--lf-bg)}
+/* avatars — unlayered, so they beat the legacy sheet without !important */
+.room-avatar{flex:0 0 32px;width:32px;height:32px;border-radius:50%;font-size:12.5px;background:var(--lf-brand);color:var(--lf-on-accent)}
+.room-avatar.bot{position:relative;background:conic-gradient(from 210deg,var(--lf-brand),var(--lf-brand-2),var(--lf-brand));box-shadow:0 0 0 2px var(--lf-bg),0 0 18px -2px var(--lf-brand-glow)}
 .room-avatar.bot i{position:absolute;inset:7px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--lf-on-accent),rgba(255,255,255,.2) 45%,transparent 70%)}
 /* human messages */
 .room-message{display:flex!important;gap:12px;max-width:100%!important;padding:0!important;background:transparent!important;align-items:flex-start}
@@ -1144,7 +1163,7 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .rooms-bot-pill{display:none!important}
 
 /* transcript */
-#roomLog.room-log{padding:8px 0 20px!important;display:block!important}
+#roomLog.room-log{padding:8px 0 20px;display:block}
 .rm-intro{display:flex;gap:14px;align-items:center;margin:18px 24px 10px;padding:16px 18px;border-radius:16px;background:linear-gradient(120deg,color-mix(in srgb,var(--lf-brand) 9%,transparent),transparent 70%);border:1px solid var(--lf-line)}
 .rm-intro b{color:var(--lf-text-strong)}
 .rm-intro>div>b{font-size:15px}
@@ -1440,3 +1459,30 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .lf-gallery-field{display:grid;gap:6px;font-size:14px;color:var(--lf-text-2)}
 .room-send:disabled{opacity:.45}
 .room-send.ready{opacity:1}
+
+/* New class names have no unlayered competitor, so they can live in the last layer. */
+@layer pages {
+  .rc-reasons,.hc-reasons{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+  .rc-reasons li,.hc-reasons li,.rc-reason{font-size:12px;line-height:1.45;color:var(--lf-text-2)}
+  .hc-confidence{font-size:12px;font-weight:650;color:var(--lf-brand-ink)}
+  .rc-handoff{margin-top:8px;padding:8px 10px;border:1px solid var(--lf-line);border-radius:10px;background:var(--lf-surface)}
+  .rc-handoff summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--lf-text)}
+  .rc-handoff p,.rc-handoff li{font-size:12px;line-height:1.45;color:var(--lf-text-2)}
+  .rm-digest{margin:4px 0 12px;padding:12px 14px;border:1px dashed var(--lf-line-2);border-radius:var(--lf-radius);background:var(--lf-elevated)}
+  .rm-digest p{margin:4px 0 10px;color:var(--lf-text-2);font-size:13px}
+  .lf-progress{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 0;font-size:12px;color:var(--lf-text-3)}
+  .lf-progress b{padding:3px 8px;border-radius:999px;background:var(--lf-surface-2);font-weight:600;color:var(--lf-text-3)}
+  .lf-progress b.is-done{background:var(--lf-ok-soft);color:var(--lf-ok)}
+  .lf-cap{display:inline-flex;align-items:center;gap:4px;margin-left:4px}
+  .lf-cap summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--lf-text-3);list-style:none}
+  .hc-file-note{display:block;margin-top:4px;font-size:12px;color:var(--lf-text-3);font-style:normal}
+}
+/* Elevated page skins stay unlayered: an unlayered .panel would otherwise beat a layered #view .panel. */
+#flowView,#sandboxesView,#dockerfilesView,#environmentsView,#observabilityView,#platformView,#knowledgeView,#settingsView{font-size:14px;color:var(--lf-text)}
+#flowView .panel,#properties,#observabilityView .obs-card,#platformView .platform-admin-main-card,#knowledgeView .kb-card,#settingsView .personal-settings-card,#sandboxesView .asset-card,#dockerfilesView .asset-card,#environmentsView .asset-card{
+  background:var(--lf-elevated);border-color:var(--lf-line);color:var(--lf-text)
+}
+html .button{transition:transform .15s var(--lf-ease),box-shadow .15s var(--lf-ease),background .15s,border-color .15s}
+.toast-item{animation:lf-toast-in .18s var(--lf-ease)}
+.toast-item.leaving{transform:translateY(8px)}
+@keyframes lf-toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}

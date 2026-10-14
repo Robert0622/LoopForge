@@ -192,6 +192,7 @@ function homeChatHeroHTML() {
     ${homeLiveStripHTML()}
     ${keyHint}
     <div class="hc-examples">${HOME_EXAMPLES.map(s => `<button type="button" class="hc-example" data-home-example="${escapeHTML(s.id)}"><b>${escapeHTML(s.label)}</b><small>${escapeHTML(s.blurb)}</small></button>`).join('')}</div>
+    ${typeof onboardingProgressHTML === 'function' ? onboardingProgressHTML() : ''}
     <div class="hc-suggest">${HOME_CHAT_SUGGESTIONS.map((s, i) => `<button type="button" class="hc-chip" data-home-suggest="${i}">${escapeHTML(s.label)}</button>`).join('')}</div>
     <div class="hc-bento" id="hcBento">${homeBentoHTML()}</div>
   </div>`;
@@ -227,6 +228,7 @@ async function startHomeExample(id) {
     let room = (rooms || [])[0];
     if (!room) room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ projectId, name: '协作群' }) });
     await api('/api/rooms/' + encodeURIComponent(room.id) + '/crew', { method: 'POST', body: JSON.stringify({ goal: example.goal, autoStart: true, source: 'home' }) });
+    if (typeof onboardingMark === 'function') { onboardingMark('ask'); onboardingMark('crew'); }
     if (typeof roomState === 'function') roomState().activeId = room.id;
     if (typeof switchView === 'function') switchView('rooms');
     if (typeof loadRooms === 'function') await loadRooms();
@@ -295,7 +297,7 @@ function homeChatComposerHTML() {
       ${chat.refs.map((r, i) => `<span class="hc-ref-chip" title="${escapeHTML(r.title)}">@${escapeHTML(r.label || r.title)}<button type="button" data-home-unref="${i}" aria-label="移除引用">×</button></span>`).join('')}
       ${chat.files.map((f, i) => `<span class="hc-file-chip${f.uploading ? ' is-uploading' : ''}${f.error ? ' is-error' : ''}" title="${escapeHTML(f.error || f.name)}">
         ${homeFileIsImage(f) && f.id ? `<img src="${homeFileURL(f.id)}" alt="">` : `<i class="hc-file-ext">${escapeHTML((f.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase())}</i>`}
-        <span>${escapeHTML(f.name)}</span><small>${f.uploading ? '上传中…' : f.error ? '失败' : homeFileSize(f.size)}</small>
+        <span>${escapeHTML(f.name)}</span><small>${f.uploading ? '上传中…' : f.error ? '失败' : homeFileSize(f.size)}</small>${f.note ? `<em class="hc-file-note">${escapeHTML(f.note)}</em>` : ''}
         <button type="button" data-home-unfile="${i}" aria-label="移除附件">×</button></span>`).join('')}
     </div>` : '';
   return `<form class="hc-composer" id="homeChatForm">
@@ -373,6 +375,13 @@ function homeChatReplyHTML(m, index) {
   return `${trace}<div class="hc-md">${homeMarkdownHTML(m.text)}</div>${homeChatFilesHTML(m.files || [])}${questions ? `<ol class="hc-questions">${questions}</ol>` : ''}${drafts}${launch}`;
 }
 
+function homeRouteWhyHTML(l) {
+  const reasons = (l.reasons || []).filter(Boolean).slice(0, 3);
+  const conf = Number(l.confidence);
+  const pct = Number.isFinite(conf) && conf > 0 ? `<span class="hc-confidence">${Math.round(conf * 100)}% 有把握</span>` : '';
+  const list = reasons.length ? `<ul class="hc-reasons">${reasons.map(r => `<li>${escapeHTML(r)}</li>`).join('')}</ul>` : (l.modeReason ? `<p class="hc-mode-why">✦ ${escapeHTML(l.modeReason)}</p>` : '');
+  return (pct || list) ? `<div class="hc-route">${pct}${list}</div>` : '';
+}
 function homeChatLaunchCardHTML(m, index) {
   const l = m.launch;
   const workflows = homeChatWorkflows();
@@ -387,7 +396,7 @@ function homeChatLaunchCardHTML(m, index) {
   const modes = issue ? '' : `<div class="hc-mode" role="tablist" aria-label="交给谁做">
       <button type="button" data-launch-mode="sop" class="${crew ? '' : 'on'}"><b>交给 SOP</b><small>固定流程，每步有闸门</small>${recommended === 'sop' ? '<em>推荐</em>' : ''}</button>
       <button type="button" data-launch-mode="crew" class="${crew ? 'on' : ''}"><b>交给群聊 Bot</b><small>没有固定流程，Bot 们自己分工交接</small>${recommended === 'crew' ? '<em>推荐</em>' : ''}</button>
-    </div>${l.modeReason ? `<p class="hc-mode-why">✦ ${escapeHTML(l.modeReason)}</p>` : ''}`;
+    </div>${homeRouteWhyHTML(l)}`;
   const rooms = crew ? homeCrewRooms() : [];
   const target = crew
     ? `<label>协作群<select data-launch-room>${(rooms || []).map(r => `<option value="${escapeHTML(r.id)}">#${escapeHTML(r.name)}</option>`).join('')}<option value="__new" ${rooms && rooms.length ? '' : 'selected'}>＋ 新建「协作群」</option></select></label>`
@@ -583,6 +592,12 @@ function bindHomeChat() {
   });
 }
 
+function homeFileParseNote(file) {
+  const name = String(file?.name || '');
+  if (/^image\//.test(file?.mime || '') || /\.(png|jpe?g|gif|webp)$/i.test(name)) return '图片已附上，发送后直接给助理看';
+  if (/\.(md|txt|csv|json|log)$/i.test(name)) return '文本已附上，发送后助理会打开再回答';
+  return '已上传，发送后助理会按路径打开';
+}
 async function homeChatAddFiles(list) {
   const chat = ensureHomeChatState();
   const room = HOME_CHAT_MAX_FILES - chat.files.length;
@@ -592,7 +607,7 @@ async function homeChatAddFiles(list) {
   const accepted = [];
   for (const file of picked) {
     if (file.size > HOME_CHAT_MAX_BYTES) { toast(`${file.name} 超过 20 MB`, 'err'); continue; }
-    const entry = { name: file.name || 'pasted.png', size: file.size, mime: file.type, uploading: true };
+    const entry = { name: file.name || 'pasted.png', size: file.size, mime: file.type, uploading: true, note: '正在上传并识别…' };
     chat.files.push(entry);
     accepted.push([file, entry]);
   }
@@ -603,10 +618,15 @@ async function homeChatAddFiles(list) {
   try {
     const resp = await fetch('/api/assistant/files', { method: 'POST', body: form });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-    (data.files || []).forEach((meta, i) => { const entry = accepted[i]?.[1]; if (entry) Object.assign(entry, meta, { uploading: false }); });
+    if (!resp.ok) {
+      const err = new Error(data.error || `HTTP ${resp.status}`);
+      err.code = data.code || '';
+      err.action = data.action || '';
+      throw err;
+    }
+    (data.files || []).forEach((meta, i) => { const entry = accepted[i]?.[1]; if (entry) Object.assign(entry, meta, { uploading: false, note: homeFileParseNote(entry) }); });
   } catch (err) {
-    accepted.forEach(([, entry]) => { entry.uploading = false; entry.error = err.message; });
+    accepted.forEach(([, entry]) => { entry.uploading = false; entry.error = err.message; entry.note = (err.code ? err.code + ' · ' : '') + '没能识别这个附件'; });
     toast('上传失败：' + err.message, 'err');
   }
   if (activeViewName() === 'chat') renderHomeChatMain();
@@ -804,6 +824,7 @@ async function homeChatSend() {
   };
   Object.assign(chat, { draft: '', files: [], refs: [], notes: [] });
   homeChatPush(message);
+  if (typeof onboardingMark === 'function' && (text || files.length)) onboardingMark('ask');
   if (!homeChatHasModelKey()) {
     homeChatPush({ role: 'assistant', kind: 'notice', text: '还没配置 CodeBuddy Key，我暂时没法读代码、查数据、追问需求。配好后再发一次就行；也可以先跑一遍演示 SOP 看完整流程，它不调模型。', actions: [{ id: 'settings-models', label: '去配置模型 Key', primary: true }, { id: 'demo', label: '先跑演示' }] });
     return renderHomeChatMain();
@@ -1051,6 +1072,7 @@ async function homeChatLaunchCrew(card, m, project) {
     l.issueId = mission.issueId || '';
     homeChatPush({ role: 'assistant', kind: 'launched', crew: true, roomId, roomName, title, issueId: mission.issueId || '' });
     homeChatNote(`用户把「${title}」交给了协作群「${roomName}」的 Bot 团队自由协作，需求 ${mission.issueId || ''}`);
+    if (typeof onboardingMark === 'function') { onboardingMark('ask'); onboardingMark('crew'); }
     homeChatMarkLaunchDone(chat.sessionId, origin, { id: mission.issueId || '', title });
   } catch (err) {
     if (button) { button.disabled = false; button.textContent = '交给群聊开工'; }

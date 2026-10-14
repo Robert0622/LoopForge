@@ -203,6 +203,35 @@ function bindOnboardingReplay() {
   button.onclick = () => startOnboarding();
 }
 
+const PROGRESS_KEY = 'loopforge.progress.v1';
+
+function onboardingMark(step) {
+  if (!step) return;
+  try {
+    const cur = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+    cur[step] = true;
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(cur));
+  } catch (e) {}
+}
+
+function onboardingProgress() {
+  let marks = {};
+  try { marks = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}'); } catch (e) {}
+  const issues = (typeof state !== 'undefined' && state.data && state.data.issues) || [];
+  const workflows = (typeof state !== 'undefined' && state.data && state.data.workflows) || [];
+  return {
+    ask: !!(marks.ask || issues.length),
+    crew: !!marks.crew,
+    sop: !!(marks.sop || workflows.some(w => w && w.source === 'crew')),
+  };
+}
+
+function onboardingProgressHTML() {
+  const p = onboardingProgress();
+  const item = (done, label) => `<b class="${done ? 'is-done' : ''}">${done ? '✓ ' : ''}${label}</b>`;
+  return `<div class="lf-progress" aria-label="上手三步">${item(p.ask, '发请求')}${item(p.crew, '多 Bot')}${item(p.sop, '存 SOP')}</div>`;
+}
+
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('resize', () => placeOnboarding());
   window.addEventListener('keydown', event => {

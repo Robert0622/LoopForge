@@ -88,10 +88,27 @@ async function api(path, options={}) {
   try{
     const request={...fetchOpts};
     if(!request.headers&&!(request.body instanceof FormData))request.headers={'Content-Type':'application/json'};
-    const res = await fetch(path, request);
+    let res;
+    try {
+      res = await fetch(path, request);
+    } catch (err) {
+      if (typeof lfSyncOffline === 'function') lfSyncOffline();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const offline = new Error('网络已断开');
+        offline.code = 'offline';
+        offline.action = 'retry';
+        throw offline;
+      }
+      throw err;
+    }
     const body = await res.json().catch(()=>({}));
     if (res.status===401 && state.authRequired && !state.proxyAuth && !String(path).startsWith('/api/auth/')) openLoginModal({forced:true});
-    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    if (!res.ok) {
+      const err = new Error(body.error || `HTTP ${res.status}`);
+      err.code = body.code || '';
+      err.action = body.action || '';
+      throw err;
+    }
     return body;
   } finally {
     if(!silent){
@@ -117,6 +134,7 @@ function armToastUndo(fn,remove){
   document.addEventListener('keydown',toastUndoHandler);
 }
 function toast(message, type='info', duration=type==='err'?6000:2600, extra){
+  if(extra?.undo)duration=Math.max(Number(duration)||0,8000);
   const container=$('#toastContainer');
   const legacy=$('#toast');
   if(!container&&legacy){
@@ -1011,7 +1029,7 @@ function bind(){
   $('#workflowDescription').oninput=e=>{if(!state.workflow)return;state.workflow.description=e.target.value;dirty()};
   $('#saveWorkflow').onclick=saveWorkflow; $('#discardWorkflow').onclick=discardWorkflow; $('#publishWorkflow').onclick=publishWorkflow;
   $('#flowHistory')&&($('#flowHistory').onclick=()=>openRevisionHistory('workflow', state.workflow?.id, state.workflow?.name));
-  $('#deleteNode').onclick=deleteSelected;{const wb=$('.flow-workbench'),tg=$('#flowPropsToggle');const setProps=on=>{wb?.classList.toggle('props-hidden',!on);tg?.classList.toggle('on',on);localStorage.setItem('loopforge.flowProps',on?'1':'0');renderEdges()};setProps(localStorage.getItem('loopforge.flowProps')!=='0');tg&&(tg.onclick=()=>setProps(wb.classList.contains('props-hidden')));$('#nodes')?.addEventListener('dblclick',e=>{if(e.target.closest('.flow-node'))setProps(true)})} $('#fitButton').onclick=arrange;
+  $('#deleteNode').onclick=confirmDeleteSelected;{const wb=$('.flow-workbench'),tg=$('#flowPropsToggle');const setProps=on=>{wb?.classList.toggle('props-hidden',!on);tg?.classList.toggle('on',on);localStorage.setItem('loopforge.flowProps',on?'1':'0');renderEdges()};setProps(localStorage.getItem('loopforge.flowProps')!=='0');tg&&(tg.onclick=()=>setProps(wb.classList.contains('props-hidden')));$('#nodes')?.addEventListener('dblclick',e=>{if(e.target.closest('.flow-node'))setProps(true)})} $('#fitButton').onclick=arrange;
   bindFlowResize();
   $('#runButton').onclick=()=>openRunModal(state.workflow?.id);
   $('#flowSettingsToggle').onclick=()=>{const panel=$('#flowSettingsPanel');panel.hidden=!panel.hidden;$('#flowSettingsToggle').classList.toggle('active',!panel.hidden)};
@@ -1604,7 +1622,18 @@ function applyViewTabset(name,target){
   if(cur?.subs){
     localStorage.setItem(`loopforge.sub.${cur.view}`,name);
     const sub=document.createElement('div');sub.className='lf-subtabs';
-    sub.innerHTML=cur.subs.map(([v,l])=>`<button type="button" class="lf-subtab${v===name?' active':''}" data-view="${v}">${escapeHTML(l)}</button>`).join('');
+    const capViews=new Set(['skills','mcp','rules']);
+    const caps=cur.view==='agents'?cur.subs.filter(([v])=>capViews.has(v)):[];
+    const main=caps.length?cur.subs.filter(([v])=>!capViews.has(v)):cur.subs;
+    const tabBtn=([v,l])=>`<button type="button" class="lf-subtab${v===name?' active':''}" data-view="${v}">${escapeHTML(l)}</button>`;
+    sub.innerHTML=main.map(tabBtn).join('');
+    if(caps.length){
+      const details=document.createElement('details');
+      details.className='lf-cap';
+      if(caps.some(([v])=>v===name))details.open=true;
+      details.innerHTML=`<summary>能力</summary>${caps.map(tabBtn).join('')}`;
+      sub.appendChild(details);
+    }
     bar.appendChild(sub);
   }
 }

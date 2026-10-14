@@ -54,6 +54,9 @@ type assistantLaunch struct {
 	// work to the room's bots. The user can switch it on the card.
 	Mode       string `json:"mode,omitempty"`
 	ModeReason string `json:"modeReason,omitempty"`
+	// Confidence is 0..1. Reasons are the short lines behind that pick.
+	Confidence float64  `json:"confidence,omitempty"`
+	Reasons    []string `json:"reasons,omitempty"`
 }
 type assistantRequest struct {
 	ProjectID    string             `json:"projectId"`

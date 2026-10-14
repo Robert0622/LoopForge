@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Tencent/LoopForge/internal/domain"
@@ -25,6 +26,9 @@ func TestCrewPlanRulesSplitsRolesByName(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("plan = %v, want %v", got, want)
 		}
+	}
+	if tasks[0].PlanReason == "" || !strings.Contains(tasks[0].PlanReason, "拆解需求") {
+		t.Fatalf("plan reason = %q", tasks[0].PlanReason)
 	}
 }
 

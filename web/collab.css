@@ -75,8 +75,8 @@
 .room-res-item.static:hover{background:transparent}
 .room-res-icon{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:var(--bg-soft);font-size:12px;font-weight:700;color:var(--lf-brand)}
 .room-res-icon.role{background:var(--lf-grad);color:var(--lf-on-accent)}
-.room-res-icon.sop{background:rgba(34,197,94,.12);color:var(--lf-ok)}
-.room-res-icon.repo{background:rgba(236,72,153,.1);color:var(--lf-bad)}
+.room-res-icon.sop{background:color-mix(in srgb, var(--lf-ok) 12%, transparent);color:var(--lf-ok)}
+.room-res-icon.repo{background:color-mix(in srgb, var(--lf-bad) 10%, transparent);color:var(--lf-bad)}
 .room-res-text{min-width:0;flex:1}
 .room-res-text b{display:block;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .room-res-text small{display:block;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -122,8 +122,8 @@ button.room-res-expand:hover{text-decoration:underline}
 .canvas-ai-entry i{font-style:normal;font-size:20px;color:var(--lf-brand-2)}
 .canvas-ai-entry:hover{border-color:var(--lf-brand-2)}
 .canvas-ai-entry[hidden]{display:none}
-.canvas.ai-building::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(124,92,252,.35);border-radius:inherit;animation:aiPulse 1.4s ease-in-out infinite}
-.flow-node.ai-just-built{animation:aiNodeIn .45s ease;border-color:var(--lf-brand);box-shadow:0 0 0 4px rgba(124,92,252,.18)}
+.canvas.ai-building::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--lf-brand) 35%, transparent);border-radius:inherit;animation:aiPulse 1.4s ease-in-out infinite}
+.flow-node.ai-just-built{animation:aiNodeIn .45s ease;border-color:var(--lf-brand);box-shadow:0 0 0 4px color-mix(in srgb, var(--lf-brand) 18%, transparent)}
 .edges path.edge.ai-just-wired{stroke:var(--lf-brand);stroke-dasharray:7 5;animation:aiWire .7s linear}
 @keyframes aiNodeIn{from{opacity:0;transform:translateY(10px) scale(.94)}to{opacity:1;transform:none}}
 @keyframes aiWire{from{stroke-dashoffset:48}to{stroke-dashoffset:0}}
@@ -149,7 +149,7 @@ button.room-res-expand:hover{text-decoration:underline}
 @keyframes roomFlow{from{background-position:0 0}to{background-position:-200% 0}}
 .room-progress{display:flex;gap:10px;align-items:flex-start;max-width:100%;animation:roomIn .3s ease}
 .room-avatar{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:var(--lf-grad);color:var(--lf-on-accent);font-size:12px;font-weight:700}
-.room-avatar.sop{background:rgba(34,197,94,.12);color:var(--lf-ok);font-size:9px;letter-spacing:.2px}
+.room-avatar.sop{background:color-mix(in srgb, var(--lf-ok) 12%, transparent);color:var(--lf-ok);font-size:9px;letter-spacing:.2px}
 .room-progress header{display:flex;gap:8px;align-items:baseline;font-size:12px}
 .room-progress header span{color:var(--muted);font-size:11px}
 .room-progress p{margin:3px 0 0;line-height:1.55;white-space:pre-wrap}
@@ -159,29 +159,29 @@ button.room-res-expand:hover{text-decoration:underline}
 .room-progress.final p{font-weight:600}
 .room-progress details{margin-top:4px;font-size:12px;color:var(--muted)}
 .room-progress details p{padding:6px 8px;border-radius:8px;background:var(--bg-soft);color:var(--text)}
-.room-approval{border-left-color:var(--lf-wait);background:linear-gradient(0deg,var(--panel),var(--panel)),rgba(245,158,11,.06)}
-.room-approval:not(.resolved){box-shadow:0 0 0 3px rgba(245,158,11,.12)}
+.room-approval{border-left-color:var(--lf-wait);background:linear-gradient(0deg,var(--panel),var(--panel)),color-mix(in srgb, var(--lf-wait) 6%, transparent)}
+.room-approval:not(.resolved){box-shadow:0 0 0 3px color-mix(in srgb, var(--lf-wait) 12%, transparent)}
 .room-approval.resolved{border-left-color:var(--green);opacity:.75}
 .room-decision{align-self:center;padding:3px 10px;border-radius:999px;background:var(--bg-soft);color:var(--muted);font-size:12px}
 .room-decision .room-link{font-size:12px}
 .room-decision b{color:var(--text);font-weight:600}
 .room-picks{display:inline-flex;flex-wrap:wrap;gap:4px}
-.room-pick{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid rgba(34,197,94,.4);border-radius:999px;background:rgba(34,197,94,.08);color:var(--lf-ok);font:inherit;font-size:11.5px;cursor:pointer}
+.room-pick{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid color-mix(in srgb, var(--lf-ok) 40%, transparent);border-radius:999px;background:color-mix(in srgb, var(--lf-ok) 8%, transparent);color:var(--lf-ok);font:inherit;font-size:11.5px;cursor:pointer}
 .room-pick i{font-style:normal;opacity:.6}
 @keyframes roomIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ---------- AI 编排：流式构建效果 ---------- */
-.ai-ghost-node{position:absolute;width:228px;height:92px;box-sizing:border-box;padding:14px 16px;border:1.5px dashed rgba(124,92,252,.55);border-radius:14px;background:linear-gradient(110deg,rgba(124,92,252,.06) 8%,rgba(79,123,255,.16) 18%,rgba(124,92,252,.06) 33%);background-size:200% 100%;animation:aiShimmer 1.3s linear infinite;z-index:19;pointer-events:none}
-.ai-ghost-node i{display:block;height:10px;margin-bottom:8px;border-radius:6px;background:rgba(124,92,252,.18)}
+.ai-ghost-node{position:absolute;width:228px;height:92px;box-sizing:border-box;padding:14px 16px;border:1.5px dashed color-mix(in srgb, var(--lf-brand) 55%, transparent);border-radius:14px;background:linear-gradient(110deg,color-mix(in srgb, var(--lf-brand) 6%, transparent) 8%,color-mix(in srgb, var(--lf-brand-2) 16%, transparent) 18%,color-mix(in srgb, var(--lf-brand) 6%, transparent) 33%);background-size:200% 100%;animation:aiShimmer 1.3s linear infinite;z-index:19;pointer-events:none}
+.ai-ghost-node i{display:block;height:10px;margin-bottom:8px;border-radius:6px;background:color-mix(in srgb, var(--lf-brand) 18%, transparent)}
 .ai-ghost-node i:first-child{width:60%}
 .ai-ghost-node i:nth-child(2){width:40%}
 .ai-ghost-node span{position:absolute;left:16px;bottom:10px;font-size:11.5px;color:var(--lf-brand-ink)}
 @keyframes aiShimmer{to{background-position:-200% 0}}
 .canvas.ai-relayout .flow-node{transition:left .6s cubic-bezier(.2,.8,.2,1),top .6s cubic-bezier(.2,.8,.2,1)}
 .canvas.ai-relayout .edges{opacity:0;transition:opacity .15s}
-.canvas.ai-done::before{content:"";position:absolute;inset:0;z-index:30;pointer-events:none;background:linear-gradient(100deg,transparent 30%,rgba(124,92,252,.14) 50%,transparent 70%);background-size:250% 100%;animation:aiSweep 1.4s ease-out forwards}
+.canvas.ai-done::before{content:"";position:absolute;inset:0;z-index:30;pointer-events:none;background:linear-gradient(100deg,transparent 30%,color-mix(in srgb, var(--lf-brand) 14%, transparent) 50%,transparent 70%);background-size:250% 100%;animation:aiSweep 1.4s ease-out forwards}
 @keyframes aiSweep{from{background-position:120% 0}to{background-position:-120% 0}}
-.ai-live-thought{padding:8px 10px;border-radius:10px;border:1px solid rgba(124,92,252,.25);background:rgba(124,92,252,.05);font-size:12px;line-height:1.55}
+.ai-live-thought{padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb, var(--lf-brand) 25%, transparent);background:color-mix(in srgb, var(--lf-brand) 5%, transparent);font-size:12px;line-height:1.55}
 .ai-live-thought b{display:flex;align-items:center;gap:6px;margin-bottom:4px;color:var(--lf-brand-ink);font-weight:600}
 .ai-live-thought b i{width:7px;height:7px;border-radius:50%;background:var(--lf-brand)}
 .ai-live-thought.live b i{animation:aiPulse 1s ease-in-out infinite}
@@ -189,7 +189,7 @@ button.room-res-expand:hover{text-decoration:underline}
 .ai-live-thought:not(.live) b::after{content:"（已完成）";color:var(--muted);font-weight:400}
 .ai-live-thought span{display:block;color:var(--muted);white-space:pre-wrap;max-height:84px;overflow:hidden}
 .ai-orchestrator-log>p.step.tool::before{content:"⌕ ";color:var(--lf-brand-2)}
-.ai-orchestrator-log>p.warn{background:rgba(245,158,11,.1);color:var(--lf-wait)}
+.ai-orchestrator-log>p.warn{background:color-mix(in srgb, var(--lf-wait) 10%, transparent);color:var(--lf-wait)}
 
 /* @ 提及弹层、空群引导 */
 .room-mention{position:absolute;left:8px;right:8px;bottom:calc(100% + 6px);z-index:30;max-height:300px;overflow:auto;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--panel);box-shadow:0 12px 32px rgba(15,23,42,.16)}
@@ -203,7 +203,7 @@ button.room-res-expand:hover{text-decoration:underline}
 .room-link{padding:0;border:0;background:none;color:var(--lf-brand);font:inherit;cursor:pointer}
 .room-link:hover{text-decoration:underline}
 .room-at{padding:0 2px;border-radius:4px;color:var(--lf-brand);font-weight:500}
-.room-at.me{background:rgba(245,158,11,.16);color:var(--lf-wait)}
+.room-at.me{background:color-mix(in srgb, var(--lf-wait) 16%, transparent);color:var(--lf-wait)}
 .room-guide{margin:auto;max-width:560px;padding:8px 4px;color:var(--text)}
 .room-guide h2{margin:0 0 6px;font-size:24px;font-weight:600;text-align:center}
 .room-guide-lead{margin:0 0 18px;text-align:center;color:var(--muted);font-size:13px}

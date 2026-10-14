@@ -158,6 +158,13 @@ function addNode(type){
   state.workflow.nodes.push(node);state.selectedNode=node.id;
   dirty();renderCanvas();renderProperties();
 }
+async function confirmDeleteSelected(){
+  if(!state.selectedNode||!state.workflow)return toast('先点选要删除的步骤');
+  const n=state.workflow.nodes.find(x=>x.id===state.selectedNode);
+  const name=n?.name||'这个步骤';
+  if(!(await afConfirm({title:`删除步骤「${name}」？`,message:'关联连线会一并移除。此操作不可撤销。',danger:true,confirmText:'删除步骤',confirmName:name})))return;
+  deleteSelected();
+}
 function deleteSelected(){
   if(!state.selectedNode||!state.workflow)return;
   const removingPreview=isPreviewBuildNode(state.selectedNode);
@@ -210,8 +217,9 @@ function renderCanvas(){
 function renderFlowOutline(){
   const host=$('#flowOutline');if(!host||!state.workflow)return;
   const run=state.activeRun,stages=workflowStages(state.workflow),ordered=stages.flatMap((stage,stageIndex)=>stage.map(node=>({node,stageIndex,parallel:stage.length>1})));
-  host.innerHTML=ordered.map(({node,stageIndex,parallel},index)=>{const meta=nodeMeta(node),status=run?.nodes?.[node.id]?.status||'',kind=isPreviewBuildNode(node.id)?'预览构建':(node.type==='agent'?'Agent':node.type==='script'?'脚本':node.type==='sop'?'SOP':'人工');return `<div class="flow-step ${state.selectedNode===node.id?'active':''}" data-flow-node="${escapeHTML(node.id)}"><span class="flow-step-index">${index+1}</span><div><b>${escapeHTML(node.name)}</b><small>第 ${stageIndex+1} 阶段${parallel?' · 并行':' · '+kind}</small></div><span class="flow-step-state">${statusText(status)||meta.icon}</span></div>`}).join('')||'<div class="catalog-empty" style="padding:30px 8px"><b>还没有步骤</b><p>从上方选择一种节点开始</p></div>';
+  host.innerHTML=ordered.map(({node,stageIndex,parallel},index)=>{const meta=nodeMeta(node),status=run?.nodes?.[node.id]?.status||'',kind=isPreviewBuildNode(node.id)?'预览构建':(node.type==='agent'?'Agent':node.type==='script'?'脚本':node.type==='sop'?'SOP':'人工');return `<div class="flow-step ${state.selectedNode===node.id?'active':''}" data-flow-node="${escapeHTML(node.id)}"><span class="flow-step-index">${index+1}</span><div><b>${escapeHTML(node.name)}</b><small>第 ${stageIndex+1} 阶段${parallel?' · 并行':' · '+kind}</small></div><span class="flow-step-state">${statusText(status)||meta.icon}</span></div>`}).join('')||'<div class="catalog-empty" style="padding:30px 8px"><b>还没有步骤</b><p>先加一个 Agent 步骤，再把后面的检查和人工门禁连上去。</p><button type="button" class="button primary small" data-flow-add="agent">添加 Agent 步骤</button></div>';
   host.querySelectorAll('[data-flow-node]').forEach(el=>el.onclick=()=>{state.selectedNode=el.dataset.flowNode;renderCanvas();renderProperties()});
+  host.querySelector('[data-flow-add]')?.addEventListener('click',()=>addNode('agent'));
 }
 
 function flowDiagnostics(){
@@ -754,9 +762,9 @@ function flowFailedRun(node){
 }
 function renderProperties(){
   const host=$('#properties');if(!host)return;
-  if(!state.workflow){host.innerHTML='<div class="empty-properties"><div>◇</div><b>流程还没加载完</b><p>稍候刷新，或从「SOP 目录」打开一条已发布流程。</p></div>';return}
+  if(!state.workflow){host.innerHTML='<div class="empty-properties"><div>◇</div><b>流程还没加载完</b><p>从 SOP 目录打开一条流程。如果一直停在这里，刷新后再试。</p><button type="button" class="button primary small" data-flow-open-sops>打开 SOP 目录</button></div>';host.querySelector('[data-flow-open-sops]').onclick=()=>switchView('sops');return}
   const n=state.workflow.nodes.find(node=>node.id===state.selectedNode);
-  if(!n){host.innerHTML='<div class="empty-properties"><div>◇</div><b>点左侧步骤或画布节点</b><p>Agent 步骤绑定角色、连线、统一校验清单和失败打回。节点会同步展示角色定义的产物与门禁。</p></div>';return}
+  if(!n){host.innerHTML='<div class="empty-properties"><div>◇</div><b>还没有选中的步骤</b><p>点左侧步骤，或直接加一个 Agent 步骤再绑角色。</p><button type="button" class="button primary small" data-flow-add="agent">添加 Agent 步骤</button></div>';host.querySelector('[data-flow-add]').onclick=()=>addNode('agent');return}
   if(isPreviewBuildNode(n.id)){renderPreviewBuildProperties(host,n);return}
   ensureNodeDefaults(n);
   const targets=state.workflow.nodes.map(x=>`<option value="${x.id}" ${x.id===n.rejectTo?'selected':''}>${escapeHTML(x.name)}${x.id===n.id?'（当前节点）':''}</option>`).join('');

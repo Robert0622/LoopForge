@@ -598,8 +598,12 @@ function renderRoomThread(room, messages, keepScroll) {
   messages = rs.lastMessages;
   roomAttachStreams(room, messages);
   const ephemeral = (rs.ephemeral || []).filter(e => e.roomId === undefined || e.roomId === room?.id);
+  if ((room?.id || '') !== (rs.digestRoom || '')) {
+    rs.digestRoom = room?.id || '';
+    rs.digestOpen = false;
+  }
   const runsSig = (state.data?.runs || []).map(r => r.id + ':' + (r.revision || r.updatedAt || r.status)).join(',');
-  const signature = (room?.id || '') + '|' + JSON.stringify(messages) + '|' + ephemeral.map(e => e.id).join(',') + '|' + runsSig + '|' + (rs.threadRun || '');
+  const signature = (room?.id || '') + '|' + JSON.stringify(messages) + '|' + ephemeral.map(e => e.id).join(',') + '|' + runsSig + '|' + (rs.threadRun || '') + '|' + (rs.digestOpen ? '1' : '0');
   if (signature === rs.threadSignature && log.childElementCount) {
     renderRoomThreadPane();
     return;
@@ -622,9 +626,17 @@ function renderRoomThread(room, messages, keepScroll) {
   const mine = Number(state.currentUser?.id) || 0;
   const {order, groups} = roomRunGroups(messages);
   rs.runGroups = groups;
+  const digestKeep = 20;
+  let digest = '';
+  let visible = order;
+  if (order.length > digestKeep && !rs.digestOpen) {
+    const hiddenCount = order.length - digestKeep;
+    visible = order.slice(-digestKeep);
+    digest = `<div class="rm-digest"><b>较早的 ${hiddenCount} 条已收起</b><p>最近 ${digestKeep} 条还在下面。展开后可以往上翻完整记录。</p><button type="button" class="button ghost small" data-room-digest>展开全部</button></div>`;
+  }
   let day = '';
   let prevSpeaker = '';
-  const rows = order.map(item => {
+  const rows = visible.map(item => {
     const at = item.msg ? item.msg.createdAt : item.crew ? item.crew.createdAt : (item.run.head || item.run.events[0] || {}).createdAt;
     const key = roomDayKey(at);
     const divider = key && key !== day ? `<div class="rm-day"><span>${escapeHTML(roomDayLabel(at))}</span></div>` : '';
@@ -634,7 +646,7 @@ function renderRoomThread(room, messages, keepScroll) {
     prevSpeaker = roomSpeakerKey(item);
     return divider + (item.msg ? roomTextMessageHTML(item.msg, mine, merge) : item.crew ? roomCrewHTML(item.crew, mine) : roomRunCardHTML(roomRunModel(item.run), mine));
   });
-  const body = rows.join('') + ephemeral.map(e => roomBotHTML(e.html, true)).join('');
+  const body = digest + rows.join('') + ephemeral.map(e => roomBotHTML(e.html, true)).join('');
   log.innerHTML = body ? `<div class="rm-intro">${roomFace({kind: 'lf'}, 'lg')}<div><b>#${escapeHTML(room.name)}</b><p><b>@LoopForge</b> 提问或派活，Bot 们自己分工交接；<b>@</b> 一条 SOP 按固定流程跑。悬停消息点「回复」可以接着问，<b>/</b> 看命令。</p></div></div>` + body : roomGuideHTML();
   bindRoomLog(log);
   if (keepScroll) log.scrollTop = previous;
@@ -703,6 +715,7 @@ function bindRoomLog(log) {
     button.onclick = event => {
       event.stopPropagation();
       const act = button.dataset.errAct;
+      if (act === 'open_agents' || act === 'agents') return switchView('agents');
       if (act === 'key') return typeof openSettings === 'function' ? openSettings('models') : switchView('settings');
       if (act === 'swap') return openRoomMention({token: {start: ($('#roomInput')?.value.length || 0), query: ''}});
       if (button.dataset.crew) return roomCrewAct(button.dataset.crew, 'retry', button);
@@ -770,10 +783,20 @@ function bindRoomLog(log) {
       roomCrewAct(button.dataset.crew, button.dataset.crewAct, button);
     };
   });
+  log.querySelector('[data-room-digest]')?.addEventListener('click', () => {
+    const stateNow = roomState();
+    stateNow.digestOpen = true;
+    stateNow.threadSignature = '';
+    const live = activeRoom() || stateNow.previewRoom;
+    if (live) renderRoomThread(live, stateNow.lastMessages || [], false);
+  });
   log.querySelectorAll('[data-open-crew]').forEach(card => {
     const open = () => openRoomRunThread('crew:' + card.dataset.openCrew);
-    card.onclick = open;
-    card.onkeydown = event => { if (event.key === 'Enter') open(); };
+    card.onclick = event => {
+      if (event.target.closest('details,button,a,input,textarea,select,label')) return;
+      open();
+    };
+    card.onkeydown = event => { if (event.key === 'Enter' && event.target === card) open(); };
   });
   log.querySelectorAll('[data-open-thread]').forEach(card => {
     const open = () => openRoomRunThread(card.dataset.openThread);
@@ -1003,18 +1026,29 @@ function roomCrewHTML(msg, mine) {
     <div class="rc-now is-${escapeHTML(head.cls)}"><i></i><span>${escapeHTML(head.text)}</span></div>
     ${tasks.length ? `<div class="rc-bar"><i style="width:${pct}%"></i></div>` : ''}
     ${tasks.filter(t => t.reassignedFrom).map(t => `<p class="rc-reassign">已改由 ${escapeHTML(t.agentName || '')} 负责（${escapeHTML(t.reassignedFrom)}${t.reassignedReason ? ' ' + escapeHTML(t.reassignedReason) : ''}）</p>`).join('')}
-    ${roomChainHTML(roomCrewSteps(c), true)}${question}${actions ? `<div class="rc-row">${actions}</div>` : ''}
+    ${tasks.some(t => t.planReason) ? `<ul class="rc-reasons">${tasks.filter(t => t.planReason).map(t => `<li><b>${escapeHTML(t.agentName || '')}</b> ${escapeHTML(t.planReason)}</li>`).join('')}</ul>` : ''}
+    ${roomChainHTML(roomCrewSteps(c), true)}
+    ${tasks.map(roomHandoffHTML).join('')}
+    ${question}${actions ? `<div class="rc-row">${actions}</div>` : ''}
     <footer class="rc-foot"><span class="rc-faces">${faces.map(w => roomFace(w, 'xs')).join('')}</span><span>自由协作${c.planner === 'ai' ? ' · AI 排的分工' : ''}</span><span class="rc-open">${open ? '过程已展开' : '看过程'}<i>›</i></span></footer>
   </div>`;
   return ask + roomBotHTML(card, false, 'LoopForge', roomTime(msg.createdAt)).replace('<span class="rm-tag">BOT</span>', '<span class="rm-tag">BOT</span><span class="rm-only">队长</span>').replace('<article class="rm rm-bot ', `<article data-mid="${escapeHTML(msg.id)}" class="rm rm-bot `).replace(/<\/article>$/, roomReplyActHTML(msg.id) + '</article>');
 }
 
+function roomHandoffHTML(t) {
+  const h = t && t.handoff;
+  if (!h || (!h.conclusion && !(h.artifacts || []).length && !(h.openQuestions || []).length)) return '';
+  const arts = (h.artifacts || []).map(a => `<li>${escapeHTML(a)}</li>`).join('') || '<li>无</li>';
+  const open = (h.openQuestions || []).map(a => `<li>${escapeHTML(a)}</li>`).join('') || '<li>无</li>';
+  return `<details class="rc-handoff"><summary>${escapeHTML(t.agentName || '这一步')} · 结论 / 产物 / 未决</summary><p><b>结论</b> ${escapeHTML(h.conclusion || '无')}</p><p><b>产物</b></p><ul>${arts}</ul><p><b>未决</b></p><ul>${open}</ul></details>`;
+}
 function roomErrorCardHTML(opts) {
   const reason = String(opts?.reason || '这一步没做成');
   const key = /key|凭据|401|unauthorized|api key/i.test(reason);
   const primary = key ? 'key' : (opts?.swap ? 'swap' : 'retry');
   const btn = (id, label) => `<button type="button" class="button ${primary === id ? 'primary' : 'ghost'} small" data-err-act="${id}" data-crew="${escapeHTML(opts?.crew || '')}">${label}</button>`;
-  return `<div class="rm-error-card"><b>${key ? '还不能调用这个 Bot' : '这一步没做成'}</b><p>${escapeHTML(reason)}</p><div class="rm-error-actions">${btn('retry', '重试')}${btn('key', '配置 Key')}${btn('swap', '换个 Bot')}</div></div>`;
+  const code = opts?.code ? `<code>${escapeHTML(opts.code)}</code> ` : '';
+  return `<div class="rm-error-card"><b>${key ? '还不能调用这个 Bot' : '这一步没做成'}</b><p>${code}${escapeHTML(reason)}</p><div class="rm-error-actions">${btn(opts?.action || primary, opts?.action === 'open_agents' ? '去准备 Bot' : '重试')}${btn('key', '配置 Key')}${btn('swap', '换个 Bot')}</div></div>`;
 }
 function roomStreamGap(m) {
   const last = Date.parse(m.streamAt || m.createdAt || '') || Date.now();
@@ -1189,6 +1223,7 @@ async function roomCrewAct(id, act, button) {
   try {
     const result = await api('/api/rooms/' + encodeURIComponent(rs.activeId) + '/crew/' + encodeURIComponent(id), {method: 'POST', body: JSON.stringify({action: act})});
     if (act === 'sop' && result.workflowId) {
+      if (typeof onboardingMark === 'function') onboardingMark('sop');
       toast('已沉淀成 SOP 草稿，可以在流程设计里调整后发布');
       await roomRememberWorkflow(result.workflowId);
     }
@@ -1289,7 +1324,9 @@ function renderRoomCrewPane(pane, msg) {
       <div class="rt-rail">${roomFace(who)}<i></i></div>
       <div class="rt-main">
         <header><b>${escapeHTML(who.name)}</b><span>${escapeHTML(verb)}「${escapeHTML(t.title)}」</span><time>${escapeHTML(roomTime(t.finishedAt || t.startedAt))}</time></header>
+        ${t.planReason ? `<small class="rt-brief">${escapeHTML(t.planReason)}</small>` : ''}
         ${t.instruction ? `<small class="rt-brief">要求：${escapeHTML(t.instruction)}</small>` : ''}
+        ${roomHandoffHTML(t)}
         ${sum.title ? `<div class="rt-out ${t.status === 'failed' ? 'is-bad' : ''}"><b>${escapeHTML(sum.title)}</b>${sum.body ? `<p>${escapeHTML(sum.body)}</p>` : ''}</div>` : ''}
         ${meta.length ? `<small class="rt-meta">${escapeHTML(meta.join(' · '))}</small>` : ''}
         ${t.status === 'failed' ? `<button type="button" class="rc-btn primary" data-rerun-from-here="${escapeHTML(t.nodeId || t.id)}" data-run="${escapeHTML(t.runId || '')}" data-crew="${escapeHTML(msg.id)}">从这步续跑</button>` : ''}
@@ -1749,6 +1786,7 @@ async function roomCreateCrew() {
   if (send) send.disabled = true;
   try {
     await api('/api/rooms/' + encodeURIComponent(id) + '/crew', {method: 'POST', body: JSON.stringify({goal: title, detail: description})});
+    if (typeof onboardingMark === 'function') onboardingMark('crew');
     input.value = '';
     rs.crew = false;
     closeRoomMention();

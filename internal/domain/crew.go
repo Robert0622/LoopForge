@@ -55,6 +55,8 @@ type CrewTask struct {
 	Error     string `json:"error,omitempty"`
 	// Handoff is the only context the next bot receives from this step.
 	Handoff *CrewHandoff `json:"handoff,omitempty"`
+	// PlanReason is the captain's one-line explanation for choosing this bot.
+	PlanReason string `json:"planReason,omitempty"`
 	// ReassignedFrom names the bot that was skipped because it was unavailable.
 	ReassignedFrom   string    `json:"reassignedFrom,omitempty"`
 	ReassignedReason string    `json:"reassignedReason,omitempty"`
