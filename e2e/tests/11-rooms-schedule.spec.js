@@ -12,7 +12,7 @@ test('a room can chat and dispatch a published script SOP', async ({ page }) => 
   expect(sop, 'script SOP from the designer test').toBeTruthy();
 
   await page.locator('.nav[data-view="rooms"]').click();
-  await expect(page.locator('#pageTitle')).toHaveText('协作群聊');
+  await expect(page.locator('#pageTitle')).toHaveText('群聊');
   await page.locator('#newRoom').click();
   await page.locator('#confirmPromptInput').fill('浏览器值班群');
   await page.locator('#confirmOkBtn').click();

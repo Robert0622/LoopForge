@@ -12,10 +12,10 @@ function onboardingSteps(demo) {
   return [
     { target: '.nav[data-view="chat"]', title: '首页就是对话', body: '平台的事都可以先在首页问。它是这个项目的 PM 助理，会查需求、查运行，帮你澄清需求并按 SOP 开跑。' },
     { target: '#homeChatForm', title: '在这里说', body: start },
-    { target: '.nav[data-view="issues"]', title: '需求、运行、待确认都在「交付」', body: '顶部三个标签：需求看板管规划，运行看 Agent 正在哪一步，待我确认是等你拍板的节点。有东西要你确认时，这里会亮起角标。' },
+    { target: '.nav[data-view="issues"]', title: '进行中、待确认、已完成都在「SOP 运行」', body: '点进去后顶部可以切进行中、待确认、已完成和需求。进行中看 Bot 正在哪一步，待确认是等你拍板的节点。有东西要你确认时，侧边栏「SOP 运行」会亮起角标。' },
     { target: '.nav[data-view="rooms"]', title: '没有固定流程的活，交给「群聊」', body: '在群里 @LoopForge 说一句要做什么，队长会拉几个 Bot 分工、交接、汇报；有问题也可以直接 @ 它问，或回复某条消息接着问。' },
-    { target: '.nav[data-view="build"]', title: '流程、角色、能力、环境都在「构建」', body: 'SOP、角色、技能/MCP/规则、沙箱和项目都在这里，用顶部标签切换。日常不用动，要调整流程时再来。' },
-    { target: '.nav[data-view="me"]', ...last, finish: true },
+    { target: '.nav[data-view="agents"]', title: '流程、Bot、环境都在「配置」', body: '侧栏的配置分组里有流程、Bot 和环境。Bot 合并了原来的角色和技能。日常不用动，要调整流程或换 Bot 时再来。' },
+    { target: '.nav[data-view="settings"]', ...last, finish: true },
   ];
 }
 
@@ -201,6 +201,36 @@ function bindOnboardingReplay() {
   if (!button || button.dataset.bound) return;
   button.dataset.bound = '1';
   button.onclick = () => startOnboarding();
+}
+
+const PROGRESS_KEY = 'loopforge.progress.v1';
+
+function onboardingMark(step) {
+  if (!step) return;
+  try {
+    const cur = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+    cur[step] = true;
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(cur));
+  } catch (e) {}
+}
+
+function onboardingProgress() {
+  let marks = {};
+  try { marks = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}'); } catch (e) {}
+  const issues = (typeof state !== 'undefined' && state.data && state.data.issues) || [];
+  const workflows = (typeof state !== 'undefined' && state.data && state.data.workflows) || [];
+  return {
+    ask: !!(marks.ask || issues.length),
+    crew: !!marks.crew,
+    sop: !!(marks.sop || workflows.some(w => w && w.source === 'crew')),
+  };
+}
+
+function onboardingProgressHTML() {
+  const p = onboardingProgress();
+  if (p.ask && p.crew && p.sop) return '';
+  const item = (done, label) => `<b class="${done ? 'is-done' : ''}">${done ? '✓ ' : ''}${label}</b>`;
+  return `<div class="lf-progress" aria-label="上手三步">${item(p.ask, '发请求')}${item(p.crew, '多 Bot')}${item(p.sop, '存 SOP')}</div>`;
 }
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {

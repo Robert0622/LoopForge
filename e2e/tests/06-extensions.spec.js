@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { watchErrors, login } = require('./helpers');
+const { watchErrors, login, openView } = require('./helpers');
 
 // e2e/serve.sh loads everything under examples/extensions.
 
@@ -57,8 +57,7 @@ test('custom MCP market entries are listed and searchable', async ({ page }) => 
   const market = await page.evaluate(() => fetch('/api/mcp-market?q=kb').then(r => r.json()));
   expect(market.items.map(i => i.id)).toContain('team-knowledge');
 
-  if (await page.locator('[data-nav-group="config"]').getAttribute('aria-expanded') !== 'true') await page.locator('[data-nav-group="config"]').click();
-  await page.locator('.nav[data-view="mcp"]').click();
+  await openView(page, 'mcp');
   await page.locator('#mcpMarketSearch').fill('Team knowledge');
   const card = page.locator('.mcp-market-card').filter({ hasText: 'Team knowledge base (example)' });
   await expect(card).toBeVisible();

@@ -15,7 +15,7 @@ const assistantSceneHome = "home"
 const assistantHomeScenePrompt = `你现在是这个项目的 PM 助理，在平台首页和用户对话。用户在这里提需求、问进度、处理待确认，也让你帮忙画图、出文档。
 - 用户提出新需求或改动时，先弄清楚再开跑：用只读工具查已有需求（避免重复）和代码（有 GitHub 工具时读相关文件），把用户必须拍板的点放进 questions（每轮最多 3 个，选择题给 2~4 个具体选项）。message 里先用一两句话说明你查到了什么、为什么要问。
 - 需求说清后提供 launch：新需求给 title 和 description（description 写完整的澄清结论：目标、范围、验收标准、涉及文件），workflowId 从「可用 SOP」里选最合适的。不要用 drafts 去建需求或派发，开跑卡片由用户确认。
-- launch 还要给 mode，决定交给谁做：有严格流程、并且「可用 SOP」里有对得上的（标准交付、修 bug、发布等），mode 填 "sop" 并给 workflowId；没有固定流程的开放任务（调研、排查、出方案、做原型、跨角色临时协作），或者没有对得上的 SOP，mode 填 "crew"，交给协作群里的 Bot 团队自由协作，不用给 workflowId。用 modeReason 一句话说明为什么这样选。
+- launch 还要给 mode，决定交给谁做：有严格流程、并且「可用 SOP」里有对得上的（标准交付、修 bug、发布等），mode 填 "sop" 并给 workflowId；没有固定流程的开放任务（调研、排查、出方案、做原型、跨 Bot 临时协作），或者没有对得上的 SOP，mode 填 "crew"，交给协作群里的 Bot 团队自由协作，不用给 workflowId。用 modeReason 一句话说明为什么这样选，并给 confidence（0 到 1）和 reasons（1 到 3 条短句）。
 - 用户 @ 了已有需求时，围绕那条需求回答；要跑它就在 launch 里填 issueId。
 - 问进度、问运行结果时，用 runs_list / runs_get / issues_get 查真实数据后回答，说清卡在哪一步、需要用户做什么。
 - 用户要图（流程图、架构图、时序图）时，在 files 里给 .svg 文件（完整 SVG 源码，中文用 sans-serif 字体，尺寸不超过 1200x900），或者在 message 里写 mermaid 代码块；要文档、表格时在 files 里给 .md / .csv。
@@ -179,6 +179,38 @@ func (h *assistantHandlers) resolveAssistantLaunch(projectID string, launch *ass
 	if utf8.RuneCountInString(launch.Title) > 200 {
 		launch.Title = string([]rune(launch.Title)[:200])
 	}
+	if launch.Confidence < 0 || launch.Confidence > 1 {
+		launch.Confidence = 0
+	}
+	if launch.Confidence == 0 {
+		if launch.Mode == "sop" && (launch.WorkflowID != "" || launch.IssueID != "") {
+			launch.Confidence = 0.72
+		} else {
+			launch.Confidence = 0.58
+		}
+	}
+	reasons := make([]string, 0, 3)
+	for _, reason := range launch.Reasons {
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			continue
+		}
+		reasons = append(reasons, truncateRunes(reason, 80))
+		if len(reasons) == 3 {
+			break
+		}
+	}
+	if len(reasons) == 0 && strings.TrimSpace(launch.ModeReason) != "" {
+		reasons = append(reasons, truncateRunes(strings.TrimSpace(launch.ModeReason), 80))
+	}
+	if len(reasons) == 0 {
+		if launch.Mode == "crew" {
+			reasons = append(reasons, "没有对得上的固定流程，交给 Bot 团队分工。")
+		} else {
+			reasons = append(reasons, "有对得上的 SOP，按固定流程交付。")
+		}
+	}
+	launch.Reasons = reasons
 	return launch
 }
 

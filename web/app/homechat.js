@@ -11,6 +11,11 @@ const HOME_CHAT_SUGGESTIONS = [
   { label: '@ 一条需求，把它跑起来', text: '@' },
   { label: '画一张交付流程图', text: '把这个项目从提需求到交付的流程画成一张图' },
 ];
+const HOME_EXAMPLES = [
+  { id: 'crew', label: '多 Bot 做登录页', blurb: '分析、实现、交接。演示模式不需要模型 Key', goal: '实现登录页：支持邮箱和验证码' },
+  { id: 'demo', label: '跑一遍演示 SOP', blurb: '约 30 秒，不调模型，停在确认方案' },
+  { id: 'ask', label: '先问一句再开工', blurb: '不组队，把问题留在输入框里', text: '登录页要支持邮箱和验证码，先帮我列出会卡住的点' },
+];
 const HOME_RUN_ACTIVE = new Set(['queued', 'pending', 'running', 'waiting', 'waiting_approval', 'paused', 'retrying']);
 let homeRunsTimer = null;
 const homeMermaidCache = new Map();
@@ -154,7 +159,7 @@ function renderHomeChatMain() {
       </div>
     </header>
     <div class="hc-thread" id="homeChatThread">${chat.messages.map(homeChatMessageHTML).join('')}${chat.busy ? homeChatLiveHTML() : ''}</div>
-    <div class="hc-dock">${homeChatComposerHTML()}</div>`;
+    <div class="hc-dock">${homeLiveStripHTML()}${homeChatComposerHTML()}</div>`;
   bindHomeChat();
   bindHomeBento(main.querySelector('#hcBento'));
   $('#homeSopSelect') && ($('#homeSopSelect').onchange = e => { chat.workflowId = e.target.value; persistHomeChat(); });
@@ -185,7 +190,10 @@ function homeChatHeroHTML() {
     <p class="hc-greet"><span class="hc-greet-dot" aria-hidden="true"></span>${escapeHTML(homeGreeting())}，${escapeHTML(user.displayName || user.name || user.loginName || '')}</p>
     <h1 class="hc-headline">今天想交付什么？</h1>
     <div class="hc-composer-glow">${homeChatComposerHTML()}</div>
+    ${homeLiveStripHTML()}
     ${keyHint}
+    <div class="hc-examples">${HOME_EXAMPLES.map(s => `<button type="button" class="hc-example" data-home-example="${escapeHTML(s.id)}"><b>${escapeHTML(s.label)}</b><small>${escapeHTML(s.blurb)}</small></button>`).join('')}</div>
+    ${typeof onboardingProgressHTML === 'function' ? onboardingProgressHTML() : ''}
     <div class="hc-suggest">${HOME_CHAT_SUGGESTIONS.map((s, i) => `<button type="button" class="hc-chip" data-home-suggest="${i}">${escapeHTML(s.label)}</button>`).join('')}</div>
     <div class="hc-bento" id="hcBento">${homeBentoHTML()}</div>
   </div>`;
@@ -196,6 +204,49 @@ function homeSopPickerHTML(disabled) {
   if (!workflows.length) return '';
   const current = homeChatSelectedWorkflow();
   return `<label class="hc-sop-pick" title="开跑时用哪条 SOP"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H14a4 4 0 0 1 4 4v5.5"/></svg><select id="homeSopSelect" ${disabled ? 'disabled' : ''}>${homeWorkflowOptionsHTML(workflows, current?.id)}</select></label>`;
+}
+
+function homeLiveStripHTML() {
+  const runs = homeRunsForProject().filter(r => HOME_RUN_ACTIVE.has(r.status)).slice(0, 3);
+  if (!runs.length) return '<div class="hc-live-strip is-empty"><span>进行中</span><p>还没有未完成的事。点一个示例，马上开跑。</p></div>';
+  const items = runs.map(run => {
+    const steps = homeRunSteps(run);
+    const cur = steps.find(x => x.status === 'running' || x.status === 'waiting' || x.status === 'failed');
+    const label = cur ? cur.name : (typeof homeRunStatus === 'function' ? homeRunStatus(run).label : run.status);
+    return `<button type="button" class="hc-live-item" data-home-strip="${escapeHTML(run.id)}"><i></i><b>${escapeHTML(typeof runIssueTitle === 'function' ? runIssueTitle(run) : run.id)}</b><small>${escapeHTML(label || '')}</small></button>`;
+  }).join('');
+  return `<div class="hc-live-strip"><span>进行中</span>${items}</div>`;
+}
+
+async function startHomeExample(id) {
+  if (id === 'demo') return typeof startDemoRequirement === 'function' ? startDemoRequirement(null) : toast('演示还没准备好');
+  const example = HOME_EXAMPLES.find(item => item.id === id);
+  if (!example) return;
+  if (example.text && !example.goal) {
+    const el = $('#homeChatInput');
+    const chat = ensureHomeChatState();
+    chat.draft = example.text;
+    if (el) { el.value = example.text; el.focus(); }
+    persistHomeChat();
+    if (typeof onboardingMark === 'function') onboardingMark('ask');
+    return;
+  }
+  const projectId = state.projectFilter || (state.data.projects || [])[0]?.id;
+  if (!projectId) return toast('还没有项目，请先建一个项目');
+  try {
+    const rooms = await api('/api/rooms?projectId=' + encodeURIComponent(projectId));
+    let room = (rooms || [])[0];
+    if (!room) room = await api('/api/rooms', { method: 'POST', body: JSON.stringify({ projectId, name: '协作群' }) });
+    await api('/api/rooms/' + encodeURIComponent(room.id) + '/crew', { method: 'POST', body: JSON.stringify({ goal: example.goal, autoStart: true, source: 'home' }) });
+    if (typeof onboardingMark === 'function') { onboardingMark('ask'); onboardingMark('crew'); }
+    if (typeof roomState === 'function') roomState().activeId = room.id;
+    if (typeof switchView === 'function') switchView('rooms');
+    if (typeof loadRooms === 'function') await loadRooms();
+    if (typeof openRoom === 'function') await openRoom(room.id);
+    toast('已交给 Bot 团队，正在分工交接', 'ok');
+  } catch (err) {
+    toast(err.message || '没能开工', 'err');
+  }
 }
 
 function homeGreeting() {
@@ -256,7 +307,7 @@ function homeChatComposerHTML() {
       ${chat.refs.map((r, i) => `<span class="hc-ref-chip" title="${escapeHTML(r.title)}">@${escapeHTML(r.label || r.title)}<button type="button" data-home-unref="${i}" aria-label="移除引用">×</button></span>`).join('')}
       ${chat.files.map((f, i) => `<span class="hc-file-chip${f.uploading ? ' is-uploading' : ''}${f.error ? ' is-error' : ''}" title="${escapeHTML(f.error || f.name)}">
         ${homeFileIsImage(f) && f.id ? `<img src="${homeFileURL(f.id)}" alt="">` : `<i class="hc-file-ext">${escapeHTML((f.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase())}</i>`}
-        <span>${escapeHTML(f.name)}</span><small>${f.uploading ? '上传中…' : f.error ? '失败' : homeFileSize(f.size)}</small>
+        <span>${escapeHTML(f.name)}</span><small>${f.uploading ? '上传中…' : f.error ? '失败' : homeFileSize(f.size)}</small>${f.note ? `<em class="hc-file-note">${escapeHTML(f.note)}</em>` : ''}
         <button type="button" data-home-unfile="${i}" aria-label="移除附件">×</button></span>`).join('')}
     </div>` : '';
   return `<form class="hc-composer" id="homeChatForm">
@@ -334,6 +385,13 @@ function homeChatReplyHTML(m, index) {
   return `${trace}<div class="hc-md">${homeMarkdownHTML(m.text)}</div>${homeChatFilesHTML(m.files || [])}${questions ? `<ol class="hc-questions">${questions}</ol>` : ''}${drafts}${launch}`;
 }
 
+function homeRouteWhyHTML(l) {
+  const reasons = (l.reasons || []).filter(Boolean).slice(0, 3);
+  const conf = Number(l.confidence);
+  const pct = Number.isFinite(conf) && conf > 0 ? `<span class="hc-confidence">${Math.round(conf * 100)}% 有把握</span>` : '';
+  const list = reasons.length ? `<ul class="hc-reasons">${reasons.map(r => `<li>${escapeHTML(r)}</li>`).join('')}</ul>` : (l.modeReason ? `<p class="hc-mode-why">✦ ${escapeHTML(l.modeReason)}</p>` : '');
+  return (pct || list) ? `<div class="hc-route">${pct}${list}</div>` : '';
+}
 function homeChatLaunchCardHTML(m, index) {
   const l = m.launch;
   const workflows = homeChatWorkflows();
@@ -345,10 +403,14 @@ function homeChatLaunchCardHTML(m, index) {
   const mode = issue ? 'sop' : homeLaunchMode(l, workflows);
   const crew = mode === 'crew';
   const recommended = l.mode === 'crew' || l.mode === 'sop' ? l.mode : '';
-  const modes = issue ? '' : `<div class="hc-mode" role="tablist" aria-label="交给谁做">
+  const confidence = Number(l.confidence);
+  const low = Number.isFinite(confidence) && confidence > 0 && confidence < 0.7;
+  const modes = issue ? '' : low
+    ? `<p class="hc-mode-quiet">${crew ? '把握不高，先按群聊往下走，不必现在二选一。' : '把握不高，先按 SOP 往下走，不必现在二选一。'} <button type="button" class="link-button" data-launch-mode="${crew ? 'sop' : 'crew'}">换成${crew ? 'SOP' : '群聊'}</button></p>${homeRouteWhyHTML(l)}`
+    : `<div class="hc-mode" role="tablist" aria-label="交给谁做">
       <button type="button" data-launch-mode="sop" class="${crew ? '' : 'on'}"><b>交给 SOP</b><small>固定流程，每步有闸门</small>${recommended === 'sop' ? '<em>推荐</em>' : ''}</button>
       <button type="button" data-launch-mode="crew" class="${crew ? 'on' : ''}"><b>交给群聊 Bot</b><small>没有固定流程，Bot 们自己分工交接</small>${recommended === 'crew' ? '<em>推荐</em>' : ''}</button>
-    </div>${l.modeReason ? `<p class="hc-mode-why">✦ ${escapeHTML(l.modeReason)}</p>` : ''}`;
+    </div>${homeRouteWhyHTML(l)}`;
   const rooms = crew ? homeCrewRooms() : [];
   const target = crew
     ? `<label>协作群<select data-launch-room>${(rooms || []).map(r => `<option value="${escapeHTML(r.id)}">#${escapeHTML(r.name)}</option>`).join('')}<option value="__new" ${rooms && rooms.length ? '' : 'selected'}>＋ 新建「协作群」</option></select></label>`
@@ -504,6 +566,8 @@ function bindHomeChat() {
   $('#homeChatAt') && ($('#homeChatAt').onclick = () => homeMentionInsertAt());
   main.querySelectorAll('[data-home-unfile]').forEach(b => b.onclick = () => { chat.files.splice(Number(b.dataset.homeUnfile), 1); renderHomeChatMain(); });
   main.querySelectorAll('[data-home-unref]').forEach(b => b.onclick = () => { chat.refs.splice(Number(b.dataset.homeUnref), 1); renderHomeChatMain(); });
+  main.querySelectorAll('[data-home-example]').forEach(b => b.onclick = () => startHomeExample(b.dataset.homeExample));
+  main.querySelectorAll('[data-home-strip]').forEach(b => b.onclick = () => { if (typeof openRunFromId === 'function') openRunFromId(b.dataset.homeStrip); });
   main.querySelectorAll('[data-home-suggest]').forEach(b => b.onclick = () => {
     const s = HOME_CHAT_SUGGESTIONS[Number(b.dataset.homeSuggest)];
     const el = $('#homeChatInput');
@@ -542,6 +606,24 @@ function bindHomeChat() {
   });
 }
 
+async function homeFileParseNote(file) {
+  const name = String(file?.name || '');
+  const mime = String(file?.mime || file?.type || '');
+  try {
+    if (/^image\//.test(mime) || /\.(png|jpe?g|gif|webp)$/i.test(name)) return '已理解：1 页';
+    if (mime === 'application/pdf' || /\.pdf$/i.test(name)) {
+      const raw = new TextDecoder('latin1').decode(await file.slice(0, 1500000).arrayBuffer());
+      const pages = (raw.match(/\/Type\s*\/Page(?![a-zA-Z])/g) || []).length;
+      return `已理解：${pages || 1} 页`;
+    }
+    if (/^text\//.test(mime) || /\.(md|txt|csv|json|log|ya?ml|xml|html?)$/i.test(name)) {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(line => line.trim()).length;
+      return `已理解：${lines || 1} 行`;
+    }
+  } catch (e) {}
+  return '已理解：1 份';
+}
 async function homeChatAddFiles(list) {
   const chat = ensureHomeChatState();
   const room = HOME_CHAT_MAX_FILES - chat.files.length;
@@ -551,7 +633,7 @@ async function homeChatAddFiles(list) {
   const accepted = [];
   for (const file of picked) {
     if (file.size > HOME_CHAT_MAX_BYTES) { toast(`${file.name} 超过 20 MB`, 'err'); continue; }
-    const entry = { name: file.name || 'pasted.png', size: file.size, mime: file.type, uploading: true };
+    const entry = { name: file.name || 'pasted.png', size: file.size, mime: file.type, uploading: true, note: '正在上传并识别…' };
     chat.files.push(entry);
     accepted.push([file, entry]);
   }
@@ -562,10 +644,20 @@ async function homeChatAddFiles(list) {
   try {
     const resp = await fetch('/api/assistant/files', { method: 'POST', body: form });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
-    (data.files || []).forEach((meta, i) => { const entry = accepted[i]?.[1]; if (entry) Object.assign(entry, meta, { uploading: false }); });
+    if (!resp.ok) {
+      const err = new Error(data.error || `HTTP ${resp.status}`);
+      err.code = data.code || '';
+      err.action = data.action || '';
+      throw err;
+    }
+    await Promise.all((data.files || []).map(async (meta, i) => {
+      const pair = accepted[i];
+      if (!pair) return;
+      const note = await homeFileParseNote(pair[0]);
+      Object.assign(pair[1], meta, { uploading: false, note });
+    }));
   } catch (err) {
-    accepted.forEach(([, entry]) => { entry.uploading = false; entry.error = err.message; });
+    accepted.forEach(([, entry]) => { entry.uploading = false; entry.error = err.message; entry.note = (err.code ? err.code + ' · ' : '') + '没能识别这个附件'; });
     toast('上传失败：' + err.message, 'err');
   }
   if (activeViewName() === 'chat') renderHomeChatMain();
@@ -761,13 +853,20 @@ async function homeChatSend() {
     attachments: files.map(f => ({ id: f.id, name: f.name, mime: f.mime, size: f.size })),
     refs: chat.refs.map(r => ({ type: 'issue', id: r.id, title: r.title })),
   };
-  Object.assign(chat, { draft: '', files: [], refs: [], notes: [] });
   homeChatPush(message);
+  if (typeof onboardingMark === 'function' && (text || files.length)) onboardingMark('ask');
   if (!homeChatHasModelKey()) {
+    Object.assign(chat, { draft: '', files: [], refs: [], notes: [] });
     homeChatPush({ role: 'assistant', kind: 'notice', text: '还没配置 CodeBuddy Key，我暂时没法读代码、查数据、追问需求。配好后再发一次就行；也可以先跑一遍演示 SOP 看完整流程，它不调模型。', actions: [{ id: 'settings-models', label: '去配置模型 Key', primary: true }, { id: 'demo', label: '先跑演示' }] });
     return renderHomeChatMain();
   }
   await homeChatAsk();
+  const last = chat.messages[chat.messages.length - 1];
+  if (last && last.kind !== 'error' && last.kind !== 'notice') {
+    Object.assign(chat, { draft: '', files: [], refs: [], notes: [] });
+    persistHomeChat();
+    if (activeViewName() === 'chat') renderHomeChatMain();
+  }
 }
 
 function homeChatRetry() {
@@ -1010,6 +1109,7 @@ async function homeChatLaunchCrew(card, m, project) {
     l.issueId = mission.issueId || '';
     homeChatPush({ role: 'assistant', kind: 'launched', crew: true, roomId, roomName, title, issueId: mission.issueId || '' });
     homeChatNote(`用户把「${title}」交给了协作群「${roomName}」的 Bot 团队自由协作，需求 ${mission.issueId || ''}`);
+    if (typeof onboardingMark === 'function') { onboardingMark('ask'); onboardingMark('crew'); }
     homeChatMarkLaunchDone(chat.sessionId, origin, { id: mission.issueId || '', title });
   } catch (err) {
     if (button) { button.disabled = false; button.textContent = '交给群聊开工'; }

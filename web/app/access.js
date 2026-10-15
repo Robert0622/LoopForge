@@ -267,24 +267,28 @@ async function revokePersonalToken(id){
 
 
 let commandMatches=[],commandSelectedIndex=0;
+let commandFilter='全部';
+const COMMAND_FILTERS=['全部','动作','跳转','设置'];
+function cycleCommandFilter(){commandFilter=COMMAND_FILTERS[(COMMAND_FILTERS.indexOf(commandFilter)+1)%COMMAND_FILTERS.length];renderCommandResults()}
 function commandCatalog(){
-  const pages=[['chat','首页','和平台助手对话：提需求、问进度、处理待确认'],['issues','需求列表','查看进度，触发或重试'],['approvals','待我确认','批准或退回卡住的需求'],['sops','流程模板','Issue 修复与需求开发'],['runs','运行记录','查看节点日志和产物'],['metrics','研发效能','产能、效率、质量、成本与自动化看板'],['agents','角色定义','管理角色和能力资产'],['mcp','MCP 管理','添加项目级或个人自定义 MCP'],['rules','规则管理','当前项目的行为与执行约束'],['skills','技能管理','当前项目的技能和附加文件'],['dockerfiles','Dockerfile','管理项目容器构建定义'],['environments','环境安装脚本','管理隔离环境的工具安装脚本'],['sandboxes','沙箱管理','管理项目运行隔离策略'],['observability','用量分析','Token 与质量'],['businessDomains','业务域','分类管理与跨项目汇报'],['projects','项目配置','项目、成员和仓库'],['guide','接入指南','最小接入配置、MCP 或 REST API 接入']].map(([view,title,meta])=>({kind:'页面',title,meta,action:()=>switchView(view)}));
+  const pages=[['chat','首页','和平台助手对话：提需求、问进度、处理待确认'],['rooms','群聊','Bot 分工、交接、续跑'],['issues','SOP 运行','进行中、待确认、已完成和需求'],['approvals','待我确认','批准或退回卡住的需求'],['sops','流程','SOP 模板与设计'],['runs','运行记录','查看节点日志和产物'],['metrics','运行洞察','产能、效率、质量与自动化'],['agents','Bot','角色和能力'],['mcp','MCP','添加项目级或个人自定义 MCP'],['rules','规则','当前项目的行为与执行约束'],['skills','技能','当前项目的技能和附加文件'],['sandboxes','环境','沙箱、Dockerfile 和安装脚本'],['observability','成本','Token 与质量'],['knowledge','知识库','团队知识与引用'],['businessDomains','业务域','分类管理与跨项目汇报'],['projects','项目','项目、成员和仓库'],['settings','个人设置','模型 Key 与账号'],['guide','接入指南','MCP 或 REST API 接入'],['gallery','组件','按钮、对话框、状态和空态']].map(([view,title,meta])=>{const kind=view==='rooms'?'群聊':view==='sops'?'SOP':view==='agents'?'Bot':'页面';return {kind,group:'跳转',title,meta,action:()=>switchView(view)}});
   const issues=(state.data.issues||[]).map(i=>({kind:'需求',title:i.title,meta:`${i.priority||'—'} · ${issueStatusLabel(i.status)}`,action:()=>openIssueDetail(i.id)}));
   const runs=(state.data.runs||[]).map(r=>({kind:'运行',title:runIssueTitle(r),meta:`${runDisplayStatus(r)} · ${r.workflowSnapshot?.name||r.workflowId}`,action:()=>openRunFromId(r.id)}));
   const sops=catalogWorkflows().map(w=>({kind:'SOP',title:w.name,meta:`${w.status==='published'?'已发布':'草稿'} · ${w.nodes?.length||0} 个节点`,action:()=>{state.workflow=clone(w);state.selectedNode=null;switchView('flow')}}));
-  const agents=(state.data.agents||[]).map(a=>({kind:'Agent',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
+  const agents=(state.data.agents||[]).map(a=>({kind:'Bot',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
   const waiting=typeof approvalItems==='function'?approvalItems():[];
   const approve=waiting.slice(0,3).map(r=>{const nodeId=waitingNodeId(r),node=(r.workflowSnapshot?.nodes||(state.data.workflows||[]).find(w=>w.id===r.workflowId)?.nodes||[]).find(n=>n.id===nodeId);return {kind:'审批',title:`通过：${runIssueTitle(r)}`,meta:`停在「${node?.name||nodeId||'确认'}」· 继续下游`,action:()=>nodeId?approveRun(r.id,nodeId):openRunFromId(r.id)}});
   const actions=[
-    ...approve,
-    {kind:'操作',title:'新建需求',meta:'写清楚要做什么，选 SOP 开跑',action:()=>openRequirementWizard()},
-    {kind:'操作',title:'问助手',meta:'回首页和平台助手对话',action:()=>{switchView('chat');setTimeout(()=>$('#homeChatInput')?.focus(),60)}},
-    ...(typeof quickstartDemoAvailable==='function'&&quickstartDemoAvailable()?[{kind:'操作',title:'跑一遍演示',meta:'约 30 秒，不调模型，停在「确认方案」等你',action:()=>startDemoRequirement(null)}]:[]),
-    {kind:'操作',title:'新建 SOP',meta:'创建流程草稿',action:openSOPWizard},
-    {kind:'操作',title:'切换深色 / 亮色',meta:'当前：'+(document.documentElement.dataset.theme==='light'?'亮色':'深色'),action:toggleTheme},
-    {kind:'操作',title:'Switch to English / 切换到中文',meta:'中文 ⇄ English',action:()=>window.lfSetLang&&window.lfSetLang(window.lfLang&&window.lfLang()==='en'?'zh':'en')},
+    ...approve.map(x=>({...x,group:'动作'})),
+    {kind:'操作',group:'动作',title:'新建需求',meta:'写清楚要做什么，选 SOP 开跑',action:()=>openRequirementWizard()},
+    {kind:'操作',group:'动作',title:'问助手',meta:'回首页和平台助手对话',action:()=>{switchView('chat');setTimeout(()=>$('#homeChatInput')?.focus(),60)}},
+    ...(typeof quickstartDemoAvailable==='function'&&quickstartDemoAvailable()?[{kind:'操作',group:'动作',title:'跑一遍演示',meta:'约 30 秒，不调模型，停在「确认方案」等你',action:()=>startDemoRequirement(null)}]:[]),
+    {kind:'操作',group:'动作',title:'新建 SOP',meta:'创建流程草稿',action:openSOPWizard},
+    {kind:'操作',group:'设置',title:'切换到暗色模式',meta:'当前：'+(document.documentElement.dataset.theme==='light'?'亮色':'深色'),action:toggleTheme},
+    {kind:'操作',group:'设置',title:'配置模型 API Key',meta:'个人设置 · 模型',action:()=>typeof openSettings==='function'?openSettings('models'):switchView('settings')},
+    {kind:'操作',group:'设置',title:'Switch to English / 切换到中文',meta:'中文 ⇄ English',action:()=>window.lfSetLang&&window.lfSetLang(window.lfLang&&window.lfLang()==='en'?'zh':'en')},
   ];
-  return [...actions,...pages,...issues,...runs,...sops,...agents];
+  return [...actions,...pages,...issues.map(x=>({...x,group:'跳转'})),...runs.map(x=>({...x,group:'跳转'})),...sops.map(x=>({...x,group:'跳转'})),...agents.map(x=>({...x,group:'跳转'}))];
 }
 function openCommandPalette(){const host=$('#commandPalette');host.hidden=false;$('#commandSearch').value='';renderCommandResults();requestAnimationFrame(()=>$('#commandSearch').focus())}
 function closeCommandPalette(){$('#commandPalette').hidden=true}
@@ -294,18 +298,53 @@ function moveCommandSelection(delta){
   highlightCommandSelection();
 }
 function highlightCommandSelection(){
-  $$('#commandResults [data-command-index]').forEach((el,i)=>{
-    el.classList.toggle('selected',i===commandSelectedIndex);
-    if(i===commandSelectedIndex)el.scrollIntoView({block:'nearest'});
+  $$('#commandResults [data-command-index]').forEach(el=>{
+    const on=Number(el.dataset.commandIndex)===commandSelectedIndex;
+    el.classList.toggle('selected',on);
+    if(on)el.scrollIntoView({block:'nearest'});
   });
+}
+function commandRowHTML(item,index){return `<button data-command-index="${index}" class="${index===commandSelectedIndex?'selected':''}"><span class="command-kind">${escapeHTML(item.kind)}</span><span><b>${escapeHTML(item.title)}</b><small>${escapeHTML(item.meta||'')}</small></span><em>↵</em></button>`}
+function commandRecentItems(){
+  let rows=[];
+  try{rows=JSON.parse(localStorage.getItem('loopforge.cmd.recent')||'[]')}catch(e){rows=[]}
+  const catalog=commandCatalog();
+  return rows.map(row=>catalog.find(item=>item.title===row.title&&item.kind===row.kind)).filter(Boolean).slice(0,5);
+}
+function commandRemember(item){
+  if(!item?.title)return;
+  let rows=[];
+  try{rows=JSON.parse(localStorage.getItem('loopforge.cmd.recent')||'[]')}catch(e){rows=[]}
+  rows=[{kind:item.kind,title:item.title},...rows.filter(row=>!(row.title===item.title&&row.kind===item.kind))].slice(0,6);
+  try{localStorage.setItem('loopforge.cmd.recent',JSON.stringify(rows))}catch(e){}
+}
+function renderCommandHome(){
+  const recent=commandRecentItems();
+  const common=commandCatalog().filter(item=>(item.group||'')==='动作').slice(0,6);
+  commandMatches=[...recent,...common];
+  commandSelectedIndex=0;
+  let html='<div class="command-group">最近</div>';
+  html+=recent.length?recent.map((item,index)=>commandRowHTML(item,index)).join(''):'<div class="command-empty"><b>还没有最近打开的页面</b><span>从下面的常用动作开始，或输入关键词搜索群聊、SOP 和 Bot。</span></div>';
+  html+='<div class="command-group">常用动作</div>';
+  html+=common.map((item,index)=>commandRowHTML(item,recent.length+index)).join('');
+  $('#commandResults').innerHTML=html;
 }
 function renderCommandResults(){
   const q=$('#commandSearch').value.trim().toLowerCase();
-  commandMatches=commandCatalog().filter(x=>!q||`${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)).slice(0,q?12:9);
+  if(!q&&commandFilter==='全部'){renderCommandHome();return}
+  const pool=commandCatalog().filter(x=>(commandFilter==='全部'||(x.group||'跳转')===commandFilter)&&(!q||`${x.group||''} ${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)));
+  const grouped=['动作','跳转','设置'].flatMap(group=>pool.filter(x=>(x.group||'跳转')===group));
+  commandMatches=grouped.slice(0,q?16:12);
   commandSelectedIndex=0;
-  $('#commandResults').innerHTML=commandMatches.length
-    ?commandMatches.map((x,i)=>`<button data-command-index="${i}" class="${i===0?'selected':''}"><span class="command-kind">${escapeHTML(x.kind)}</span><span><b>${escapeHTML(x.title)}</b><small>${escapeHTML(x.meta||'')}</small></span><em>↵</em></button>`).join('')
-    :`<div class="command-empty"><b>没有匹配结果</b><span>换一个标题、编号或页面名称试试</span></div>`;
+  const groups=['动作','跳转','设置'];
+  let html='';
+  groups.forEach(group=>{
+    const rows=commandMatches.map((item,index)=>({item,index})).filter(row=>(row.item.group||'跳转')===group);
+    if(!rows.length)return;
+    html+=`<div class="command-group">${group}</div>`;
+    html+=rows.map(({item,index})=>commandRowHTML(item,index)).join('');
+  });
+  $('#commandResults').innerHTML=html||`<div class="command-empty"><b>没有匹配结果</b><span>当前筛选：${escapeHTML(commandFilter)}。按 Tab 换一组，或换个关键词。</span></div>`;
 }
-function executeCommand(index){const item=commandMatches[index];if(!item)return;closeCommandPalette();item.action()}
+function executeCommand(index){const item=commandMatches[index];if(!item)return;commandRemember(item);closeCommandPalette();item.action()}
 

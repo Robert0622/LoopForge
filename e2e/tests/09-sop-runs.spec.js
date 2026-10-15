@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { watchErrors, login, visibleButton, api, waitForRun, closeDrawer, useScriptProject } = require('./helpers');
+const { watchErrors, login, visibleButton, api, waitForRun, closeDrawer, useScriptProject, openView } = require('./helpers');
 
 async function createBlankSOP(page, name) {
   await useScriptProject(page);
@@ -70,7 +70,7 @@ test('a shell SOP designed in the editor runs in the local sandbox and keeps its
   expect(artifact).toContain('e2e-browser-marker');
 
   await closeDrawer(page);
-  await page.locator('.nav[data-view="runs"]').click();
+  await openView(page, 'runsDone');
   await expect(page.locator('#runList')).toContainText('浏览器：脚本 SOP 真跑');
   await page.locator('.run-card', { hasText: '浏览器：脚本 SOP 真跑' }).click();
   await expect(page.locator('#runsDetailSection, #runDetail, .run-detail-main').first()).toBeVisible();
@@ -100,7 +100,7 @@ test('an approval gate stops a real run until 待我确认 lets it continue', as
   const task = (await api(page, '/api/tasks')).find(item => item.issueId === issue.id);
 
   await closeDrawer(page);
-  await page.locator('.nav[data-view="approvals"]').click();
+  await openView(page, 'approvals');
   const card = page.locator('#approvalList .ap-card', { hasText: '浏览器：审批后继续' });
   await expect(card).toBeVisible();
   await card.locator('button', { hasText: '确认通过，继续下游' }).click();
@@ -137,7 +137,7 @@ test('a script that exits non-zero fails the run and can be cancelled while slee
   const task = (await api(page, '/api/tasks')).find(item => item.issueId === issue.id);
   await waitForRun(page, task.runId, /running/);
   await closeDrawer(page);
-  await page.locator('.nav[data-view="runs"]').click();
+  await openView(page, 'runs');
   await page.locator('.run-card', { hasText: '浏览器：取消睡眠' }).click();
   await page.locator('[data-cancel-run]').click();
   await page.locator('#confirmOkBtn').click();

@@ -220,7 +220,7 @@ function setObsTrendMetric(metric){
 }
 function obsTrendChart(points,metric){
   const list=obsTrendWindow(points);
-  if(!list.length)return `<div class="detail-empty">暂无趋势</div>`;
+  if(!list.length)return obsEmpty('还没有趋势','至少完成一次运行后，这里按所选时段汇总。','chat','从首页发一条需求');
   const w=760,h=210,l=52,r=18,t=16,b=36;
   const values=list.map(p=>obsTrendValue(p,metric));
   const max=Math.max(1,...values);
@@ -317,11 +317,12 @@ async function switchObsTab(tab){
   $$('#obsTabs .obs-tab').forEach(x=>x.classList.toggle('active',x.dataset.obsTab===tab));
   if(tab==='delivery'&&!state.obsAnalyticsFull){
     const host=$('#obsBody');
-    if(host)host.innerHTML=`<div class="obs-pane active"><div class="detail-empty">正在加载交付数据…</div></div>`;
+    if(host)host.innerHTML=`<div class="obs-pane active"><div class="detail-empty">正在汇总交付数据…</div></div>`;
     try{
       state.analytics=await api('/api/analytics'+analyticsQuery({overview:false}),{silent:true});
       state.obsAnalyticsFull=true;
-    }catch(e){toast(e.message)}
+      state.obsError='';
+    }catch(e){state.obsError=e.message||'交付数据没有加载出来';toast(state.obsError,'err')}
   }
   renderObservability();
 }
@@ -330,15 +331,16 @@ async function refreshObs(){
   refreshObsPending=(async()=>{
     ensureObsUserFilter();
     const host=$('#obsBody');
-    if(host)host.innerHTML=`<div class="obs-pane active"><div class="detail-empty">正在加载用量数据…</div></div>`;
+    if(host)host.innerHTML=`<div class="obs-pane active"><div class="detail-empty">正在汇总这段时间的用量…</div></div>`;
     state.obsAnalyticsFull=false;
     try{
       const opt={silent:true};
       const overview=state.obsTab!=='delivery';
       const analytics=await api('/api/analytics'+analyticsQuery({overview}),opt);
       state.analytics=analytics;
+      state.obsError='';
       if(!overview)state.obsAnalyticsFull=true;
-    }catch(e){toast(e.message)}
+    }catch(e){state.obsError=e.message||'用量没有加载出来';toast(state.obsError,'err')}
     finally{refreshObsPending=null}
     renderObservability();
     refreshObsCrossProject().then(()=>{if(activeViewName()==='observability')renderObservability()});
@@ -472,10 +474,13 @@ function obsUserTotals(){
   }
   return Object.values(bag).sort((a,b)=>(b.tokens-a.tokens)||(b.runs-a.runs));
 }
+function obsEmpty(title,hint,view,label){
+  return `<div class="lf-callout"><b>${title}</b><p>${hint}</p><button type="button" class="button primary small" data-jump="${view}">${label}</button></div>`;
+}
 function obsTableCard(title,sub,headers,rows,colspan,pageKey){
   const list=Array.isArray(rows)?rows:(rows?[rows]:[]);
   const paged=pageKey?paginateList(pageKey,list):{items:list,total:list.length,size:list.length||1,page:1,pages:1,start:0,end:list.length};
-  const body=paged.items.join('')||`<tr><td colspan="${colspan||headers.length}" class="detail-empty">暂无数据</td></tr>`;
+  const body=paged.items.join('')||`<tr><td colspan="${colspan||headers.length}" class="detail-empty">${obsEmpty('这段时间还没有数据','跑一条 SOP 之后，成本和成功率会出现在这里。','issues','去 SOP 运行')}</td></tr>`;
   return `<div class="obs-card" style="margin-bottom:14px"><div class="obs-card-title">${title}${sub?`<span class="sub">${sub}</span>`:''}</div><table class="obs-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pageKey?pagerHTML(pageKey,paged):''}</div>`;
 }
 // costLabel 区分"成本为 0"与"成本未识别"，未识别时展示占位而不是 ¥0。
@@ -487,13 +492,20 @@ function costLabel(value,known){
 function renderObservability(){
   ensureObsUserFilter();
   const host=$('#obsBody');if(!host)return;
+  if(state.obsError&&!state.analytics){
+    host.innerHTML=`<div class="obs-pane active"><div class="lf-callout"><b>用量没有加载出来</b><p>${escapeHTML(state.obsError)}</p><button type="button" class="button primary" id="obsRetry">重试</button></div></div>`;
+    host.querySelector('#obsRetry').onclick=()=>refreshObs();
+    return;
+  }
   state.obsTab=obsNormalizeTab(state.obsTab);
   $$('#obsTabs .obs-tab').forEach(b=>b.classList.toggle('active',b.dataset.obsTab===state.obsTab));
   const summary=state.analytics?.summary||{};
   $('#obsLiveState').classList.toggle('active',((summary.activeRuns||0)+(summary.waitingRuns||0))>0);
   const tab=state.obsTab;
   const html=tab==='delivery'?obsDelivery():obsOverview();
-  host.innerHTML=`<div class="obs-pane active">${obsFilterBar()}${html}</div>`;
+  const err=state.obsError?`<div class="lf-callout"><b>这次刷新没成功</b><p>${escapeHTML(state.obsError)}</p><button type="button" class="button primary small" id="obsRetry">重试</button></div>`:'';
+  host.innerHTML=`<div class="obs-pane active">${err}${obsFilterBar()}${html}</div>`;
+  host.querySelector('#obsRetry')?.addEventListener('click',()=>refreshObs());
   bindUserSearches(host);
   host.querySelectorAll('[data-obs-scope]').forEach(b=>b.onclick=()=>setObsScope(b.dataset.obsScope));
   host.querySelectorAll('[data-obs-grain]').forEach(b=>b.onclick=()=>setObsTrendGrain(b.dataset.obsGrain));
@@ -604,12 +616,12 @@ function obsOverview(){
       ${obsDeltaChip(issueDelta)||''}
     </div>
     ${obsTrendChart(trend,metric)}
-    <table class="obs-table obs-trend-table"><thead><tr><th>${grainName}</th><th>运行</th><th>需求</th><th>成功</th><th>失败</th><th>Tokens</th><th>输入 / 输出</th><th>成本</th><th>执行耗时</th><th></th></tr></thead><tbody>${trendRows||'<tr><td colspan="10" class="detail-empty">暂无趋势</td></tr>'}</tbody></table>
+    <table class="obs-table obs-trend-table"><thead><tr><th>${grainName}</th><th>运行</th><th>需求</th><th>成功</th><th>失败</th><th>Tokens</th><th>输入 / 输出</th><th>成本</th><th>执行耗时</th><th></th></tr></thead><tbody>${trendRows||`<tr><td colspan="10" class="detail-empty">${obsEmpty('还没有趋势','完成一次运行后，这里会按天汇总。','chat','从首页发一条需求')}</td></tr>`}</tbody></table>
   </div>
   ${obsCrossProjectCard()}
   <div class="obs-split">
-    <div class="obs-card"><div class="obs-card-title">质量信号<span class="sub">失败优先处理</span></div><div class="obs-signal-row"><div><b>${failed}</b><span>失败</span></div><div><b>${reworked}</b><span>返工</span></div><div><b>${cancelled}</b><span>取消</span></div></div><table class="obs-table"><thead><tr><th>最近失败</th><th>状态</th><th>时间</th></tr></thead><tbody>${failRows||'<tr><td colspan="3" class="detail-empty">没有失败运行</td></tr>'}</tbody></table></div>
-    <div class="obs-card"><div class="obs-card-title">最近运行<span class="sub">点击打开对应需求</span></div><table class="obs-table"><thead><tr><th>需求 / 流程</th><th>状态</th><th>耗时</th><th>Tokens</th><th>成本</th></tr></thead><tbody>${recent||'<tr><td colspan="5" class="detail-empty">暂无运行</td></tr>'}</tbody></table></div>
+    <div class="obs-card"><div class="obs-card-title">质量信号<span class="sub">失败优先处理</span></div><div class="obs-signal-row"><div><b>${failed}</b><span>失败</span></div><div><b>${reworked}</b><span>返工</span></div><div><b>${cancelled}</b><span>取消</span></div></div><table class="obs-table"><thead><tr><th>最近失败</th><th>状态</th><th>时间</th></tr></thead><tbody>${failRows||'<tr><td colspan="3" class="detail-empty">这段时间没有失败运行。</td></tr>'}</tbody></table></div>
+    <div class="obs-card"><div class="obs-card-title">最近运行<span class="sub">点击打开对应需求</span></div><table class="obs-table"><thead><tr><th>需求 / 流程</th><th>状态</th><th>耗时</th><th>Tokens</th><th>成本</th></tr></thead><tbody>${recent||`<tr><td colspan="5" class="detail-empty">${obsEmpty('还没有运行','从首页说清楚要做什么，或直接去 SOP 运行开一条。','issues','去 SOP 运行')}</td></tr>`}</tbody></table></div>
   </div>
   ${obsTableCard('SOP 一览','成功率、返工、取消和各流程占了多少 Token / 成本',['SOP','运行','成功率','返工率','取消率','Tokens','输入 / 输出','Token 占比','成本','成本占比','均执行'],wfRows,11)}
   ${obsTableCard('各模型用量','每个模型花了多少 Token 和钱',['模型','调用','Tokens','输入 / 输出','Token 占比','成本','成本占比','成功率','均执行'],modelRows,9)}
@@ -659,7 +671,7 @@ function obsDelivery(){
     {label:'平均端到端耗时',value:d.averageDurationMs?duration(d.averageDurationMs):'—',foot:`累计 ${formatTokens(d.totalTokens||0)} tokens`,color:'#38bdf8'},
     {label:'人均周吞吐',value:summary.weeklyActiveContributors?Number(summary.weeklyThroughputPerUser||0).toFixed(2):'—',foot:`近 7 天 ${summary.weeklyDeliveredIssues||0} 个交付 / ${summary.weeklyActiveContributors||0} 人`,color:'#34d399'},
     {label:'每需求平均执行次数',value:summary.runsPerIssue!=null?Number(summary.runsPerIssue).toFixed(2):'—',foot:`失败 ${summary.failuresPerIssue!=null?Number(summary.failuresPerIssue).toFixed(2):'—'} 次/需求 · 进行中 ${summary.inProgressIssues||0} 个`,color:'#fbbf24'},
-  ])+`<div class="obs-card" style="margin-bottom:14px"><div class="obs-card-title">需求 / GitHub Issue<span class="sub">耗时为该需求最近一次执行的端到端时间；执行耗时 = 该需求全部执行按 SOP 节点求和；周期为首次执行到最后一次执行。「已合入 / 已交付」只统计默认分支。</span></div><div class="obs-tabs" style="margin:0 0 10px">${chips}</div><table class="obs-table"><thead><tr><th>单号</th><th>标题</th><th>SOP</th><th>流程</th><th>端到端</th><th>执行耗时</th><th>周期</th><th>执行次数</th><th>负责人</th><th>Tokens</th><th>成本</th><th>PR</th><th>交付</th></tr></thead><tbody>${rows||'<tr><td colspan="13" class="detail-empty">还没有带需求上下文的运行</td></tr>'}</tbody></table>${pagerHTML('obs-deliveries',pagedDeliveries)}</div>`;
+  ])+`<div class="obs-card" style="margin-bottom:14px"><div class="obs-card-title">需求 / GitHub Issue<span class="sub">耗时为该需求最近一次执行的端到端时间；执行耗时 = 该需求全部执行按 SOP 节点求和；周期为首次执行到最后一次执行。「已合入 / 已交付」只统计默认分支。</span></div><div class="obs-tabs" style="margin:0 0 10px">${chips}</div><table class="obs-table"><thead><tr><th>单号</th><th>标题</th><th>SOP</th><th>流程</th><th>端到端</th><th>执行耗时</th><th>周期</th><th>执行次数</th><th>负责人</th><th>Tokens</th><th>成本</th><th>PR</th><th>交付</th></tr></thead><tbody>${rows||`<tr><td colspan="13" class="detail-empty">${obsEmpty('还没有带需求上下文的运行','先在 SOP 运行里开一条带需求的执行，交付和成本会记在这里。','issues','去 SOP 运行')}</td></tr>`}</tbody></table>${pagerHTML('obs-deliveries',pagedDeliveries)}</div>`;
 }
 function obsPlain(v){return String(v==null?'':v).replace(/<[^>]+>/g,'')}
 function obsReportScope(){

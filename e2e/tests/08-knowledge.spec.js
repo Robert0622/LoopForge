@@ -8,7 +8,7 @@ test('an admin connects a knowledge base without the token appearing in the page
   await page.locator('.nav[data-view="knowledge"]').click();
   const view = page.locator('#knowledgeView');
   await expect(view).toBeVisible();
-  await expect(page.locator('#pageTitle')).toHaveText('知识中心');
+  await expect(page.locator('#pageTitle')).toHaveText('知识库');
   await expect(view).toContainText('未接入');
   for (const tab of ['接入配置', '节点使用', '知识沉淀', '检索试用']) {
     await expect(view.locator(`[data-kb-tab]`).filter({ hasText: tab })).toBeVisible();

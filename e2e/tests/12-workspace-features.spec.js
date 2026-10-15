@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { ADMIN, watchErrors, login, visibleButton, api, closeDrawer, useScriptProject } = require('./helpers');
+const { ADMIN, watchErrors, login, visibleButton, api, closeDrawer, useScriptProject, openView } = require('./helpers');
 
 async function openIssue(page, title) {
   await page.locator('.nav[data-view="issues"]').click();
@@ -54,7 +54,7 @@ test('first login tours the sidebar and ends on the settings page that still nee
   await expect(page.locator('#onboarding')).toBeHidden();
   await expect(page.locator('#setupWizard')).toHaveCount(0);
 
-  await page.locator('.nav[data-view="guide"]').click();
+  await openView(page, 'guide');
   await page.locator('#replayOnboarding').click();
   await expect(page.locator('#onboardingKicker')).toHaveText('1 / 6');
   await page.keyboard.press('Escape');
@@ -68,8 +68,8 @@ test('the chat page demo shows progress in the side panel', async ({ page }) => 
   await login(page);
   await page.locator('.nav[data-view="chat"]').click();
   const home = page.locator('#homeChat');
-  await expect(home.locator('.hc-key-hint')).toBeVisible();
-  await home.locator('.hc-key-hint [data-chat-action="demo"]').click();
+  await expect(home.locator('.hc-key-line')).toBeVisible();
+  await home.locator('.hc-key-line [data-chat-action="demo"]').click();
   await expect(home.locator('.hc-msg.is-bot').last()).toContainText('已按「演示交付流程」开跑', { timeout: 15_000 });
   await expect(page.locator('#issueDetailDrawer')).toBeHidden();
 
@@ -97,7 +97,7 @@ test('the chat page demo shows progress in the side panel', async ({ page }) => 
 test('the quick-start demo button runs the demo SOP end to end', async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
-  await page.locator('.nav[data-view="guide"]').click();
+  await openView(page, 'guide');
   const quickstart = page.locator('#quickstartCard');
   await expect(quickstart).toBeVisible();
   await expect(quickstart).toContainText('先体验一遍');
@@ -108,10 +108,14 @@ test('the quick-start demo button runs the demo SOP end to end', async ({ page }
   await expect(visibleButton(page, '确认通过，继续下游')).toBeVisible({ timeout: 30_000 });
   await visibleButton(page, '确认通过，继续下游').click();
   await expect(drawer).toContainText('已完成', { timeout: 30_000 });
+  await expect.poll(async () => {
+    const runs = await api(page, '/api/runs');
+    return runs.some(run => run.status === 'succeeded' && (run.workflowId === 'demo-delivery' || run.workflowSnapshot?.id === 'demo-delivery'));
+  }, { timeout: 30_000 }).toBe(true);
   await closeDrawer(page);
 
   await page.locator('.nav[data-view="issues"]').click();
-  await page.locator('.nav[data-view="guide"]').click();
+  await openView(page, 'guide');
   await expect(quickstart.locator('.qs-demo .qs-step.is-done')).toHaveCount(2, { timeout: 15_000 });
   expect(errors).toEqual([]);
 });
@@ -166,7 +170,7 @@ test('a business domain is created, assigned to a project and reported', async (
   await login(page);
   await useProject(page, 'e2e-bd-ui', '业务域浏览器项目');
 
-  await page.locator('.nav[data-view="businessDomainManagement"]').click();
+  await openView(page, 'businessDomainManagement');
   await expect(page.locator('#pageTitle')).toHaveText('领域管理');
   const form = page.locator('#businessDomainForm');
   await expect(form).toBeVisible();
@@ -178,7 +182,7 @@ test('a business domain is created, assigned to a project and reported', async (
   await expect(page.locator('#toastContainer')).toContainText('业务域已保存');
   await expect(page.locator('[data-business-domain="e2e-ui-growth"]')).toBeVisible();
 
-  await page.locator('.nav[data-view="projects"]').click();
+  await openView(page, 'projects');
   const projectForm = page.locator('#projectAdminForm');
   await expect(projectForm.locator('[name=id]')).toHaveValue('e2e-bd-ui');
   await projectForm.locator('#projectBusinessDomainSelect').selectOption('e2e-ui-growth');
@@ -187,7 +191,7 @@ test('a business domain is created, assigned to a project and reported', async (
   const history = await api(page, '/api/projects/e2e-bd-ui/business-domain/history');
   expect(JSON.stringify(history)).toContain('e2e-ui-growth');
 
-  await page.locator('.nav[data-view="businessDomains"]').click();
+  await openView(page, 'businessDomains');
   await expect(page.locator('#pageTitle')).toHaveText('业务领域');
   const filter = page.locator('#businessReportFilter');
   await expect(filter.locator('select[name=scope] option[value="e2e-ui-growth"]')).toHaveCount(1);
@@ -204,7 +208,7 @@ test('usage analytics manages external sources and filters by execution origin',
   await login(page);
   await useProject(page, 'e2e-ext-ui', '外部数据源浏览器项目');
   await page.locator('.nav[data-view="observability"]').click();
-  await expect(page.locator('#pageTitle')).toHaveText('用量分析');
+  await expect(page.locator('#pageTitle')).toHaveText('成本');
 
   await page.locator('#obsManageSources').click();
   const dialog = page.locator('dialog.obs-source-dialog');
@@ -311,8 +315,10 @@ test('a room lists only SOPs and expands the remainder on demand', async ({ page
   await page.locator('#confirmPromptInput').fill('浏览器 SOP 列表群');
   await page.locator('#confirmOkBtn').click();
   await expect(page.locator('#roomTitle')).toContainText('浏览器 SOP 列表群');
+  await page.locator('#toggleRoomInfo').click();
 
   const list = page.locator('#roomSOPList');
+  await expect(list).toBeVisible();
   await expect(list.locator('[data-room-pick]')).toHaveCount(4);
   const expand = list.locator('[data-room-sop-expand="expand"]');
   await expect(expand).toHaveText(/^展开其余 \d+ 条$/);
@@ -340,7 +346,7 @@ test('switching projects never shows the previous project metrics', async ({ pag
     if (url.pathname === '/api/analytics' && url.searchParams.get('requirementsOnly') === '1') seen.push(url.searchParams.get('projectId'));
   });
   await page.locator('.nav[data-view="metrics"]').click();
-  await expect(page.locator('#pageTitle')).toHaveText('研发效能');
+  await expect(page.locator('#pageTitle')).toHaveText('运行洞察');
   await expect.poll(() => seen.includes('e2e-script')).toBe(true);
 
   await page.locator('#projectSwitcher').selectOption('platform');

@@ -7,16 +7,19 @@ test('the home page is the chat: no dashboard, attachments, @ mentions and no su
   await expect(page.locator('#pageTitle')).toHaveText('首页');
   await expect(page.locator('#dashboardView')).toHaveCount(0);
   const home = page.locator('#homeChat');
-  await expect(home.locator('.hc-brand')).toHaveText('LoopForge');
+  await expect(home.locator('.hc-headline')).toHaveText('今天想交付什么？');
   await expect(page.locator('#homeChatInput')).toBeVisible();
   await expect(home.locator('#hcRuns')).toContainText('正在运行');
   await page.goto('/#/dashboard');
   await expect(page.locator('#pageTitle')).toHaveText('首页');
 
-  const cards = home.locator('[data-home-sop]');
-  expect(await cards.count()).toBeGreaterThan(1);
-  await cards.nth(1).click();
-  await expect(home.locator('[data-home-sop]').nth(1)).toHaveClass(/is-selected/);
+  const sop = home.locator('#homeSopSelect');
+  await expect(sop.locator('option')).not.toHaveCount(0);
+  const nextSop = await sop.locator('option').nth(1).getAttribute('value');
+  if (nextSop) {
+    await sop.selectOption(nextSop);
+    await expect(sop).toHaveValue(nextSop);
+  }
 
   // Attach a file through the picker; it uploads right away and shows in the tray.
   await page.locator('#homeChatFile').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# 备注\n导出要带表头') });
@@ -44,7 +47,7 @@ test('the home page is the chat: no dashboard, attachments, @ mentions and no su
   await expect(page.locator('#issueDetailDrawer')).toBeHidden();
 
   await home.locator('#homeChatNew').click();
-  await expect(home.locator('.hc-brand')).toBeVisible();
+  await expect(home.locator('.hc-headline')).toBeVisible();
   await expect(page.locator('.nav[data-view="chat"]')).toHaveClass(/active/);
 
   // The top-bar AI assistant button lands here too.

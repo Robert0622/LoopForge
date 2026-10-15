@@ -26,8 +26,12 @@ func TestOnboardingStylesEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(page), `href="/onboarding.css`) {
-		t.Fatal("index.html must load onboarding.css")
+	design, err := os.ReadFile("design.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `href="/design.css`) || !strings.Contains(string(design), `url("/onboarding.css`) {
+		t.Fatal("index.html must load design.css, which imports onboarding.css")
 	}
 }
 
@@ -1036,8 +1040,8 @@ func TestRequirementDirectCreateUI(t *testing.T) {
 	if sendIdx < 0 || directIdx < 0 || sendIdx > directIdx {
 		t.Fatal("直接创建 must sit to the right of 开始分析")
 	}
-	if appJS, err := readAppBundle(); err != nil || !strings.Contains(string(appJS), `{view:'projects',label:'项目'}`) {
-		t.Fatal("项目配置 must be reachable as the 项目 tab under 构建")
+	if appJS, err := readAppBundle(); err != nil || !strings.Contains(string(appJS), `projects:'项目'`) || !strings.Contains(page, `id="projectsView"`) {
+		t.Fatal("项目配置 must stay reachable as the 项目 view")
 	}
 	if !strings.Contains(page, `<script src="/app/composer.js`) {
 		t.Fatal("index.html must load the requirement composer script")
@@ -1132,15 +1136,15 @@ func TestIssueImportUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	code := string(js)
-	issuesNav, buildNav := strings.Index(page, `data-view="issues"`), strings.Index(page, `data-view="build"`)
-	if issuesNav < 0 || buildNav < 0 || issuesNav > buildNav {
-		t.Fatal("交付 must be a daily entry above 构建")
+	issuesNav, configNav := strings.Index(page, `data-view="issues"`), strings.Index(page, `data-view="sops"`)
+	if issuesNav < 0 || configNav < 0 || issuesNav > configNav {
+		t.Fatal("SOP 运行 must be a work entry above 流程")
 	}
-	if !strings.Contains(code, `{nav:'issues',label:'交付',tabs:[{view:'issues',label:'需求看板'},{view:'runs',label:'运行'}`) {
-		t.Fatal("运行 must be a tab of 交付, next to 需求看板")
+	if !strings.Contains(code, `{nav:'issues',label:'工作',tabs:[{view:'issues',label:'SOP 运行',count:true,subs:[['runs','进行中'],['approvals','待确认'],['runsDone','已完成'],['issues','需求']]}]}`) {
+		t.Fatal("进行中、待确认、已完成 and 需求 must be the SOP 运行 subtabs")
 	}
-	if !strings.Contains(code, `{view:'projects',label:'项目'}]}`) {
-		t.Fatal("项目配置 must sit inside 构建")
+	if !strings.Contains(code, `projects:'项目'`) {
+		t.Fatal("项目配置 must stay reachable as the 项目 view")
 	}
 	for _, want := range []string{`/api/issues/import`, `openImportIssueModal`, `fillImportIssueWorkflow`, `fillImportIssueRepository`, `selectedImportIssueRepositoryIds`, `renderImportIssueRepositoryPicker`, `repositoryIds`, `请至少选择一个代码仓库`, `importIssueFromURL`, `requirementNeedsClarification`, `clarificationNeedsConfirm`, `data-dtab="clarify"`, `确认结论`, `clarification?.gated`, `autoStartClarify`, `issueClarifyJobs`, `attachIssueClarifyStream`, `关闭网页也不会中断`, `clarifyOptionLabel`, `clarifyQuestionOptions`, `createIssueDirect`, `projectGitHubReady`, `chatCreateDirect`, `chatCreateLocal`, `pushIssueToGitHubFromDetail`, `run-id-copy`, `data-export-logs`, `从这里重跑`, `重新触发`, `data-retrigger-issue`, `data-rerun-from-here`, `canRetriggerIssue`, `openRerunFromNode`, `executionContext?.issueId`, `run?.status==='succeeded'`, `/api/issues/${encodeURIComponent(issueId)}/requirement`, `inferSOPLane`, `req-lane-card`, `issueLaneDots`, `.filter(l=>!l.orphan)`, `lanes.length<2`, `collapseSingleSOPLane`, `issueSOPLabel`, `actionWorkflow`, `data-workflow`, `workflowSOPLane`, `需求开发`, `saveIssueSOPS`, `/sops`, `effectiveIssueSOPBindings`, `projectSOPBindings`, `fillReqWorkflow`, `plannedSOPNodes`, `sopWorkflowId`, `sopWorkflowChoices`, `syncReqComposerLayout`} {
 		if !strings.Contains(code, want) {
@@ -1930,7 +1934,7 @@ func TestPlatformAdminLivesOnItsOwnView(t *testing.T) {
 	for _, want := range []string{
 		`id="platformView"`,
 		`id="platformNavGroup"`,
-		`data-view="admin"`,
+		`data-view="platform"`,
 	} {
 		if !strings.Contains(markup, want) {
 			t.Fatalf("index.html is missing the platform admin view wiring %q", want)
@@ -1940,7 +1944,7 @@ func TestPlatformAdminLivesOnItsOwnView(t *testing.T) {
 		t.Fatal("platform admin panel is still embedded in the SOP catalog page")
 	}
 	for _, want := range []string{
-		"platform:'平台管理'",
+		"platform:'成员与权限'",
 		"if(name==='platform')renderPlatformAdminPanel()",
 		"renderPlatformNav",
 	} {
@@ -2069,10 +2073,17 @@ func TestResearchEfficiencyDashboardUI(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := string(html)
-	for _, want := range []string{`data-view="insights"`, `id="metricsView"`, `id="metricsBody"`, `data-metrics-range="7d"`, `data-metrics-range="30d"`, `data-metrics-range="90d"`, `data-metrics-range="365d"`, `id="metricsDateFrom"`, `id="metricsDateTo"`, `metrics-dashboard.css`} {
+	for _, want := range []string{`data-view="metrics"`, `id="metricsView"`, `id="metricsBody"`, `data-metrics-range="7d"`, `data-metrics-range="30d"`, `data-metrics-range="90d"`, `data-metrics-range="365d"`, `id="metricsDateFrom"`, `id="metricsDateTo"`} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("研发效能看板缺少 %q", want)
 		}
+	}
+	design, err := os.ReadFile("design.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(page, `href="/design.css`) || !strings.Contains(string(design), `url("/metrics-dashboard.css`) {
+		t.Fatal("运行洞察样式必须由 design.css 引入")
 	}
 	js, err := readAppBundle()
 	if err != nil {
@@ -2212,7 +2223,7 @@ func TestCollabSurfacesParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`rooms:'协作群聊'`, `loadRooms`} {
+	for _, want := range []string{`rooms:'群聊'`, `loadRooms`} {
 		if !strings.Contains(string(app), want) {
 			t.Fatalf("app.js missing %q", want)
 		}

@@ -18,8 +18,14 @@ type roomsHandlers struct {
 	*deps
 	runCache roomRunCache
 	// crewMu serialises crew mission writes; crewLoopOn guards the captain loop.
-	crewMu     sync.Mutex
-	crewLoopOn atomic.Bool
+	crewMu      sync.Mutex
+	crewLoopOn  atomic.Bool
+	crewSpecMu  sync.Mutex
+	crewSpecs   map[string]*fakeModelSpec
+	streamsOnce sync.Once
+	streams     *roomStreamHub
+	pulseOnce   sync.Once
+	pulse       *botHealth
 }
 
 // roomMaxSOPs bounds one multi-SOP dispatch.
@@ -174,8 +180,10 @@ func (h *roomsHandlers) messages(c *gin.Context) {
 		c.JSON(http.StatusOK, messages)
 	case http.MethodPost:
 		var req struct {
-			Body    string `json:"body"`
-			ReplyTo string `json:"replyTo"`
+			Body      string         `json:"body"`
+			ReplyTo   string         `json:"replyTo"`
+			ParentID  string         `json:"parentId"`
+			FakeModel *fakeModelSpec `json:"fakeModel"`
 		}
 		if !decode(c, &req) {
 			return
@@ -190,16 +198,34 @@ func (h *roomsHandlers) messages(c *gin.Context) {
 			return
 		}
 		userID, author := h.roomActor(c)
-		msg := domain.ChatMessage{ID: newChatID("msg"), RoomID: room.ID, UserID: userID, Author: author, Kind: "text", Body: body, CreatedAt: time.Now().UTC()}
-		if quoted, ok := h.repo.Message(strings.TrimSpace(req.ReplyTo)); ok && quoted.RoomID == room.ID {
+		body, note, err := h.rewriteRoomMentions(room.ProjectID, userID, body)
+		if err != nil {
+			respond(c, err)
+			return
+		}
+		msg := domain.ChatMessage{ID: newChatID("msg"), RoomID: room.ID, UserID: userID, Author: author, Kind: "text", Body: body, ParentID: strings.TrimSpace(req.ParentID), ReassignNote: note, CreatedAt: time.Now().UTC()}
+		if msg.ParentID == "" {
+			msg.ParentID = strings.TrimSpace(req.ReplyTo)
+		}
+		if quoted, ok := h.repo.Message(firstNonEmpty(strings.TrimSpace(req.ReplyTo), msg.ParentID)); ok && quoted.RoomID == room.ID {
 			msg.ReplyTo, msg.ReplyAuthor, msg.ReplyText = quoted.ID, roomQuoteAuthor(quoted), roomTrim(roomQuoteText(quoted), 200)
+			if msg.ParentID == "" {
+				msg.ParentID = quoted.ParentID
+				if msg.ParentID == "" {
+					msg.ParentID = quoted.ID
+				}
+			}
 		}
 		if err := h.repo.PutMessage(msg); err != nil {
 			respond(c, err)
 			return
 		}
 		h.touchRoom(room)
-		h.crewHear(room, msg)
+		spec := req.FakeModel
+		if spec != nil && !fakeModelAllowed() {
+			spec = nil
+		}
+		h.crewHear(room, msg, spec)
 		c.JSON(http.StatusCreated, msg)
 	default:
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})

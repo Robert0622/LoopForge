@@ -7,8 +7,8 @@
 .asset-tabs{display:flex;gap:7px;max-width:1380px;margin:0 auto 16px}
 .asset-tab{border:1px solid var(--line-strong);background:var(--panel);color:var(--muted);border-radius:20px;padding:6px 14px;cursor:pointer;font-size:11px;transition:all .14s}
 .asset-tab:hover{color:var(--text)}
-.asset-tab.active{background:var(--blue-soft);border-color:rgba(91,140,255,.45);color:var(--blue);font-weight:700}
+.asset-tab.active{background:var(--blue-soft);border-color:color-mix(in srgb, var(--lf-brand-2) 45%, transparent);color:var(--blue);font-weight:700}
 .json-help{font-size:11px;color:var(--muted-2);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px;margin-top:8px}
 .gate-editor{border:1px solid var(--line);border-radius:9px;padding:12px;margin-top:10px;background:var(--bg-soft)}
 .gate-row{display:grid;grid-template-columns:1fr 130px;gap:10px}
-.danger-text{color:var(--red)!important}
+.danger-text{color:var(--red)}

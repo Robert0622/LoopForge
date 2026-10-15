@@ -153,7 +153,7 @@ async function renderPersonalSettings(){
           <a class="credential-help-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer">前往 GitHub 创建个人访问令牌 ↗</a>
         </fieldset></div>`;
   const account=`${panelHead('account')}<div class="settings-account">
-      <section class="personal-settings-card personal-account-card"><div class="personal-account-avatar">${userAvatarHTML(user, 150)}</div><div><span class="credential-eyebrow">当前账号</span><h2>${escapeHTML(userDisplay(user))}</h2><p>登录名 <code>${escapeHTML(user.loginName||'')}</code>${isPlatformAdmin()?' · 平台管理员':''}</p></div>${state.proxyAuth?'':'<button type="button" class="button ghost upp-btn-danger" id="settingsLogout">退出登录</button>'}</section>
+      <section class="personal-settings-card personal-account-card"><div class="personal-account-avatar">${userAvatarHTML(user, 150)}</div><div><span class="credential-eyebrow">当前账号</span><h2>${escapeHTML(userDisplay(user))}</h2><p>登录名 <code>${escapeHTML(user.loginName||'')}</code>${isPlatformAdmin()?' · 平台管理员':''}</p></div>${state.proxyAuth?'':'<button type="button" class="button danger-outline" id="settingsLogout">退出登录</button>'}</section>
       ${state.proxyAuth?'<p class="settings-panel-note">当前通过反向代理登录，密码由你们的身份系统管理。</p>':`<form id="userPasswordForm" class="personal-settings-card settings-password-form"><h3>修改密码</h3><p>至少 8 位，修改后当前登录保持有效。忘记密码请联系平台管理员重置。</p><label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>新密码<input name="newPassword" type="password" autocomplete="new-password" required minlength="8"></label><div class="settings-form-actions"><button class="button primary" type="submit">修改密码</button></div></form>`}
     </div>`;
   host.innerHTML=`${tabs}<form id="userCredentialForm" class="upp-credentials settings-credential-form"${tab==='account'?' hidden':''}>${panel('models',models)}${panel('git',git)}${panel('mcp',mcp)}
@@ -161,7 +161,11 @@ async function renderPersonalSettings(){
       </form>${panel('account',account)}`;
   host.querySelectorAll('[data-settings-tab]').forEach(b=>b.onclick=()=>openSettings(b.dataset.settingsTab));
   const logout=host.querySelector('#settingsLogout');
-  if(logout)logout.onclick=async()=>{try{await api('/api/auth/logout',{method:'POST'})}catch(_){}location.reload()};
+  if(logout)logout.onclick=async()=>{
+    if(!(await afConfirm({title:'退出登录？',message:'退出后需要重新登录才能继续操作。',confirmText:'退出',danger:true})))return;
+    try{await api('/api/auth/logout',{method:'POST'})}catch(err){toast(err.message||'没能退出，请再试一次','err');return}
+    location.reload();
+  };
   const passwordForm=host.querySelector('#userPasswordForm');
   if(passwordForm)passwordForm.onsubmit=async e=>{
     e.preventDefault();
@@ -203,7 +207,7 @@ async function renderPersonalSettings(){
     e.preventDefault();const f=e.currentTarget,button=f.querySelector('button[type="submit"]');button.disabled=true;
     const payload={personalMcpToken:f.elements.personalMcpToken.value.trim(),personalMcpTokenClear:credentialClearPending(f,'personalMcpToken'),gitToken:f.elements.gitToken.value.trim(),gitTokenClear:credentialClearPending(f,'gitToken'),codeBuddyApiKey:f.elements.codeBuddyApiKey.value.trim(),codeBuddyApiKeyClear:credentialClearPending(f,'codeBuddyApiKey'),codeBuddyInternetEnvironment:f.elements.codeBuddyInternetEnvironment.value.trim(),codexApiKey:f.elements.codexApiKey.value.trim(),codexApiKeyClear:credentialClearPending(f,'codexApiKey'),codexBaseUrl:f.elements.codexBaseUrl.value.trim(),claudeCodeApiKey:f.elements.claudeCodeApiKey.value.trim(),claudeCodeApiKeyClear:credentialClearPending(f,'claudeCodeApiKey'),claudeCodeBaseUrl:f.elements.claudeCodeBaseUrl.value.trim()};
     try{if(payload.gitToken||payload.gitTokenClear)state.gitTokenVerify=null;if(payload.gitToken)state.gitTokenAnnounceVerify=true;const saved=await api(`/api/users/${user.id}/credentials`,{method:'PUT',body:JSON.stringify(payload)}),index=state.data.users.findIndex(u=>Number(u.id)===Number(saved.id));if(index>=0)state.data.users[index]=saved;else state.data.users.push(saved);renderPersonalSettings();toast('个人凭据已保存');if(payload.codeBuddyApiKey)verifyCodeBuddyKey(user.id)}
-    catch(err){toast(err.message);button.disabled=false}
+    catch(err){toast(err.message||'凭据没有保存','err');button.disabled=false}
   };
 }
 // 谁能改通用模板是平台级权限，不属于任何一个项目，也不属于个人凭据，
@@ -216,7 +220,7 @@ function renderPlatformNav(){
 }
 function renderPlatformAdminPanel(){
   const host=$('#platformAdminPanel');if(!host)return;
-  if(!isPlatformAdmin()){host.innerHTML='';return}
+  if(!isPlatformAdmin()){host.innerHTML='<div class="lf-callout"><b>只有平台管理员能管理成员和权限</b><p>需要开通时，请让现有管理员在这里加上你的登录名。</p></div>';return}
   const tab=state.platformAdminTab||'admins';
   host.innerHTML=`
     <div class="platform-metric-grid pa-stats">
@@ -287,7 +291,7 @@ function renderPlatformAdminPanel(){
           <p class="platform-side-desc">在流程设计或角色定义中修改通用模板后，所有关联项目下次运行自动用最新版本。</p>
           <div class="platform-side-quick-links">
             <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="sops">流程模板 →</button>
-            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="agents">角色定义 →</button>
+            <button type="button" class="button ghost small platform-quick-link-btn" data-platform-nav="agents">Bot →</button>
           </div>
           <div class="platform-audit-note">授予与撤销实时生效，并记录平台审计。</div>
         </div>
@@ -360,12 +364,13 @@ async function loadPlatformAdmins(host){
 
     if(!filtered.length){
       list.innerHTML=`
-        <div class="platform-empty-state">
-          <div class="platform-empty-icon">🔍</div>
-          <b>未找到符合条件的管理员</b>
-          <p>${(allRows&&allRows.length)?'请尝试更换搜索关键字或重置筛选条件。':'还没有配置平台管理员。'}</p>
+        <div class="platform-empty-state lf-callout">
+          <b>${(allRows&&allRows.length)?'没有符合条件的管理员':'还没有平台管理员'}</b>
+          <p>${(allRows&&allRows.length)?'换个关键字，或切回「全部」。':'在上方填登录名，把同事加为平台管理员。'}</p>
+          ${(allRows&&allRows.length)?'':'<button type="button" class="button primary small" data-admin-focus>去添加管理员</button>'}
         </div>
       `;
+      list.querySelector('[data-admin-focus]')?.addEventListener('click',()=>host.querySelector('#platformAdminForm input[name="loginName"]')?.focus());
       return;
     }
 
@@ -403,7 +408,7 @@ async function loadPlatformAdmins(host){
           </div>
           <div class="platform-admin-actions">
             ${row.revocable?`
-              <button type="button" class="button ghost small platform-revoke-btn" data-revoke-admin="${escapeHTML(row.loginName)}" title="撤销该账号的平台管理员权限">
+              <button type="button" class="button danger-outline small platform-revoke-btn" data-revoke-admin="${escapeHTML(row.loginName)}" title="撤销该账号的平台管理员权限">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 <span>撤销</span>
               </button>
@@ -457,7 +462,9 @@ async function loadPlatformAdmins(host){
     updateMetrics(allRows);
     render();
   }catch(e){
-    list.innerHTML=`<p class="prop-hint">${escapeHTML(e.message||'加载管理员列表失败')}</p>`;
+    list.innerHTML=`<div class="lf-callout"><b>管理员名单没有加载出来</b><p>${escapeHTML(e.message||'请再试一次')}</p><button type="button" class="button primary small" id="platformAdminRetry">重试</button></div>`;
+    list.querySelector('#platformAdminRetry').onclick=()=>renderPlatformAdminPanel();
+    toast(e.message||'管理员名单没有加载出来','err');
   }
 
   form.onsubmit=async e=>{
@@ -481,7 +488,7 @@ async function loadPlatformAdmins(host){
   };
   const signup=host.querySelector('#platformSignupOpen');
   if(signup){
-    api('/api/auth/settings',{silent:true}).then(v=>{signup.checked=!!v.signupOpen}).catch(()=>{});
+    api('/api/auth/settings',{silent:true}).then(v=>{signup.checked=!!v.signupOpen}).catch(err=>toast(err.message||'注册开关没有读出来','err'));
     signup.onchange=async()=>{
       signup.disabled=true;
       try{const v=await api('/api/auth/settings',{method:'PUT',body:JSON.stringify({signupOpen:signup.checked})});signup.checked=!!v.signupOpen;state.signupOpen=signup.checked;toast(signup.checked?'已开放注册':'已关闭注册','ok')}
@@ -568,7 +575,7 @@ function renderUserProfilePopover() {
  <div class="upp-divider"></div>
       <div class="upp-footer">
         <button id="uppReAuthBtn" class="button small ghost" type="button" title="退出后用其他账号登录"${state.proxyAuth?' hidden':''}>切换账号</button>
-        <button id="uppLogoutBtn" class="button small ghost upp-btn-danger" type="button" title="退出当前登录"${state.proxyAuth?' hidden':''}>退出登录</button>
+        <button id="uppLogoutBtn" class="button small danger-outline" type="button" title="退出当前登录"${state.proxyAuth?' hidden':''}>退出登录</button>
       </div>
     `;
     popover.querySelector('#openPersonalSettings').onclick=()=>{ $('#userProfileWrap').classList.remove('is-open'); openSettings() };
@@ -584,6 +591,7 @@ function renderUserProfilePopover() {
     const logoutBtn = popover.querySelector('#uppLogoutBtn');
     if (logoutBtn) {
       logoutBtn.onclick = async () => {
+        if (typeof afConfirm === 'function' && !(await afConfirm({title: '退出登录？', message: '退出后当前页面会回到访客身份。', confirmText: '退出', danger: true}))) return;
         try {
           await api('/api/auth/logout', {method: 'POST'});
           if(state.authRequired){location.reload();return}
