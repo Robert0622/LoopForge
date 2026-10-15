@@ -919,6 +919,39 @@ function roomBotsInProject() {
   return (agents.length ? agents : (state.data?.agents || [])).slice(0, 8);
 }
 
+function roomMeterLabel() {
+  const room = activeRoom();
+  if (!room) return '—';
+  const messages = roomState().lastMessages || [];
+  const runIds = new Set();
+  messages.forEach(m => {
+    if (m.runId) runIds.add(m.runId);
+    if (m.crew?.runId) runIds.add(m.crew.runId);
+  });
+  const runs = (typeof roomRunsInProject === 'function' ? roomRunsInProject() : []).filter(r => runIds.has(r.id));
+  const crews = messages.filter(m => m.kind === 'crew' && m.crew);
+  const active = [...crews].reverse().find(m => ['planning', 'proposed', 'running', 'waiting'].includes(m.crew.status));
+  let progress = '还没开工';
+  if (active) {
+    const tasks = active.crew.tasks || [];
+    const done = tasks.filter(t => t.status === 'succeeded' || t.status === 'done').length;
+    progress = tasks.length ? `${done}/${tasks.length} 步` : '分工中';
+    if (active.crew.status === 'waiting') progress += ' · 待确认';
+  } else if (runs.length) {
+    const live = runs.filter(r => ['running', 'queued', 'waiting', 'paused'].includes(r.status));
+    if (live.length && typeof runProgress === 'function') {
+      const p = runProgress(live[0]);
+      progress = `${p.done}/${p.total} 步`;
+    } else progress = '已结束';
+  } else if (crews.length) progress = '已结束';
+  const cost = runs.reduce((n, r) => n + Number(r.usage?.costUsd || 0), 0);
+  const tokens = runs.reduce((n, r) => n + Number(r.usage?.totalTokens || 0), 0);
+  let fee = '不计费';
+  if (cost > 0) fee = cost < 0.01 ? '<$0.01' : '$' + cost.toFixed(2);
+  else if (tokens > 0) fee = (typeof formatTokens === 'function' ? formatTokens(tokens) : String(tokens)) + ' tokens';
+  return `${fee} · ${progress}`;
+}
+
 function renderRoomBots() {
   const host = $('#roomBots');
   if (!host) return;
@@ -954,12 +987,19 @@ function renderRoomBots() {
     };
   });
   const faces = $('#roomFaces');
+  const meter = $('#roomMeter');
   const room = activeRoom();
   if (faces) {
-    const members = (room?.members || []).map(m => roomFace({kind: 'person', name: roomPerson(m.name).name}, 'sm'));
-    const botFaces = [roomFace({kind: 'lf'}, 'sm')].concat(bots.slice(0, 3).map(a => roomFace({kind: 'bot', name: roomAgentName(a.id, a.name)}, 'sm')));
-    faces.innerHTML = room ? `<span class="room-faces-stack">${members.slice(0, 3).join('')}${botFaces.join('')}</span><small>${(room.members || []).length} 人 · ${bots.length + 1} Bot</small>` : '';
+    if (!room) faces.innerHTML = '<small>未选择</small>';
+    else {
+      const statuses = bots.map(a => (typeof lfBotStatus === 'function' ? lfBotStatus(a) : {key: 'ok'}));
+      const n = key => statuses.filter(s => s.key === key).length;
+      const chip = (key, count, label) => count ? `<span class="room-stat"><i class="lf-dot lf-dot-${key}"></i>${count} ${label}</span>` : '';
+      const busy = n('busy') + n('wait');
+      faces.innerHTML = [chip('ok', n('ok'), '可用'), chip('busy', busy, '忙'), chip('off', n('off'), '缺 Key')].filter(Boolean).join('') || '<small>还没有 Bot</small>';
+    }
   }
+  if (meter) meter.textContent = roomMeterLabel();
 }
 
 const ROOM_CREW_ACTIVE = ['planning', 'proposed', 'running', 'waiting'];

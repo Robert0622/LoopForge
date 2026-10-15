@@ -8,8 +8,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/images/loopforge-logo.png">
-  <link rel="stylesheet" href="/design.css?v=20261014p7">
-  <script src="/boot.js?v=20261014p2"></script>
+  <link rel="stylesheet" href="/design.css?v=20261014p8">
+  <script src="/boot.js?v=20261014p8"></script>
   <script src="/i18n.js?v=20261014p2"></script>
 </head>
 <body>
@@ -161,7 +161,7 @@
         <section class="rooms-chat-pane">
           <div class="rooms-chat-head">
             <div class="rooms-chat-id"><span class="rooms-hash">#</span><div><b id="roomTitle">选择一个群</b><span id="roomSubtitle">选择一个群</span></div></div>
-            <div class="rooms-head-actions"><span id="roomFaces" class="room-faces"></span><button id="roomSaveSOP" class="button ghost small" type="button">存为 SOP</button><button id="renameRoom" class="rooms-icon-btn" type="button" title="重命名" hidden>✎</button><button id="toggleRoomInfo" class="rooms-icon-btn" type="button" title="成员与 SOP" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></div>
+            <div class="rooms-head-actions"><div class="rooms-head-zones" role="group" aria-label="成员状态、费用与进度、存为 SOP"><div class="room-zone" data-room-zone="members"><span class="room-zone-k">成员状态</span><span id="roomFaces" class="room-faces"></span></div><span class="room-zone-sep" aria-hidden="true"></span><div class="room-zone" data-room-zone="meter"><span class="room-zone-k">费用·进度</span><b id="roomMeter" class="room-zone-v">—</b></div><span class="room-zone-sep" aria-hidden="true"></span><div class="room-zone room-zone-action" data-room-zone="sop"><button id="roomSaveSOP" class="button ghost small" type="button">存为 SOP</button></div></div><button id="renameRoom" class="rooms-icon-btn" type="button" title="重命名" hidden>✎</button><button id="toggleRoomInfo" class="rooms-icon-btn" type="button" title="成员与 SOP" aria-pressed="false"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button></div>
           </div>
           <div id="roomLog" class="room-log"></div>
           <form id="roomComposer" class="room-composer">
@@ -195,7 +195,7 @@
     <!-- 运行记录 -->
     <section id="runsView" class="view page-view">
       <div class="page-heading runs-heading">
-        <div><h1>运行</h1></div>
+        <div><h1>进行中</h1></div>
         <div class="heading-actions"><span id="runsLiveState" class="live-state"><i></i> 详情实时更新</span><button id="refreshRuns" class="button ghost">↻ 刷新</button></div>
       </div>
       <div id="runOverview" class="run-overview"></div>
@@ -215,7 +215,7 @@
     <!-- 待我处理 -->
     <section id="approvalsView" class="view page-view">
       <div class="page-heading approvals-heading">
-        <div><h1>运行</h1><p>流程停在人工确认节点时会出现在这里。通过后继续下游；节点配置了返工目标时，可以退回上游重做。快捷键：<kbd>A</kbd> 通过第一条。</p></div>
+        <div><h1>待确认</h1><p>流程停在人工确认节点时会出现在这里。通过后继续下游；节点配置了返工目标时，可以退回上游重做。快捷键：<kbd>A</kbd> 通过第一条。</p></div>
         <div class="heading-actions">
           <span class="live-state" id="approvalLiveState" title="列表不会自动刷新，点右侧按钮获取最新"><i></i> <span data-updated>未加载</span></span>
           <button id="refreshApprovals" class="button ghost">↻ 刷新</button>
@@ -966,8 +966,8 @@
     </div>
   </div>
   <div id="revisionModal" class="modal"><div class="modal-card revision-card"><button type="button" class="modal-close" id="revisionClose">×</button><div class="wizard-head"><div><p class="eyebrow">版本历史</p><h2 id="revisionTitle">版本历史</h2><p>对比上一版并回退。回退会生成新版本，不会改已经跑完的记录。</p></div></div><div id="revisionList" class="revision-list"></div><pre id="revisionDiff" class="revision-diff">选择一个历史版本查看差异。</pre><div class="wizard-actions"><button type="button" class="button ghost" id="revisionClose2">关闭</button><button type="button" class="button primary" id="revisionRestore" disabled>回退到此版本</button></div></div></div>
-  <script src="/app.js?v=20261014p7"></script>
-  <script src="/app/access.js?v=20261014p4"></script>
+  <script src="/app.js?v=20261014p8"></script>
+  <script src="/app/access.js?v=20261014p8"></script>
   <script src="/app/dashboards.js"></script>
   <script src="/app/sops.js?v=20261014p2"></script>
   <script src="/app/issue-model.js"></script>
@@ -977,11 +977,11 @@
   <script src="/app/issues.js?v=20261014p2"></script>
   <script src="/app/sync-schedule.js"></script>
   <script src="/app/flows.js?v=20261014p6"></script>
-  <script src="/app/agents.js"></script>
+  <script src="/app/agents.js?v=20261014p8"></script>
   <script src="/app/mcp.js"></script>
   <script src="/app/assets.js?v=20261014p6"></script>
   <script src="/app/runners.js"></script>
-  <script src="/app/runs.js?v=20261014p2"></script>
+  <script src="/app/runs.js?v=20261014p8"></script>
   <script src="/app/workbench.js?v=20261014p6"></script>
   <script src="/app/approvals.js?v=20261014p2"></script>
   <script src="/app/observability.js?v=20261014p6"></script>
@@ -997,7 +997,7 @@
   </div>
   </div>
   <script src="/knowledge.js?v=20261014p7"></script>
-  <script src="/rooms.js?v=20261014p7"></script>
+  <script src="/rooms.js?v=20261014p8"></script>
   <script src="/orchestrate.js?v=20261014p2"></script>
   <script src="/assistant.js?v=20261014p2"></script>
 </body>

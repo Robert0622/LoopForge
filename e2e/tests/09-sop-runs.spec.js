@@ -70,7 +70,7 @@ test('a shell SOP designed in the editor runs in the local sandbox and keeps its
   expect(artifact).toContain('e2e-browser-marker');
 
   await closeDrawer(page);
-  await openView(page, 'runs');
+  await openView(page, 'runsDone');
   await expect(page.locator('#runList')).toContainText('浏览器：脚本 SOP 真跑');
   await page.locator('.run-card', { hasText: '浏览器：脚本 SOP 真跑' }).click();
   await expect(page.locator('#runsDetailSection, #runDetail, .run-detail-main').first()).toBeVisible();

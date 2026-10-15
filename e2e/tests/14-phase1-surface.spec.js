@@ -80,6 +80,21 @@ test('phase 1 sidebar, command palette, destructive confirm and stream states', 
   expect(badge.bg).not.toBe('rgb(229, 72, 77)');
   expect(badge.bg).not.toBe('rgb(242, 85, 90)');
 
+  const ia = await page.evaluate(() => {
+    const subs = (VIEW_TABSETS.find(set => set.nav === 'issues')?.tabs?.[0]?.subs || []).map(item => item[1]);
+    const mock = lfBotStatus({id: 'lf-demo-exec-probe', name: '演示执行器', executorId: 'mock'});
+    return {
+      zones: [...document.querySelectorAll('.room-zone-k, #roomSaveSOP')].map(el => el.textContent.trim()),
+      subs,
+      approvals: document.querySelector('#approvalsView h1')?.textContent.trim(),
+      mock: `${mock.label} ${mock.key}`,
+    };
+  });
+  expect(ia.zones).toEqual(['成员状态', '费用·进度', '存为 SOP']);
+  expect(ia.subs).toEqual(['进行中', '待确认', '已完成', '需求']);
+  expect(ia.approvals).toBe('待确认');
+  expect(ia.mock).toBe('可用 ok');
+
   const dark = await page.evaluate(() => {
     document.documentElement.dataset.theme = 'dark';
     return getComputedStyle(document.documentElement).getPropertyValue('--lf-bg').trim();

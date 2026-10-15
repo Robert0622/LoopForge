@@ -1307,6 +1307,17 @@ html[data-theme="dark"] .platform-sidebar .nav.active{background:var(--lf-surfac
 .rooms-list-pane{padding:0 10px 16px!important}
 .rooms-pane-head{height:64px;box-sizing:border-box;margin:0 -10px 10px;padding:0 16px 0 18px!important;border-bottom:1px solid var(--lf-line);flex:none}
 .rooms-chat-head{height:64px;box-sizing:border-box;padding:0 24px!important;flex:none}
+.rooms-chat-id{min-width:0}
+.rooms-head-actions{min-width:0;flex:1;justify-content:flex-end}
+.rooms-head-zones{display:flex;align-items:center;min-width:0;height:40px;padding:0 2px 0 0;border:1px solid var(--lf-line);border-radius:12px;background:var(--lf-surface)}
+.room-zone{display:flex;align-items:center;gap:8px;min-width:0;height:100%;padding:0 10px}
+.room-zone-k{display:inline-flex;align-items:center;font-size:11px;font-weight:650;color:var(--lf-text-3);white-space:nowrap}
+.room-zone-sep{width:1px;align-self:stretch;margin:10px 0;background:var(--lf-line);flex:none}
+.room-zone-v{display:inline-flex;align-items:center;font-size:12.5px;font-weight:650;color:var(--lf-text);white-space:nowrap}
+.room-zone-action{padding-right:4px}
+.room-zone-action .button{height:28px}
+.room-zone .room-faces{display:inline-flex;align-items:center;gap:8px;margin:0}
+.room-stat{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:650;color:var(--lf-text);white-space:nowrap}
 .room-thread-pane .rt-head{height:64px;box-sizing:border-box;padding:0 16px 0 20px;flex:none}
 .room-bots{padding-top:12px!important}
 .room-bots .rb:last-child{margin-bottom:0}

@@ -1451,9 +1451,9 @@ function bindGlobalModals(){
   }
 }
 const pluginViews=new Map();
-function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'SOP 运行',rooms:'群聊',runs:'运行',metrics:'运行洞察',approvals:'待我确认',sops:'流程',flow:'流程设计',agents:'Bot',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'环境',observability:'成本',projects:'项目',businessDomains:'业务领域',platform:'成员与权限',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识库',gallery:'组件'}}
+function viewTitles(){return {...Object.fromEntries([...pluginViews.values()].map(v=>[v.id,v.title])),chat:'首页',issues:'SOP 运行',rooms:'群聊',runs:'进行中',runsDone:'已完成',metrics:'运行洞察',approvals:'待确认',sops:'流程',flow:'流程设计',agents:'Bot',mcp:'MCP',rules:'规则',skills:'技能',dockerfiles:'Dockerfile',environments:'安装脚本',sandboxes:'环境',observability:'成本',projects:'项目',businessDomains:'业务领域',platform:'成员与权限',businessDomainManagement:'领域管理',runners:'执行机器',settings:'个人设置',access:'接入方式',guide:'接入指南',knowledge:'知识库',gallery:'组件'}}
 function sidebarViewFor(name){
-  const map={runs:'issues',approvals:'issues',flow:'sops',skills:'agents',mcp:'agents',rules:'agents',dockerfiles:'sandboxes',environments:'sandboxes',businessDomains:'metrics',businessDomainManagement:'platform',runners:'settings',guide:'settings',access:'settings',build:'sops',me:'settings',admin:'platform',insights:'metrics'};
+  const map={runs:'issues',runsDone:'issues',approvals:'issues',flow:'sops',skills:'agents',mcp:'agents',rules:'agents',dockerfiles:'sandboxes',environments:'sandboxes',businessDomains:'metrics',businessDomainManagement:'platform',runners:'settings',guide:'settings',access:'settings',build:'sops',me:'settings',admin:'platform',insights:'metrics'};
   return map[name]||name;
 }
 function lfModelReady(){
@@ -1477,11 +1477,17 @@ function lfBotQueue(agentId){
 }
 function lfBotStatus(agent){
   if(!agent)return {key:'off',label:'不可用',reason:'找不到这个 Bot',queue:0};
+  const demoExec=agent.executorId==='mock';
   const live=(state.botStatus||[]).find(item=>item.agentId===agent.id);
-  if(live){
+  if(live&&!(demoExec&&live.status==='unavailable'&&/key/i.test(live.reason||''))){
     const key=live.status==='online'?'ok':live.status==='busy'?'busy':live.status==='degraded'?'wait':'off';
     const label=live.status==='online'?'可用':live.status==='busy'?'忙':live.status==='degraded'?'降级':(/key/i.test(live.reason||'')?'缺 Key':'不可用');
     return {key,label,reason:live.reason||label,queue:live.queue||0};
+  }
+  if(demoExec){
+    const queue=live?.queue||lfBotQueue(agent.id);
+    if(queue>0)return {key:'busy',label:'忙',reason:'排队 '+queue,queue};
+    return {key:'ok',label:'可用',reason:'演示执行器，无需 Key',queue:0};
   }
   if(!lfModelReady())return {key:'off',label:'缺 Key',reason:'还没配置模型 API Key',queue:0};
   const queue=lfBotQueue(agent.id);
@@ -1579,7 +1585,7 @@ function persistView(name,push=false){
 }
 // 侧栏只留几个入口；入口下的页面用顶部标签（必要时再加一层子标签）切换。
 const VIEW_TABSETS=[
-  {nav:'issues',label:'工作',tabs:[{view:'issues',label:'SOP 运行',count:true,subs:[['issues','需求'],['runs','运行'],['approvals','待确认']]}]},
+  {nav:'issues',label:'工作',tabs:[{view:'issues',label:'SOP 运行',count:true,subs:[['runs','进行中'],['approvals','待确认'],['runsDone','已完成'],['issues','需求']]}]},
   {nav:'sops',label:'配置',tabs:[{view:'sops',label:'流程',subs:[['sops','模板'],['flow','设计']]}]},
   {nav:'agents',label:'配置',tabs:[{view:'agents',label:'Bot',subs:[['agents','Bot'],['skills','技能'],['mcp','MCP'],['rules','规则']]}]},
   {nav:'sandboxes',label:'配置',tabs:[{view:'sandboxes',label:'环境',subs:[['sandboxes','沙箱'],['dockerfiles','Dockerfile'],['environments','安装脚本']]}]},
@@ -1646,12 +1652,14 @@ function switchView(name){
   if(name==='assets')name='dockerfiles';
   if(name==='playbooks')name='sops';
   const assetViews=['rules','skills','dockerfiles','environments','sandboxes'];
-  const targetView=assetViews.includes(name)?'assets':name;
+  const viewHost={runsDone:'runs'};
+  const hostOf=view=>viewHost[view]||(assetViews.includes(view)?'assets':view);
+  const targetView=hostOf(name);
   if(!titles[name]||!$(`#${targetView}View`)){name='chat'}
   // 手敲 #/platform 或者从别的账号留下的 localStorage 恢复进来，都要挡住。
   if(name==='platform'&&!isPlatformAdmin())name='chat';
   if(name==='businessDomainManagement'&&!canAccessPlatformManagement())name='chat';
-  const target=assetViews.includes(name)?'assets':name;
+  const target=hostOf(name);
   if(name==='settings'&&typeof currentSettingsTab==='function')state.settingsTab=currentSettingsTab();
   const staying=activeViewName()===name;
   const prevView=state.currentView;
@@ -1688,13 +1696,16 @@ function switchView(name){
       }
     }
   }
-  if(name==='runs'){
-    const linkedRun=runRouteId();
+  if(name==='runs'||name==='runsDone'){
+    const linkedRun=name==='runs'?runRouteId():'';
     const hashAlreadyRuns=(location.hash||'').replace(/^#\/?/,'').split(/[/?]/)[0]==='runs';
     if(!staying){
-      if(linkedRun&&(hashAlreadyRuns||!prevView))showRunDetail(linkedRun);
+      state.runFilter=name==='runsDone'?'succeeded':'active';
+      if(name==='runs'&&linkedRun&&(hashAlreadyRuns||!prevView))showRunDetail(linkedRun);
       else showRunList();
     }
+    const runsTitle=$('#runsView .runs-heading h1');
+    if(runsTitle)runsTitle.textContent=name==='runsDone'?'已完成':'进行中';
     refreshRuns(false,true);
   }
   if(name==='issues'){refreshIssues();renderSync()}
