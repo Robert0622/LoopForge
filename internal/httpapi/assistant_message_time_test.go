@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"agentflow/internal/domain"
+	"agentflow/internal/repo"
 )
 
 func waitForCompletedGeneration(t *testing.T, h *assistantHandlers, owner int64, sessionID string) domain.AssistantSession {
@@ -128,7 +129,7 @@ func TestAssistantTurnContextStatesBeijingTimeAndProjectSwitching(t *testing.T) 
 	assistantNow = func() time.Time { return time.Date(2026, 11, 1, 6, 16, 0, 0, time.UTC) }
 	t.Cleanup(func() { assistantNow = old })
 	inProject := assistantTurnContext(assistantRequest{ProjectID: "skillhub"})
-	for _, want := range []string{"当前北京时间：2026-11-01 14:16（星期日）", "不要写 UTC", "+08:00", "右上角的项目名称", "不要让用户去输入框上方", "generic-backend-delivery", "不要说「暂不绑定」"} {
+	for _, want := range []string{"当前北京时间：2026-11-01 14:16（星期日）", "不要写 UTC", "+08:00", "右上角的项目名称", "不要让用户去输入框上方", "sopMode=none", "不要写 workflowId"} {
 		if !strings.Contains(inProject, want) {
 			t.Errorf("project context missing %q", want)
 		}
@@ -151,5 +152,43 @@ func TestSystemPromptRecommendsTheGenericSOPs(t *testing.T) {
 	}
 	if strings.Contains(prompt, "请用户在输入框上方选择项目") {
 		t.Error("system prompt still points at the hidden composer picker")
+	}
+	if !strings.Contains(prompt, "只有用户点名才写 workflowId") {
+		t.Error("system prompt still tells the model that a new project requirement is bound")
+	}
+}
+
+func TestLeaveNewAssistantIssueUnbound(t *testing.T) {
+	s, err := repo.OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	if err := s.PutProject(domain.Project{ID: "lab", Name: "Lab", WorkflowID: "generic-backend-delivery"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PutIssue(domain.Issue{ID: "issue-kept", ProjectID: "lab", Title: "kept", WorkflowID: "generic-backend-delivery"}); err != nil {
+		t.Fatal(err)
+	}
+	h := &assistantHandlers{deps: &deps{repo: s}}
+	fresh := map[string]any{"projectId": "lab", "title": "from chat"}
+	h.leaveNewAssistantIssueUnbound(fresh, nil)
+	if fresh["sopMode"] != domain.IssueSOPNone {
+		t.Fatalf("new chat issue sopMode=%v", fresh["sopMode"])
+	}
+	named := map[string]any{"title": "named", "workflowId": "generic-backend-delivery"}
+	h.leaveNewAssistantIssueUnbound(named, nil)
+	if _, ok := named["sopMode"]; ok {
+		t.Fatal("an explicit workflow must stay bound")
+	}
+	update := map[string]any{"id": "issue-kept", "title": "kept"}
+	h.leaveNewAssistantIssueUnbound(update, nil)
+	if _, ok := update["sopMode"]; ok {
+		t.Fatal("updating an existing issue must not clear its SOP")
+	}
+	byPath := map[string]any{"title": "kept"}
+	h.leaveNewAssistantIssueUnbound(byPath, map[string]string{"id": "issue-kept"})
+	if _, ok := byPath["sopMode"]; ok {
+		t.Fatal("path id of an existing issue must not clear its SOP")
 	}
 }
