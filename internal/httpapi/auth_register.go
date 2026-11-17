@@ -40,19 +40,35 @@ const welcomeProjectID = "welcome"
 
 // joinWelcomeProject makes the seeded demo project usable by new accounts so
 // the onboarding path works before they create a project of their own.
-func (h *authHandlers) joinWelcomeProject(userID int64) { joinWelcomeProject(h.repo, userID) }
+func (h *authHandlers) joinWelcomeProject(userID int64, claimOwner bool) {
+	joinWelcomeProject(h.repo, userID, claimOwner)
+}
 
-func joinWelcomeProject(store *repo.Store, userID int64) {
+func joinWelcomeProject(store *repo.Store, userID int64, claimOwner bool) {
 	project, ok := store.Project(welcomeProjectID)
-	if !ok {
+	if !ok || userID == 0 {
 		return
+	}
+	changed := false
+	if claimOwner && project.OwnerID == 0 {
+		project.OwnerID = userID
+		changed = true
 	}
 	for _, m := range project.Members {
 		if m.UserID == userID {
+			if changed {
+				if err := store.PutProject(project); err != nil {
+					log.Printf("join welcome project: %v", err)
+				}
+			}
 			return
 		}
 	}
-	project.Members = append(project.Members, domain.ProjectMember{UserID: userID, Role: "member"})
+	role := "member"
+	if project.OwnerID == userID {
+		role = "maintainer"
+	}
+	project.Members = append(project.Members, domain.ProjectMember{UserID: userID, Role: role})
 	if err := store.PutProject(project); err != nil {
 		log.Printf("join welcome project: %v", err)
 	}
@@ -96,8 +112,8 @@ func (h *authHandlers) authRegister(c *gin.Context) {
 		return
 	}
 	u, err := h.repo.CreateLocalAccount(input.Login, input.Password, first)
-	if err == nil && !first {
-		h.joinWelcomeProject(u.ID)
+	if err == nil {
+		h.joinWelcomeProject(u.ID, first)
 	}
 	registerMu.Unlock()
 	if errors.Is(err, repo.ErrLoginTaken) {

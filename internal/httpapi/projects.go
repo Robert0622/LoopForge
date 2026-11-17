@@ -68,6 +68,12 @@ func (h *projectsHandlers) projects(c *gin.Context) {
 					}
 				}
 			}
+			// The first account is a platform admin, and the branch above
+			// skipped the default for every admin. An omitted owner is the
+			// creator, including the person who just deployed.
+			if !exists && v.OwnerID == 0 {
+				v.OwnerID = user.ID
+			}
 		}
 		isNew := true
 		if existing, ok := h.repo.Project(v.ID); ok {

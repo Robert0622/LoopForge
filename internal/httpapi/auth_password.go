@@ -105,6 +105,9 @@ func (h *authHandlers) authPassword(c *gin.Context) {
 		return
 	}
 	user := domainUserToAuth(u)
+	if h.repo.IsPlatformAdmin(u.LoginName) {
+		joinWelcomeProject(h.repo, u.ID, true)
+	}
 	token, err := h.getAuthClient().SignUser(user)
 	if err != nil {
 		respond(c, err)
