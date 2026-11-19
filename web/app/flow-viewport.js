@@ -3,7 +3,7 @@
 const flowViewport=(()=>{
   const MIN=.25,MAX=2,GRID=18,NODE_W=244,NODE_H=132,PAL_W=256,PAL_MINI=48,MINIMAP_KEY='agentflow.flowMinimap';
   const vp={x:40,y:40,zoom:1};
-  let fittedId=null,autoCollapsed=false,animTimer=0,bound=false,onBlankClick=null,minimapRaf=0;
+  let fittedId=null,fittedCamera=null,animTimer=0,bound=false,onBlankClick=null,minimapRaf=0;
   const byId=id=>document.getElementById(id);
   const canvas=()=>byId('canvas');
   const clamp=z=>Math.min(MAX,Math.max(MIN,z));
@@ -50,7 +50,9 @@ const flowViewport=(()=>{
     return {x:x0,y:y0,w:x1-x0,h:y1-y0};
   }
   function fit(opts={}){
-    const smooth=opts.smooth!==false,pad=opts.padding??72,v=visible();
+    const smooth=opts.smooth!==false,v=visible();
+    const compact=byId('flowBody')?.classList.contains('compact');
+    const pad=opts.padding??(compact?Math.min(24,v.w*.08):72);
     if(!v.w||!v.h)return;
     const b=bounds();
     if(!b){vp.zoom=1;vp.x=40;vp.y=40;apply(smooth);return}
@@ -87,20 +89,31 @@ const flowViewport=(()=>{
     }
     return {x:Math.round(c.x/10)*10,y:Math.round(c.y/10)*10};
   }
-  // Collapse the palette and hide minimap/legend when an open drawer leaves
-  // too little canvas; restore whatever was collapsed automatically.
+  // A compact palette overlays the canvas. Desktop uses the saved width preference.
   function layoutTight(){
     const body=byId('flowBody'),pal=byId('flowPalette'),wrap=byId('flowStageWrap');if(!body||!pal||!wrap)return;
-    const drawer=drawerWidth(),total=body.clientWidth;if(!total)return;
-    const manual=localStorage.getItem('agentflow.flowPaletteCollapsed')==='1';
-    const need=drawer>0&&total-(manual?PAL_MINI:PAL_W)-drawer<480;
-    if(need&&!pal.classList.contains('collapsed')){pal.classList.add('collapsed');autoCollapsed=true}
-    else if(!need&&autoCollapsed){pal.classList.remove('collapsed');autoCollapsed=false}
-    const free=total-(pal.classList.contains('collapsed')?PAL_MINI:PAL_W)-drawer;
-    wrap.classList.toggle('tight',free<640);
+    const total=body.clientWidth;
+    if(total){
+      const drawer=drawerWidth(),compact=total<=540;
+      body.classList.toggle('compact',compact);
+      const manual=localStorage.getItem('agentflow.flowPaletteCollapsed')==='1';
+      const collapsed=compact?!body.classList.contains('palette-open'):manual||(drawer>0&&total-PAL_W-drawer<480);
+      pal.classList.toggle('collapsed',collapsed);
+      const free=total-(compact||collapsed?PAL_MINI:PAL_W)-drawer;
+      wrap.classList.toggle('tight',free<640);
+    }
+    const collapsed=pal.classList.contains('collapsed');
+    const toggle=byId('flowPaletteCollapse');
+    if(toggle){
+      toggle.setAttribute('aria-expanded',String(!collapsed));
+      const label=collapsed?'展开节点库':'收起节点库';
+      toggle.dataset.tip=label;toggle.setAttribute('aria-label',label);
+    }
   }
-  function paletteToggled(){autoCollapsed=false}
-  function minimapOn(){return localStorage.getItem(MINIMAP_KEY)!=='0'}
+  function minimapOn(){
+    const value=localStorage.getItem(MINIMAP_KEY);
+    return value===null?!byId('flowStageWrap')?.classList.contains('tight'):value==='1';
+  }
   // Pan and wheel fire faster than frames; redraw the minimap at most once per frame.
   function scheduleMinimap(){
     if(minimapRaf)return;
@@ -122,9 +135,14 @@ const flowViewport=(()=>{
   function toggleMinimap(){localStorage.setItem(MINIMAP_KEY,minimapOn()?'0':'1');renderMinimap()}
   // Called after every canvas render; fits once per opened workflow.
   function afterRender(){
-    const id=state.workflow?.id||null,c=canvas();
-    if(id&&id!==fittedId&&c&&c.clientWidth){fittedId=id;requestAnimationFrame(()=>fit({smooth:false}))}
-    else renderMinimap();
+    const id=state.workflow?.id;
+    if(!id||id===fittedId){renderMinimap();return}
+    requestAnimationFrame(()=>{
+      if(id!==state.workflow?.id||id===fittedId)return;
+      layoutTight();
+      const area=visible();if(!area.w||!area.h)return;
+      fit({smooth:false});fittedId=id;fittedCamera={...vp,width:area.w};
+    });
   }
   function bind(opts={}){
     onBlankClick=opts.onBlankClick||onBlankClick;
@@ -159,10 +177,19 @@ const flowViewport=(()=>{
       mm.onpointerup=mm.onpointercancel=()=>{down=false};
     }
     const body=byId('flowBody');
-    if(body&&typeof ResizeObserver==='function')new ResizeObserver(()=>{layoutTight();renderMinimap()}).observe(body);
+    if(body&&typeof ResizeObserver==='function'){
+      const resize=new ResizeObserver(()=>{
+        layoutTight();
+        const width=visible().w;
+        if(body.classList.contains('compact')&&width&&fittedCamera&&width!==fittedCamera.width&&
+          vp.x===fittedCamera.x&&vp.y===fittedCamera.y&&vp.zoom===fittedCamera.zoom)fittedId=null;
+        afterRender();
+      });
+      resize.observe(body);resize.observe(byId('flowStageWrap'));
+    }
     apply();
   }
-  return {toWorld,zoomBy,setZoom,fit,centerOn,reveal,reset,apply,layoutTight,freeSpot,afterRender,bind,paletteToggled,renderMinimap,
+  return {toWorld,zoomBy,setZoom,fit,centerOn,reveal,reset,apply,layoutTight,freeSpot,afterRender,bind,renderMinimap,
     get zoom(){return vp.zoom},get x(){return vp.x},get y(){return vp.y},
     _set(next){Object.assign(vp,next)}};
 })();

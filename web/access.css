@@ -67,3 +67,10 @@ html[data-theme="dark"] .setup-sub-info small b{color:var(--amber)}
 @media(max-width:1100px){.setup-grid{grid-template-columns:1fr}.setup-done{flex-direction:column;align-items:flex-start}.setup-done .button{margin-left:0}}
 @media(max-width:1100px){.access-grid{grid-template-columns:1fr}.access-summary{align-items:flex-start;flex-direction:column}.access-facts{width:100%;margin-left:0}.access-fact:first-child{border-left:0}.token-create-form{grid-template-columns:1fr 160px}.token-create-form button{grid-column:1/-1}.quick-steps{grid-template-columns:1fr}.quick-hero{flex-direction:column;align-items:flex-start}.quick-hero-facts{margin-left:0}.quick-hero-facts>div:first-child{border-left:0;padding-left:0}.quick-onboard{grid-template-columns:1fr}.quick-onboard-next{border-top:1px solid var(--line);border-left:0}.quick-after{grid-template-columns:1fr}}
 @media(max-width:640px){.access-agent-setup{align-items:flex-start;flex-direction:column}.access-agent-setup .button{width:100%}}
+
+@media(max-width:600px){
+  #guideView .token-create-form,#guideView .token-list{grid-template-columns:minmax(0,1fr)}
+  #guideView .token-row{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;overflow-wrap:anywhere}
+  #guideView .token-row-main{grid-column:1/-1}
+  #guideView .token-row .button{justify-self:end}
+}
