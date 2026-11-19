@@ -362,9 +362,7 @@ function restoreSOPCatalogFocus(root,focus){
 }
 function liveSOPCards(root){return [...root.querySelectorAll('.sop-card:not(.is-leaving)')]}
 function openSOPDesigner(id,missing='SOP 不存在或已删除'){
-  const wf=(state.data.workflows||[]).find(x=>x.id===id);
-  if(!wf)return toast(missing);
-  state.workflow=clone(wf);state.selectedNode=null;renderWorkflowMeta();renderCanvas();renderProperties();switchView('flow');
+  return switchFlowWorkflow(id,{openDesigner:true,missing});
 }
 function activateSOPCard(card){
   if(card.dataset.genericId)openGenericTemplateModal(card.dataset.genericId);
@@ -406,10 +404,7 @@ async function openGenericTemplateEditor(id){
   const w=(state.data?.workflows||[]).find(x=>x.id===id&&catalogGeneric(x));
   if(!w)return toast('通用模板不存在或已下架');
   if(!isPlatformAdmin())return toast('只有平台管理员可以编辑通用模板');
-  state.workflow=clone(w);state.selectedNode=null;markWorkflowClean();
-  clearGenericTemplateAgents();
-  renderWorkflowMeta();renderCanvas();renderProperties();switchView('flow');
-  await refreshGenericWorkflowRoles();
+  return openSOPDesigner(id);
 }
 function openGenericTemplateModal(id){
   const w=(state.data?.workflows||[]).find(x=>x.id===id&&catalogGeneric(x));

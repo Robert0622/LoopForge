@@ -218,9 +218,7 @@ Object.assign(ctx, {
     createElement: tag => new FakeEl(tag),
     addEventListener: (type, fn) => (docListeners[type] ||= []).push(fn),
   },
-  clone: v => JSON.parse(JSON.stringify(v)),
-  renderWorkflowMeta() {}, renderCanvas() {}, renderProperties() {},
-  switchView: name => switched.push(name),
+  switchFlowWorkflow(id, {openDesigner}) { switched.push({id,openDesigner}); },
   toast() {},
 });
 Object.assign(ctx.window, { innerWidth: 1280, innerHeight: 800, addEventListener() {} });
@@ -244,11 +242,12 @@ assert.ok(menuOpen() && moreA.attrs['aria-expanded'] === 'true', '⋯ opens the 
 click(openB);
 assert.ok(!menuOpen(), 'opening another card closes the menu');
 assert.strictEqual(moreA.attrs['aria-expanded'], 'false');
-assert.deepStrictEqual(switched, ['flow']);
+assert.deepStrictEqual(switched, [{id:'own-shared',openDesigner:true}]);
 
 click(moreA);
 click(cardB);
 assert.ok(!menuOpen(), 'clicking another card body closes the menu');
+assert.deepStrictEqual(switched[1], {id:'own-shared',openDesigner:true});
 
 click(moreA);
 ctx.hideSOPCardMenu();
