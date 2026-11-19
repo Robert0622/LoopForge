@@ -86,7 +86,7 @@ func (h *usersHandlers) createPlatformAccount(c *gin.Context) {
 	registerMu.Lock()
 	u, err := h.repo.CreateLocalAccount(input.LoginName, input.Password, input.Admin)
 	if err == nil {
-		joinWelcomeProject(h.repo, u.ID)
+		joinWelcomeProject(h.repo, u.ID, repo.WelcomeMemberSignup)
 	}
 	registerMu.Unlock()
 	if errors.Is(err, repo.ErrLoginTaken) {
