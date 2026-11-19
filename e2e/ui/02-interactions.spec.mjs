@@ -266,6 +266,7 @@ test('chat: asking AI about a failed run keeps the reply above the run alert', a
   track(`assistant session ${sid}`, () => del(`/api/assistant/sessions/${sid}`));
   await put(`/api/assistant/sessions/${sid}`, {
     id: sid, title: `E2E 运行提醒 ${cfg.runTag}`, projectId: cfg.projectId,
+    executor: cfg.executor, model: cfg.modelID,
     messages: [
       { role: 'user', content: '帮我跑一下这个 SOP' },
       { role: 'assistant', content: JSON.stringify({ drafts: [], message: `已启动运行 ${run.id}` }) },
@@ -281,9 +282,21 @@ test('chat: asking AI about a failed run keeps the reply above the run alert', a
       : el.classList.contains('assistant') ? 'assistant' : '')
     .filter(Boolean).slice(-3).join(' > '));
   await alert.getByRole('button', { name: '让 AI 分析' }).click();
+  const submitted = page.waitForRequest(request =>
+    request.method() === 'POST' && new URL(request.url()).pathname === '/api/assistant/generations');
   await page.getByRole('button', { name: '发送消息' }).click();
+  const payload = (await submitted).postDataJSON();
+  expect(payload.executor).toBe(cfg.executor);
+  if (cfg.modelID) expect(payload.model).toBe(cfg.modelID);
   await expect.poll(tail).toBe('user > live > alert');
   await expect.poll(tail, { timeout: 300_000 }).toBe('user > assistant > alert');
+  // A provider error also renders an assistant message in this position.
+  const generation = await get(`/api/assistant/sessions/${sid}/generation?after=0`);
+  expect(generation.status, generation.failure?.code).toBe('completed');
+  const saved = await get(`/api/assistant/sessions/${sid}`);
+  const reply = saved.messages.at(-1);
+  expect(reply.role).toBe('assistant');
+  expect(reply.content.trim()).not.toBe('');
   expect(errors).toEqual([]);
 });
 

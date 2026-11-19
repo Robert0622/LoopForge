@@ -248,8 +248,10 @@ function AssistantTurn({ message, steps, assets, projectId, sessionId, local, re
     </>
   );
 }
-function LiveMessage({ live, generation, finished = false, local = false, readOnly = false }) {
+function LiveMessage({ live, generation, finished = false, local = false, readOnly = false, diagnosticMessage }) {
   const steps = live.activity || [];
+  const stopReason = generation?.status === "failed" && generation.error
+    ? generation.error : "已停止，以上是停止前的内容。";
   const textual = hasTextSegments(steps);
   // A streamed paragraph followed by tool calls stays in the process above;
   // only the paragraph still being written shows as the answer.
@@ -286,13 +288,7 @@ function LiveMessage({ live, generation, finished = false, local = false, readOn
       )}
       {answer ? <RichContent message={answer} /> : null}
       {!finished && !local && !readOnly && generation?.id ? <GenerationDiagnostics sessionId={generation.sessionId} generationId={generation.id} compact /> : null}
-      {finished ? (
-        <p className="reply-stopped">
-          {generation?.status === "failed" && generation?.error
-            ? generation.error
-            : "已停止，以上是停止前的内容。"}
-        </p>
-      ) : null}
+      {finished && stopReason !== diagnosticMessage ? <p className="reply-stopped">{stopReason}</p> : null}
     </div>
   );
 }
@@ -952,6 +948,9 @@ export default function App() {
     }));
   }, [chat.activeId, chat.projectId]);
   const messages = chat.session?.messages || [];
+  const currentFailure = !chat.local && !chat.busy && chat.session?.id && chat.generation?.id &&
+    chat.generation.failure && !messages.some(m => m.generationId === chat.generation.id && m.failure)
+    ? chat.generation.failure : null;
   const conversationStarted = Boolean(
     chat.activeId && chat.session?.id === chat.activeId &&
     (messages.length || chat.busy || sidebarArtifacts.length || conversationRuns.length),
@@ -1741,6 +1740,7 @@ export default function App() {
                   live={chat.live}
                   generation={chat.generation}
                   finished
+                  diagnosticMessage={currentFailure?.message}
                   local={chat.local}
                   readOnly={chat.readOnly}
                 />
@@ -1749,7 +1749,7 @@ export default function App() {
                 if (follow.current && scroll.current)
                   scroll.current.scrollTop = scroll.current.scrollHeight;
               }} />
-              {!chat.local && !chat.busy && chat.generation?.failure && !messages.some((m) => m.generationId === chat.generation.id && m.failure) ? <GenerationDiagnostics sessionId={chat.session?.id} generationId={chat.generation.id} failure={chat.generation.failure} onCLIInstall={chat.adoptCLIInstall} readOnly={chat.readOnly} /> : null}
+              {currentFailure ? <GenerationDiagnostics sessionId={chat.session.id} generationId={chat.generation.id} failure={currentFailure} onCLIInstall={chat.adoptCLIInstall} readOnly={chat.readOnly} /> : null}
               {!chat.local && !chat.readOnly && !chat.busy && chat.generation?.id && chat.generation.status === "cancelled" && !chat.generation.failure && !messages.some((m) => m.generationId === chat.generation.id) ? <GenerationDiagnostics sessionId={chat.session?.id} generationId={chat.generation.id} compact /> : null}
               <RunAlerts
                 runs={conversationRuns}

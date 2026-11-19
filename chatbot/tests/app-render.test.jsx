@@ -630,6 +630,15 @@ describe("App", () => {
     });
     view.rerender(<App />);
     expect(screen.getByText("中断原因")).toBeInTheDocument();
+    chat.generation = { ...chat.generation, failure: { code: "TEST_ERROR", message: "中断原因" } };
+    view.rerender(<App />);
+    const diagnostics = screen.getByRole("region", { name: "本轮失败诊断" });
+    expect(within(diagnostics).getByText("中断原因")).toBeInTheDocument();
+    expect(screen.getAllByText("中断原因")).toHaveLength(1);
+    expect(screen.getByText("部分内容")).toBeInTheDocument();
+    chat.generation = { ...chat.generation, error: "执行器已断开" };
+    view.rerender(<App />);
+    expect(screen.getByText("执行器已断开")).toBeInTheDocument();
     Object.assign(chat, previous);
   });
 
