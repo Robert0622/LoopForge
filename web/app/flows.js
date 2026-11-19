@@ -165,13 +165,24 @@ function renderWorkflowMeta(){
   renderFlowHeader();
   if(typeof flowPalette!=='undefined')flowPalette.render();
 }
-async function switchFlowWorkflow(id){
-  if(!id||id===state.workflow?.id)return false;
+async function switchFlowWorkflow(id,{openDesigner=false,fromRoute=false,missing='SOP 不存在或已删除'}={}){
+  if(!id)return false;
+  if(id===state.workflow?.id){
+    if(openDesigner)switchView('flow');
+    return false;
+  }
   const next=(state.data?.workflows||[]).find(w=>w.id===id);
-  if(!next){toast('SOP 不存在或已删除');return false}
-  if(state.workflowDirty&&!(await afConfirm({title:'放弃修改并切换流程？',message:'当前流程有未保存修改。切换后将丢弃这些修改。',danger:true,confirmText:'放弃修改并切换',cancelText:'继续编辑'}))){renderWorkflowMeta();return false}
+  if(!next){toast(missing);return false}
+  if(state.workflowDirty){
+    const discard=await afConfirm({title:'放弃修改并切换流程？',message:'当前流程有未保存修改。切换后将丢弃这些修改。',danger:true,confirmText:'放弃修改并切换',cancelText:'继续编辑'});
+    if(!discard){renderWorkflowMeta();return false}
+  }
+  if(fromRoute&&flowRouteId()!==id)return false;
   state.workflow=clone(next);state.selectedNode=null;state.connectFrom=null;state.connectCursor=null;state.renamingNode=null;
-  markWorkflowClean();flowHistory.clear();rememberOpenWorkflow();renderAll();refreshGenericWorkflowRoles();
+  markWorkflowClean();flowHistory.clear();clearGenericTemplateAgents();
+  if(openDesigner)switchView('flow');
+  renderAll();
+  await refreshGenericWorkflowRoles();
   return true;
 }
 function sopWorkflowChoices(exceptId){

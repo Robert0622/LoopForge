@@ -1876,17 +1876,9 @@ function rememberOpenWorkflow(){
 async function applyFlowRoute(){
   const id=flowRouteId();
   if(!id||state.workflow?.id===id)return;
-  const wf=openableWorkflow(id);
-  if(!wf){rememberOpenWorkflow();return}
-  if(state.workflowDirty&&!(await afConfirm({title:'未保存更改',message:'当前流程有未保存修改，切换将放弃这些修改。继续？',danger:true}))){rememberOpenWorkflow();return}
-  if(flowRouteId()!==id)return;
-  state.workflow=clone(wf);
-  state.workflowSaved=clone(wf);
-  state.workflowDirty=false;
-  state.selectedNode=null;
-  localStorage.setItem('agentflow.activeWorkflow',id);
-  renderWorkflowMeta();renderCanvas();renderProperties();
-  refreshGenericWorkflowRoles();
+  if(!openableWorkflow(id)){rememberOpenWorkflow();return}
+  const changed=await switchFlowWorkflow(id,{fromRoute:true});
+  if(!changed&&flowRouteId()===id)rememberOpenWorkflow();
 }
 function runViewHash(id){return id?`#/runs/${encodeURIComponent(id)}`:'#/runs'}
 function syncRunHash(id){

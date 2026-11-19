@@ -143,3 +143,21 @@ test('switching workflows explicitly offers to discard edits or continue editing
   app.document.querySelector('#confirmCancelBtn').click();
   assert.equal(await pending,false);
 });
+
+test('search and catalog retain the current SOP draft until the user changes it explicitly',async(t)=>{
+  const app=await loadApp();t.after(app.close);
+  app.evaluate(`state.data.workflows=[{id:'draft-a',name:'Alpha',nodes:[],edges:[]},{id:'draft-b',name:'Beta',nodes:[],edges:[]}];
+    state.workflow={...state.data.workflows[0],name:'Edited Alpha'};state.workflowDirty=true;`);
+  await app.evaluate(`openSOPDesigner('draft-a')`);
+  assert.equal(app.evaluate('state.workflow.name'),'Edited Alpha');
+  const search=app.evaluate(`commandCatalog().find(item=>item.kind==='SOP'&&item.title==='Beta').action()`);
+  assert.equal(app.document.querySelector('#confirmModal').classList.contains('open'),true);
+  app.document.querySelector('#confirmCancelBtn').click();await search;
+  assert.equal(app.evaluate('state.workflowDirty'),true);
+  assert.equal(app.evaluate('state.workflow.name'),'Edited Alpha');
+  const catalog=app.evaluate(`openSOPDesigner('draft-b')`);
+  app.document.querySelector('#confirmOkBtn').click();await catalog;
+  assert.equal(app.evaluate('state.workflow.id'),'draft-b');
+  assert.equal(app.evaluate('state.workflowSaved.id'),'draft-b');
+  assert.equal(app.evaluate('state.workflowDirty'),false);
+});
