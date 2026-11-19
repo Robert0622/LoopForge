@@ -283,6 +283,13 @@ func (h issuesHandlers) issues(c *gin.Context) {
 			c.JSON(400, map[string]string{"error": "project not found"})
 			return
 		}
+		// Confirmed drafts go through /mcp; automatic assistant saves invoke
+		// the same HTTP handler in process. Choose the default only on create.
+		fromConversation := r.Context().Value(conversationSessionKey{}) != nil || assistantExecModeFrom(r.Context()).AutoWrite
+		if !found && fromConversation && strings.TrimSpace(v.SOPMode) == "" &&
+			strings.TrimSpace(v.WorkflowID) == "" && strings.TrimSpace(v.PlaybookID) == "" && len(v.SOPBindings) == 0 {
+			v.SOPMode = domain.IssueSOPNone
+		}
 		h.bindRequirementPlaybook(&v)
 		if v.AssigneeUserID > 0 {
 			if _, ok := h.repo.User(v.AssigneeUserID); !ok {

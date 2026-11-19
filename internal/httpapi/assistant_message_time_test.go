@@ -128,7 +128,7 @@ func TestAssistantTurnContextStatesBeijingTimeAndProjectSwitching(t *testing.T) 
 	assistantNow = func() time.Time { return time.Date(2026, 11, 1, 6, 16, 0, 0, time.UTC) }
 	t.Cleanup(func() { assistantNow = old })
 	inProject := assistantTurnContext(assistantRequest{ProjectID: "skillhub"})
-	for _, want := range []string{"当前北京时间：2026-11-01 14:16（星期日）", "不要写 UTC", "+08:00", "右上角的项目名称", "不要让用户去输入框上方", "generic-backend-delivery", "不要说「暂不绑定」"} {
+	for _, want := range []string{"当前北京时间：2026-11-01 14:16（星期日）", "不要写 UTC", "+08:00", "右上角的项目名称", "不要让用户去输入框上方", "sopMode=none", "不要写 workflowId"} {
 		if !strings.Contains(inProject, want) {
 			t.Errorf("project context missing %q", want)
 		}
@@ -151,5 +151,8 @@ func TestSystemPromptRecommendsTheGenericSOPs(t *testing.T) {
 	}
 	if strings.Contains(prompt, "请用户在输入框上方选择项目") {
 		t.Error("system prompt still points at the hidden composer picker")
+	}
+	if !strings.Contains(prompt, "只有用户点名才写 workflowId") {
+		t.Error("system prompt still tells the model that a new project requirement is bound")
 	}
 }

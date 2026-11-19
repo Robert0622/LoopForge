@@ -176,7 +176,7 @@ func assistantIncrementalPrompt(req assistantRequest, checkpoint assistantNative
 // selected, offered a project-settings delete that did not exist, and could
 // not say what to do about a repository it cannot create.
 func assistantProjectScopeNote(projectID string) string {
-	common := "新项目不指定 workflowId 时，平台默认绑定 generic-backend-delivery（通用后端交付 SOP）：草稿和总结里如实写明，不要说「暂不绑定」。"
+	common := "用户没有点名要走 SOP、也没有给出 workflowId 时，新建需求不要写 workflowId。平台会把这次创建记为不使用 SOP（sopMode=none），不要说已经绑定了通用后端交付。只有用户明确要走某条 SOP 时才在 issues_save 里写 workflowId。项目设置里的默认 SOP 只是以后手动选用时的默认值，不会自动套到这条对话需求上。"
 	if strings.TrimSpace(projectID) == "" {
 		return "\n本对话没有绑定项目（个人对话）；写入项目内资源前先和用户确认目标项目。需要项目时，请用户点对话右上角的项目名称选择项目（个人对话会直接绑定，不用重开）。" + common
 	}

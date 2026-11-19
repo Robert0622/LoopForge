@@ -16,7 +16,7 @@ func TestConversationRequirementIssueDefaults(t *testing.T) {
 	if !strings.HasPrefix(issue.ID, "issue-") || issue.ProjectID != "p" || issue.Title != "修复登录页文案" || issue.Description != "按钮文案错了" {
 		t.Fatalf("identity fields = %+v", issue)
 	}
-	if issue.Status != "in_progress" || issue.Priority != "medium" || issue.Kind != "requirement" || issue.Source != "local" || issue.AutomationState != "ignored" {
+	if issue.Status != "in_progress" || issue.Priority != "medium" || issue.Kind != "requirement" || issue.Source != "local" || issue.SOPMode != domain.IssueSOPNone || issue.AutomationState != "ignored" {
 		t.Fatalf("default fields = %+v", issue)
 	}
 	if issue.AssigneeUserID != 7 || issue.ConversationSessionID != "chat-1" {
