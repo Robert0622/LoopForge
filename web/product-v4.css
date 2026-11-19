@@ -3675,3 +3675,12 @@ html[data-theme="dark"] #runnersView .runner-runtime-icon:is(.codex,.claude-code
 @media(max-width:1100px){#projectsView .project-admin-layout>aside>:is(.project-admin-caption,.project-admin-list){position:static}}
 /* The profile card owns the theme switcher on desktop; the node stays because assistant.js inserts its button before it. */
 @media(min-width:1001px){.topbar #themeToggle{display:none!important}}
+
+/* The search dialog keeps keyboard focus on its editable combobox. */
+.command-search input{min-width:0}
+#commandClose{flex:none;width:36px;height:36px;border:0;border-radius:8px;background:transparent;color:var(--v3-ink-3);font:inherit;font-size:22px;cursor:pointer}
+#commandClose:hover,#commandClose:focus-visible,.command-results button.selected{background:var(--v3-accent-soft);color:var(--v3-ink)}
+#commandClose:focus-visible{outline:2px solid var(--v3-accent);outline-offset:1px}
+.command-results:empty{padding:0}
+.command-results button{grid-template-columns:minmax(6rem,max-content) minmax(0,1fr) 1rem}
+.command-results button>span:nth-child(2){min-width:0;overflow-wrap:anywhere}

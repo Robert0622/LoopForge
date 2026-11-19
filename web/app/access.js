@@ -145,35 +145,79 @@ async function revokePersonalToken(id){
 }
 
 
-let commandMatches=[],commandSelectedIndex=0;
+let commandMatches=[],commandSelectedIndex=0,commandOpener=null;
 function commandCatalog(){
-  const pages=[['collaboration','AI 工作台','和 AI 对话，派发与跟进任务'],['issues','需求列表','查看进度，触发或重试'],['approvals','待我确认','批准或退回卡住的需求'],['observability','统计','用量分析 · Token 与质量'],['settings','个人配置','账号、模型与执行凭据'],['projects','项目配置','项目、成员和仓库'],['bots','通道管理','企业微信单聊或群聊通知通道'],['sops','流程模板','Issue 修复与需求开发'],['runs','运行记录','查看节点日志和产物'],['aiSchedules','定时任务','提示词任务、SOP 触发与共享任务'],['agents','角色定义','管理角色和能力资产'],['mcp','能力资产 · MCP','添加项目级或个人 MCP'],['rules','能力资产 · 规则','当前项目的行为与执行约束'],['skills','能力资产 · 技能','当前项目的技能和附加文件'],['runners','执行机器','用自己的电脑或 CVM 跑任务'],['dockerfiles','环境资产 · Dockerfile','管理项目容器构建定义'],['environments','环境资产 · 安装脚本','管理隔离环境的工具安装脚本'],['sandboxes','环境资产 · 沙箱','管理项目运行隔离策略'],['guide','访问密钥','创建和撤销访问密钥']].map(([view,title,meta])=>({kind:'页面',title,meta,action:()=>switchView(view)}));
-  const issues=(state.data.issues||[]).map(i=>({kind:'需求',title:i.title,meta:`${i.priority||'—'} · ${issueStatusLabel(i.status)}`,action:()=>openIssueDetail(i.id)}));
-  const runs=sopRuns(state.data.runs).map(r=>({kind:'运行',title:runIssueTitle(r),meta:`${runDisplayStatus(r)} · ${r.workflowSnapshot?.name||r.workflowId}`,action:()=>openRunFromId(r.id)}));
-  const sops=catalogWorkflows().map(w=>({kind:'SOP',title:w.name,meta:`${w.status==='published'?'已发布':'草稿'} · ${w.nodes?.length||0} 个节点`,action:()=>{state.workflow=clone(w);state.selectedNode=null;switchView('flow')}}));
-  const agents=(state.data.agents||[]).map(a=>({kind:'Agent',title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
+  const pages=[['collaboration','AI 工作台','和 AI 对话，派发与跟进任务'],['issues','需求列表','查看进度，触发或重试'],['assistant','AI 助手','自定义规则'],['flow','流程设计','SOP'],['approvals','待我确认','批准或退回卡住的需求'],['observability','统计','用量分析 · Token 与质量'],['settings','个人配置','账号、模型与执行凭据'],['projects','项目配置','项目、成员和仓库'],['bots','通道管理','企业微信单聊或群聊通知通道'],['sops','流程模板','Issue 修复与需求开发'],['runs','运行记录','查看节点日志和产物'],['aiSchedules','定时任务','提示词任务、SOP 触发与共享任务'],['agents','角色定义','管理角色和能力资产'],['mcp','能力资产 · MCP','添加项目级或个人 MCP'],['rules','能力资产 · 规则','当前项目的行为与执行约束'],['skills','能力资产 · 技能','当前项目的技能和附加文件'],['runners','执行机器','用自己的电脑或 CVM 跑任务'],['dockerfiles','环境资产 · Dockerfile','管理项目容器构建定义'],['environments','环境资产 · 安装脚本','管理隔离环境的工具安装脚本'],['sandboxes','环境资产 · 沙箱','管理项目运行隔离策略'],['guide','访问密钥','创建和撤销访问密钥'],...(isPlatformAdmin()?[['platform','平台管理','平台管理员']]:[])].map(([view,title,meta])=>({kind:'页面',title,meta,action:()=>switchView(view)}));
+  const issues=(state.data.issues||[]).map(i=>({kind:'需求',id:[i.id,i.externalRef?.externalId,i.externalRef?.externalIid&&`#${i.externalRef.externalIid}`].filter(Boolean).join(' '),title:i.title,meta:`${issueKeyLabel(i)} · ${i.priority||'—'} · ${issueStatusLabel(i.status)}`,action:()=>openIssueDetail(i.id)}));
+  const runs=sopRuns(state.data.runs).map(r=>({kind:'运行',id:r.id,title:runIssueTitle(r),meta:`${runDisplayStatus(r)} · ${r.workflowSnapshot?.name||r.workflowId}`,action:()=>openRunFromId(r.id)}));
+  const sops=catalogWorkflows().map(w=>({kind:'SOP',id:w.id,title:w.name,meta:`${w.status==='published'?'已发布':'草稿'} · ${w.nodes?.length||0} 个节点`,action:()=>openSOPDesigner(w.id)}));
+  const agents=(state.data.agents||[]).map(a=>({kind:'Agent',id:a.id,title:a.name,meta:a.description||a.id,action:()=>{switchView('agents');openAgentWizard(a)}}));
   const actions=[{kind:'操作',title:'新建 SOP',meta:'创建流程草稿',action:openSOPWizard}];
   return [...actions,...pages,...issues,...runs,...sops,...agents];
 }
-function openCommandPalette(){const host=$('#commandPalette');host.hidden=false;$('#commandSearch').value='';renderCommandResults();requestAnimationFrame(()=>$('#commandSearch').focus())}
-function closeCommandPalette(){$('#commandPalette').hidden=true}
+function openCommandPalette(){
+  const host=$('#commandPalette'), search=$('#commandSearch');
+  if(!host.hidden){search.focus();return}
+  commandOpener=document.activeElement===document.body?$('#commandPaletteTrigger'):document.activeElement;
+  host.hidden=false;
+  search.value='';
+  renderCommandResults();
+  search.focus();
+}
+function closeCommandPalette(){
+  $('#commandPalette').hidden=true;
+  if(commandOpener?.isConnected)commandOpener.focus({preventScroll:true});
+  commandOpener=null;
+}
 function moveCommandSelection(delta){
   if(!commandMatches.length)return;
   commandSelectedIndex=(commandSelectedIndex+delta+commandMatches.length)%commandMatches.length;
   highlightCommandSelection();
 }
 function highlightCommandSelection(){
+  const search=$('#commandSearch');
+  search.removeAttribute('aria-activedescendant');
   $$('#commandResults [data-command-index]').forEach((el,i)=>{
-    el.classList.toggle('selected',i===commandSelectedIndex);
-    if(i===commandSelectedIndex)el.scrollIntoView({block:'nearest'});
+    const selected=i===commandSelectedIndex;
+    el.classList.toggle('selected',selected);
+    el.setAttribute('aria-selected',String(selected));
+    if(selected){search.setAttribute('aria-activedescendant',el.id);el.scrollIntoView({block:'nearest'})}
   });
 }
 function renderCommandResults(){
-  const q=$('#commandSearch').value.trim().toLowerCase();
-  commandMatches=commandCatalog().filter(x=>!q||`${x.kind} ${x.title} ${x.meta}`.toLowerCase().includes(q)).slice(0,12);
+  const query=$('#commandSearch').value.trim().toLowerCase();
+  const translate=window.lfTranslate||((value)=>value);
+  commandMatches=commandCatalog().filter(item=>{
+    if(!query)return true;
+    const terms=[item.kind,translate(item.kind),item.title,item.meta,item.id];
+    if(item.kind==='页面'||item.kind==='操作')terms.push(translate(item.title),translate(item.meta));
+    return terms.join(' ').toLowerCase().includes(query);
+  }).slice(0,12);
   commandSelectedIndex=0;
-  $('#commandResults').innerHTML=commandMatches.length
-    ?commandMatches.map((x,i)=>`<button data-command-index="${i}" class="${i===0?'selected':''}"><span class="command-kind">${escapeHTML(x.kind)}</span><span><b>${escapeHTML(x.title)}</b><small>${escapeHTML(x.meta||'')}</small></span><em>↵</em></button>`).join('')
-    :`<div class="command-empty"><b>没有匹配结果</b><span>换一个标题、编号或页面名称试试</span></div>`;
+  $('#commandResults').innerHTML=commandMatches.map((x,i)=>{
+    const literal=x.kind==='页面'||x.kind==='操作'?'':' data-i18n-skip';
+    return `<button type="button" id="command-result-${i}" tabindex="-1" role="option" data-command-index="${i}"><span class="command-kind">${escapeHTML(x.kind)}</span><span><b${literal}>${escapeHTML(x.title)}</b><small>${escapeHTML(x.meta||'')}</small></span><em aria-hidden="true">↵</em></button>`;
+  }).join('');
+  $('#commandEmpty').hidden=commandMatches.length>0;
+  highlightCommandSelection();
+}
+function handleCommandKeys(event){
+  if(event.isComposing||event.keyCode===229)return;
+  const search=$('#commandSearch'), close=$('#commandClose');
+  if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){
+    event.preventDefault();search.focus();return;
+  }
+  if(event.key==='Tab'){
+    event.preventDefault();
+    (document.activeElement===search?close:search).focus();
+  }else if(event.key==='Escape'){
+    event.preventDefault();closeCommandPalette();
+  }else if(event.target!==close){
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){
+      event.preventDefault();search.focus();moveCommandSelection(event.key==='ArrowDown'?1:-1);
+    }else if(event.key==='Enter'){
+      event.preventDefault();executeCommand(commandSelectedIndex);
+    }
+  }
 }
 function executeCommand(index){const item=commandMatches[index];if(!item)return;closeCommandPalette();item.action()}

@@ -167,7 +167,7 @@
   <!-- 顶栏：页面上下文 + 全局项目切换 + 关键操作 -->
   <header class="topbar">
     <div class="page-context"><b id="pageTitle">AI 工作台</b><span>／ Agent 原生研发协作平台</span></div>
-    <button id="commandPaletteTrigger" class="command-trigger" type="button"><span><svg class="agent-icon harness-icon" data-icon="search" data-icon-motion="idle" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><b>搜索需求、运行、SOP 或 Agent</b><kbd>⌘K</kbd></button>
+    <button id="commandPaletteTrigger" aria-haspopup="dialog" aria-controls="commandPalette" class="command-trigger" type="button"><span><svg class="agent-icon harness-icon" data-icon="search" data-icon-motion="idle" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><b>搜索需求、运行、SOP 或 Agent</b><kbd data-command-shortcut>Ctrl+K</kbd></button>
     <div class="topbar-spacer"></div>
     <div class="topbar-project">
       <label class="topbar-project-label">项目</label>
@@ -1290,11 +1290,12 @@
   <div id="toastContainer" class="toast-container" aria-live="polite">
     <div id="toast" class="toast" role="status" style="display:none"></div>
   </div>
-  <div id="commandPalette" class="command-palette" hidden>
+  <div id="commandPalette" class="command-palette" role="dialog" aria-modal="true" aria-label="搜索" hidden>
     <div class="command-dialog">
-      <div class="command-search"><span>⌕</span><input id="commandSearch" autocomplete="off" placeholder="搜索需求、运行、SOP、Agent，或输入页面名称…"><kbd>ESC</kbd></div>
-      <div id="commandResults" class="command-results"></div>
-      <div class="command-footer"><span>↑↓ 浏览</span><span>Enter 打开</span><span>⌘K 快速唤起</span></div>
+      <div class="command-search"><span aria-hidden="true">⌕</span><input id="commandSearch" role="combobox" aria-label="搜索" aria-autocomplete="list" aria-expanded="true" aria-controls="commandResults" autocomplete="off" placeholder="搜索需求、运行、SOP、Agent，或输入页面名称…"><button type="button" id="commandClose" aria-label="关闭">×</button></div>
+      <div id="commandResults" class="command-results" role="listbox" aria-label="搜索结果"></div>
+      <div class="command-empty" id="commandEmpty" role="status" hidden><b>没有匹配结果</b><span>换一个标题、编号或页面名称试试</span></div>
+      <div class="command-footer"><span>↑↓ 浏览</span><span>Enter 打开</span><kbd>Esc</kbd></div>
     </div>
   </div>
   <div id="revisionModal" class="modal"><div class="modal-card revision-card"><button type="button" class="modal-close" id="revisionClose">×</button><div class="wizard-head"><div><p class="eyebrow">版本历史</p><h2 id="revisionTitle">版本历史</h2><p>对比上一版并回退。回退会生成新版本，不会改已经跑完的记录。</p></div></div><div id="revisionList" class="revision-list"></div><pre id="revisionDiff" class="revision-diff">选择一个历史版本查看差异。</pre><div class="wizard-actions"><button type="button" class="button ghost" id="revisionClose2">关闭</button><button type="button" class="button primary" id="revisionRestore" disabled>回退到此版本</button></div></div></div>

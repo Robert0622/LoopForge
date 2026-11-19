@@ -1080,6 +1080,9 @@ function bind(){
     });
   }
   $('#commandPaletteTrigger').onclick=openCommandPalette;
+  $('#commandClose').onclick=closeCommandPalette;
+  const commandShortcut=/Mac|iPhone|iPad|iPod/i.test(navigator.platform)?'⌘K':'Ctrl+K';
+  $$('[data-command-shortcut]').forEach(el=>{el.textContent=commandShortcut});
   $('#commandPalette').onclick=e=>{if(e.target===$('#commandPalette'))closeCommandPalette()};
   $('#commandSearch').oninput=renderCommandResults;
   $('#commandResults').onclick=e=>{const item=e.target.closest('[data-command-index]');if(item)executeCommand(Number(item.dataset.commandIndex))};
@@ -1290,13 +1293,8 @@ function bind(){
     modal.classList.remove('open');
   }));
   document.addEventListener('keydown',e=>{
-    if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette();return}
-    if(!$('#commandPalette').hidden){
-      if(e.key==='Escape'){closeCommandPalette();return}
-      if(e.key==='ArrowDown'){e.preventDefault();moveCommandSelection(1);return}
-      if(e.key==='ArrowUp'){e.preventDefault();moveCommandSelection(-1);return}
-      if(e.key==='Enter'){e.preventDefault();executeCommand(commandSelectedIndex);return}
-    }
+    if(!$('#commandPalette').hidden){handleCommandKeys(e);return}
+    if(!e.isComposing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandPalette();return}
     if(e.key==='Escape'){
       if(flowDesignerEscape(e))return;
       if($('#artifactModal')?.classList.contains('open')){$('#artifactModal').classList.remove('open');return}
