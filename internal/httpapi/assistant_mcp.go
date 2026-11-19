@@ -145,9 +145,6 @@ func (h *assistantHandlers) callAssistantPlatform(ctx context.Context, user doma
 	if op.Name == "issues_save" || op.Name == "issues_import_tapd" {
 		if body, ok := input.Body.(map[string]any); ok {
 			normalizeAssistantIssueBranchBody(body)
-			if op.Name == "issues_save" {
-				h.leaveNewAssistantIssueUnbound(body, input.Path)
-			}
 		}
 	}
 	if mode.AutoWrite && op.Name == "issues_save" {

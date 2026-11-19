@@ -1350,35 +1350,6 @@ func normalizeAssistantIssueBranchBody(body map[string]any) bool {
 	return changed
 }
 
-func assistantBodyString(body map[string]any, key string) string {
-	value, ok := body[key]
-	if !ok || value == nil {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(value))
-}
-
-// leaveNewAssistantIssueUnbound keeps a conversation-created requirement off
-// the project's default SOP. The project still has that default for the
-// composer and for imports; only a new save that names neither a workflow
-// nor an explicit sopMode stays unbound. Updating an existing issue must
-// not clear a binding the user already chose.
-func (h *assistantHandlers) leaveNewAssistantIssueUnbound(body map[string]any, path map[string]string) {
-	if body == nil || assistantBodyString(body, "workflowId") != "" || assistantBodyString(body, "sopMode") != "" {
-		return
-	}
-	id := assistantBodyString(body, "id")
-	if id == "" && path != nil {
-		id = strings.TrimSpace(path["id"])
-	}
-	if id != "" && h != nil && h.repo != nil {
-		if _, ok := h.repo.Issue(id); ok {
-			return
-		}
-	}
-	body["sopMode"] = domain.IssueSOPNone
-}
-
 func stripAssistantDraftSecrets(tool string, raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 {
 		return raw

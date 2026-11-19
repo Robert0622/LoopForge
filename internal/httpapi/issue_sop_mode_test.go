@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -75,5 +76,72 @@ func TestRequirementWithoutSOP(t *testing.T) {
 	}, http.StatusOK)
 	if rebound.SOPMode != "" || rebound.WorkflowID != "sop-mode-flow" || rebound.AutomationState != "eligible" {
 		t.Fatalf("binding an SOP must switch the requirement to SOP delivery: %+v", rebound)
+	}
+}
+
+func TestConversationIssueSaveRespectsSOPSelection(t *testing.T) {
+	t.Setenv("AGENTFLOW_SESSION_SECRET", "conversation-issue-test-secret")
+	h, user := workbenchFixture(t)
+	h.api = New(h.repo, engine.New(h.repo, runtime.NewManager(t.TempDir())), tracker.NewService(), "", "")
+	const flow = "generic-backend-delivery"
+	project, _ := h.repo.Project("workbench")
+	project.WorkflowID = flow
+	project.SOPPlaybooks = []domain.SOPPlaybook{
+		{ID: "chosen", Name: "Chosen workflow", Bindings: []domain.IssueSOPBinding{{WorkflowID: flow}}},
+	}
+	if err := h.repo.PutProject(project); err != nil {
+		t.Fatal(err)
+	}
+	save := func(id string, fields map[string]any, confirm bool) domain.Issue {
+		t.Helper()
+		body := map[string]any{"id": id, "projectId": project.ID, "kind": "requirement", "title": id}
+		for k, v := range fields {
+			body[k] = v
+		}
+		if confirm {
+			browser := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.Header.Set(chatSessionHeader, "qa-conversation")
+				h.api.ServeHTTP(w, r)
+			})
+			requestJSONAuthed[map[string]any](t, browser, user, http.MethodPost, "/mcp", map[string]any{
+				"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+				"params": map[string]any{"name": "issues_save", "arguments": map[string]any{"body": body}},
+			}, http.StatusOK)
+		} else {
+			ctx := withAssistantExecMode(context.Background(), assistantExecMode{AutoWrite: true})
+			_, err := h.callAssistantPlatform(ctx, user, project.ID, assistantMCPCall{
+				Tool: "issues_save", Arguments: map[string]any{"body": body},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		issue, ok := h.repo.Issue(id)
+		if !ok {
+			t.Fatalf("issue %s was not saved", id)
+		}
+		return issue
+	}
+	for _, mode := range []string{"confirmed", "automatic"} {
+		t.Run(mode, func(t *testing.T) {
+			confirm := mode == "confirmed"
+			unbound := save(mode+"-unbound", nil, confirm)
+			if !unbound.WithoutSOP() || unbound.WorkflowID != "" || unbound.AutomationState != "ignored" {
+				t.Errorf("new issue inherited SOP: mode=%q workflow=%q automation=%q", unbound.SOPMode, unbound.WorkflowID, unbound.AutomationState)
+			}
+			named := save(mode+"-workflow", map[string]any{"workflowId": flow}, confirm)
+			edited := save(named.ID, map[string]any{"title": "Updated title"}, confirm)
+			if edited.WithoutSOP() || edited.WorkflowID != flow {
+				t.Errorf("edit lost the chosen workflow: %q", edited.WorkflowID)
+			}
+			book := save(mode+"-playbook", map[string]any{"playbookId": "chosen"}, confirm)
+			if book.WithoutSOP() || book.PlaybookID != "chosen" {
+				t.Errorf("lost named playbook: %q", book.PlaybookID)
+			}
+			chain := save(mode+"-chain", map[string]any{"sopBindings": []map[string]any{{"workflowId": flow}}}, confirm)
+			if chain.WithoutSOP() || len(chain.SOPBindings) != 1 || chain.SOPBindings[0].WorkflowID != flow {
+				t.Errorf("lost explicit chain: %+v", chain.SOPBindings)
+			}
+		})
 	}
 }

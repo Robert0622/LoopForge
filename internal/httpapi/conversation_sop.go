@@ -13,8 +13,8 @@ import (
 )
 
 // chatSessionHeader names the conversation a browser-confirmed tool call was
-// drafted in. It only links the dispatched issue to that conversation; access
-// is checked by the project operation that carries it.
+// drafted in. Issue creation and dispatch use this context. Each operation
+// performs its own project access checks.
 const chatSessionHeader = "X-AgentFlow-Chat-Session"
 
 type conversationSessionKey struct{}
