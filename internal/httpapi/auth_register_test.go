@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRegisterFirstAccountBecomesAdminAndSignupToggle(t *testing.T) {
@@ -180,5 +181,75 @@ func TestAdminLoginClaimsOwnerlessWelcome(t *testing.T) {
 	owner, _ := s.UserByLoginName("owner")
 	if welcome.OwnerID != owner.ID || owner.ID == 0 {
 		t.Fatalf("admin login must claim an ownerless welcome project, owner=%d user=%d", welcome.OwnerID, owner.ID)
+	}
+}
+
+func TestAdminLoginOnlyClaimsActiveUnownedWelcome(t *testing.T) {
+	t.Setenv("AGENTFLOW_AUTH_REQUIRED", "true")
+	t.Setenv("AGENTFLOW_SCHEDULER_ENABLED", "false")
+	s, err := repo.OpenTest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	const password = "a-long-enough-password"
+	admin, err := s.CreateLocalAccount("welcome-admin", password, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := s.CreateLocalAccount("welcome-owner", password, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := New(s, engine.New(s, runtime.NewManager(t.TempDir())), nil, "", "")
+	login := func() {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodPost, "http://localhost/api/auth/password",
+			bytes.NewBufferString(`{"login":"welcome-admin","password":"a-long-enough-password"}`))
+		r.Header.Set("Origin", "http://localhost")
+		r.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, r)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("login returned %d", rec.Code)
+		}
+	}
+	if err = s.PutProject(domain.Project{ID: welcomeProjectID, Name: "Configured welcome", Description: "Keep this setting", Members: []domain.ProjectMember{{UserID: admin.ID, Role: "member"}, {UserID: owner.ID, Role: "viewer"}}}); err != nil {
+		t.Fatal(err)
+	}
+	login()
+	p, _ := s.Project(welcomeProjectID)
+	roles := map[int64]string{}
+	for _, m := range p.Members {
+		roles[m.UserID] = m.Role
+	}
+	if p.OwnerID != admin.ID || roles[admin.ID] != "maintainer" || roles[owner.ID] != "viewer" || p.Description != "Keep this setting" {
+		t.Errorf("claim changed the wrong fields: owner=%d roles=%v", p.OwnerID, roles)
+	}
+	p.OwnerID = owner.ID
+	p.Members = []domain.ProjectMember{{UserID: owner.ID, Role: "maintainer"}}
+	if err = s.PutProject(p); err != nil {
+		t.Fatal(err)
+	}
+	login()
+	p, _ = s.Project(welcomeProjectID)
+	if p.OwnerID != owner.ID || len(p.Members) != 1 {
+		t.Errorf("login changed membership of an owned project: owner=%d members=%v", p.OwnerID, p.Members)
+	}
+	now := time.Now().UTC()
+	if err = s.SetProjectArchived(welcomeProjectID, &now, owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	signup := httptest.NewRequest(http.MethodPost, "http://localhost/api/auth/register", bytes.NewBufferString(`{"login":"archived-signup","password":"a-long-enough-password"}`))
+	signup.Header.Set("Content-Type", "application/json")
+	signup.Header.Set("Origin", "http://localhost")
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, signup)
+	if response.Code != http.StatusOK {
+		t.Fatalf("signup returned %d", response.Code)
+	}
+	p, _ = s.Project(welcomeProjectID)
+	if p.ArchivedAt == nil || len(p.Members) != 1 {
+		t.Errorf("archived project was changed by signup: members=%v", p.Members)
 	}
 }

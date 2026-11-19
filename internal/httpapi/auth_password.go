@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"agentflow/internal/repo"
 	"net/http"
 	"net/url"
 	"sync"
@@ -106,7 +107,7 @@ func (h *authHandlers) authPassword(c *gin.Context) {
 	}
 	user := domainUserToAuth(u)
 	if h.repo.IsPlatformAdmin(u.LoginName) {
-		joinWelcomeProject(h.repo, u.ID, true)
+		joinWelcomeProject(h.repo, u.ID, repo.WelcomeAdminLogin)
 	}
 	token, err := h.getAuthClient().SignUser(user)
 	if err != nil {

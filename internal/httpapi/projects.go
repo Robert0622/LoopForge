@@ -53,26 +53,18 @@ func (h *projectsHandlers) projects(c *gin.Context) {
 				c.JSON(401, gin.H{"error": "请先登录"})
 				return
 			}
+			if !exists && v.OwnerID == 0 {
+				v.OwnerID = user.ID
+			}
 			if !h.isPlatformAdmin(r) {
 				if exists && existing.OwnerID != user.ID {
 					c.JSON(403, gin.H{"error": "只有项目 Owner 或平台管理员可以修改项目设置"})
 					return
 				}
-				if !exists {
-					if v.OwnerID == 0 {
-						v.OwnerID = user.ID
-					}
-					if v.OwnerID != user.ID {
-						c.JSON(403, gin.H{"error": "新项目 Owner 必须为当前用户"})
-						return
-					}
+				if !exists && v.OwnerID != user.ID {
+					c.JSON(403, gin.H{"error": "新项目 Owner 必须为当前用户"})
+					return
 				}
-			}
-			// The first account is a platform admin, and the branch above
-			// skipped the default for every admin. An omitted owner is the
-			// creator, including the person who just deployed.
-			if !exists && v.OwnerID == 0 {
-				v.OwnerID = user.ID
 			}
 		}
 		isNew := true

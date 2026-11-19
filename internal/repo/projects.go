@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -147,6 +148,66 @@ func (r *ProjectsRepo) SetProjectArchived(id string, at *time.Time, by int64) er
 	})
 }
 
+// WelcomeProjectEvent describes how a local account reached the starter project.
+type WelcomeProjectEvent uint8
+
+const (
+	WelcomeMemberSignup WelcomeProjectEvent = iota
+	WelcomeFirstAdminSignup
+	WelcomeAdminLogin
+)
+
+// EnrollWelcomeAccount joins new accounts and lets the first active admin
+// claim an unowned welcome project. Lock the row before deciding ownership:
+// concurrent signups and logins must not replace each other's memberships.
+func (r *ProjectsRepo) EnrollWelcomeAccount(id string, userID int64, event WelcomeProjectEvent) error {
+	if userID <= 0 {
+		return nil
+	}
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		var row projectRow
+		err := r.locking(tx).Select("id", "owner_user_id", "payload").Where("id = ?", id).Take(&row).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		hasOwner := row.OwnerUserID != nil && *row.OwnerUserID > 0
+		if hasOwner && event == WelcomeAdminLogin {
+			return nil
+		}
+		var project domain.Project
+		if err := jsonUnmarshal(row.Payload, &project); err != nil {
+			return err
+		}
+		if project.ArchivedAt != nil {
+			return nil
+		}
+		now := time.Now().UTC()
+		member := projectMemberRow{ProjectID: id, UserID: userID, Role: "member", Created: timePtr(now)}
+		onConflict := clause.OnConflict{DoNothing: true}
+		claim := !hasOwner && (event == WelcomeFirstAdminSignup || event == WelcomeAdminLogin)
+		if claim {
+			if err := tx.Model(&projectRow{}).Where("id = ?", id).Updates(map[string]any{
+				"owner_user_id": userID, "payload": gorm.Expr("JSON_SET(payload, '$.ownerId', ?)", userID), "updated_at": now,
+			}).Error; err != nil {
+				return err
+			}
+			if err := backfillProjectAssignees(tx, id, userID); err != nil {
+				return err
+			}
+			member.Role = "maintainer"
+			onConflict = clause.OnConflict{Columns: []clause.Column{{Name: "project_id"}, {Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"role"})}
+		}
+		created := tx.Clauses(onConflict).Create(&member)
+		if created.Error != nil || created.RowsAffected == 0 || claim {
+			return created.Error
+		}
+		return tx.Model(&projectRow{}).Where("id = ?", id).Update("updated_at", now).Error
+	})
+}
+
 func (r *ProjectsRepo) PutProject(v domain.Project) error {
 	now := time.Now().UTC()
 	if old, ok := r.Project(v.ID); ok {
@@ -205,24 +266,17 @@ func (r *ProjectsRepo) writeProject(v domain.Project) error {
 			}
 		}
 		if v.OwnerID > 0 {
-			// Backfill issue responsibility for issues that have no assignee.
-			var issueRows []issueRow
-			if err := tx.Where("project_id = ? AND assignee_user_id IS NULL", v.ID).Find(&issueRows).Error; err != nil {
-				return err
-			}
-			for _, row := range issueRows {
-				var issue domain.Issue
-				if jsonUnmarshal(row.Payload, &issue) != nil {
-					continue
-				}
-				issue.AssigneeUserID = v.OwnerID
-				if err := tx.Model(&issueRow{}).Where("id = ?", row.ID).Updates(map[string]any{
-					"assignee_user_id": v.OwnerID, "payload": mustJSON(issue),
-				}).Error; err != nil {
-					return err
-				}
-			}
+			return backfillProjectAssignees(tx, v.ID, v.OwnerID)
 		}
 		return nil
 	})
+}
+
+func backfillProjectAssignees(tx *gorm.DB, projectID string, ownerID int64) error {
+	// Patch just the assignee so an unrelated edit to an issue is preserved.
+	return tx.Model(&issueRow{}).Where("project_id = ? AND assignee_user_id IS NULL AND JSON_VALID(payload)", projectID).
+		Updates(map[string]any{
+			"assignee_user_id": ownerID,
+			"payload":          gorm.Expr("JSON_SET(payload, '$.assigneeUserId', ?)", ownerID),
+		}).Error
 }
