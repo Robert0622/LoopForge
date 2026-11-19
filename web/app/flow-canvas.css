@@ -326,7 +326,7 @@ html[data-theme="dark"] #flowView .fd-toast button{background:rgba(0,0,0,.06);co
 #flowView .fd-stagewrap.ai-open .properties.fd-drawer{display:none}
 #flowView .fd-stagewrap.has-drawer .fd-tr{right:380px}
 #flowView .fd-stagewrap.has-drawer .fd-minimap{right:380px}
-#flowView .fd-stagewrap.tight .fd-minimap,#flowView .fd-stagewrap.tight .fd-legend,#flowView .fd-stagewrap.tight .fd-lg-sep{display:none}
+#flowView .fd-stagewrap.tight .fd-legend,#flowView .fd-stagewrap.tight .fd-lg-sep{display:none}
 #flowView .fd-dh{display:flex;align-items:center;gap:10px;padding:14px 12px 12px 16px;border-bottom:1px solid var(--fd-line);flex:none}
 #flowView .fd-dh-t{flex:1;min-width:0}
 #flowView .fd-dh-name{display:block;width:100%;height:28px;margin:-2px 0 0 -6px;padding:0 6px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--fd-ink);font:600 15px/1 inherit;outline:0;text-overflow:ellipsis;transition:border-color .15s,background .15s}
@@ -477,4 +477,21 @@ html[data-theme="dark"] #aiOrchestrator :is([data-cli="codex"],[data-cli="claude
 
 @media (prefers-reduced-motion:reduce){
   #flowView *,#flowView *::before,#flowView *::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+/* Keep the canvas usable when the node library would occupy most of the designer. */
+#flowView .fd-body.compact .fd-palette{position:absolute;inset:0 auto 0 0;z-index:24;max-width:calc(100% - 24px)}
+#flowView .fd-body.compact .fd-palette:not(.collapsed){box-shadow:var(--fd-shadow-lg)}
+#flowView .fd-body.compact .fd-stagewrap{margin-left:48px}
+#flowView .fd-body.compact .fd-tr{left:6px;right:auto;top:6px;width:max-content;max-width:calc(100% - 12px);box-sizing:border-box;flex-wrap:wrap}
+#flowView .fd-body.compact .fd-bl{left:6px;bottom:62px;max-width:calc(100% - 12px);width:max-content;box-sizing:border-box;flex-wrap:wrap}
+#flowView .fd-body.compact .fd-bl .fd-sep{display:none}
+#flowView .fd-stagewrap.tight .fd-minimap{width:min(118px,45%);height:72px;bottom:90px;right:6px}
+#flowView .fd-body.compact .fd-stagewrap.tight .fd-minimap{bottom:146px}
+@media(max-width:520px){
+  #flowView .fd-head{flex-wrap:wrap;padding:6px 8px;gap:3px}
+  #flowView .fd-ident{flex:1 0 100%;max-width:100%;box-sizing:border-box}
+  #flowView .fd-head-sp{display:none}
+  #flowView .fd-tools{margin-left:auto}
+  #flowView .fd-pop{left:4px;max-width:calc(100% - 8px);max-height:65vh}
 }

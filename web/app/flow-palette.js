@@ -88,10 +88,11 @@ const flowPalette=(()=>{
   function setCollapsed(on){
     const pal=document.getElementById('flowPalette');if(!pal)return;
     pal.classList.toggle('collapsed',on);
-    localStorage.setItem(COLLAPSE_KEY,on?'1':'0');
-    const btn=document.getElementById('flowPaletteCollapse');if(btn)btn.dataset.tip=on?'展开节点库':'收起节点库';
-    flowViewport.paletteToggled();
-    setTimeout(()=>flowViewport.layoutTight(),220);
+    const body=document.getElementById('flowBody');
+    if(body?.classList.contains('compact'))body.classList.toggle('palette-open',!on);
+    else localStorage.setItem(COLLAPSE_KEY,on?'1':'0');
+    flowViewport.layoutTight();
+    setTimeout(()=>{flowViewport.layoutTight();flowViewport.renderMinimap()},220);
   }
   function bindDrop(){
     const c=document.getElementById('canvas');if(!c)return;
@@ -118,6 +119,7 @@ const flowPalette=(()=>{
       if(e.target.closest('[data-pal-agents]')){switchView('agents');return}
       const item=e.target.closest('.fd-pal-item');if(!item)return;
       const p=payload(item);addNode(p.type,{agentId:p.agentId});
+      if(document.getElementById('flowBody')?.classList.contains('palette-open')&&!flowReadOnly())setCollapsed(true);
     });
     body.addEventListener('keydown',e=>{
       if(e.key!=='Enter'&&e.key!==' ')return;

@@ -614,3 +614,9 @@
 #mcpView .mcp-catalog-suggest b{color:var(--hui-text);font-size:13px;font-weight:500}
 #mcpView .mcp-catalog-suggest span{color:var(--hui-muted);font-size:12px}
 #mcpView .mcp-catalog-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+@media(max-width:650px){
+  #assetsView #assetScopeToolbar{flex-direction:column;align-items:stretch;gap:8px}
+  #assetsView #assetScopeSwitch{flex-wrap:wrap!important;width:100%;max-width:100%;height:auto!important;box-sizing:border-box}
+  #assetsView #assetSearchBox{width:100%;max-width:none;box-sizing:border-box}
+}
