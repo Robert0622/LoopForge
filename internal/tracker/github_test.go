@@ -177,3 +177,51 @@ func TestGitHubMergeBranchShortCircuitsMergedPullAndReopensClosed(t *testing.T) 
 		t.Fatalf("closed unmerged pull must be re-opened then merged: %v", writes)
 	}
 }
+
+func TestGitHubPullAllLogsProcessedIssues(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		pageSize   int
+		wantCount  int
+		wantStatus string
+	}{
+		{"empty repository", 0, 0, "success"},
+		{"issues and pull requests", 2, 1, "success"},
+		{"error after the first page", 100, 1, "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &memIssueStore{
+				issues: map[string]domain.Issue{},
+				repositories: map[string]domain.Repository{
+					"repo": {ID: "repo", Provider: "github", ProjectID: "orders", GongfengProjectID: "github:example/orders"},
+				},
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") == "2" {
+					http.Error(w, "temporary error", http.StatusServiceUnavailable)
+					return
+				}
+				page := make([]map[string]any, tc.pageSize)
+				for i := range page {
+					page[i] = map[string]any{"id": i + 1, "number": i + 1, "title": "Example", "state": "open"}
+					if i > 0 {
+						page[i]["pull_request"] = map[string]any{}
+					}
+				}
+				_ = json.NewEncoder(w).Encode(page)
+			}))
+			t.Cleanup(server.Close)
+			s := NewService()
+			s.githubAPIBase = server.URL
+			err := s.PullAll(store)
+			if (err != nil) != (tc.wantStatus == "failed") {
+				t.Fatalf("unexpected sync result: %v", err)
+			}
+			logs := s.Logs()
+			if len(logs) != 1 || logs[0].Status != tc.wantStatus || logs[0].Count != tc.wantCount ||
+				logs[0].ProjectID != "orders" || len(store.issues) != tc.wantCount {
+				t.Fatalf("stored %d issues, logs = %+v", len(store.issues), logs)
+			}
+		})
+	}
+}

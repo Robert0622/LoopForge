@@ -311,7 +311,11 @@ func (s *Service) PullAll(store IssueStoreAdapter) error {
 				status = "failed"
 				message = err.Error()
 			}
-			s.addLog(domain.SyncLog{ID: fmt.Sprintf("sync-%d", started.UnixNano()), Direction: "pull", Source: "github", Action: "sync_issues", Status: status, Message: message, ProjectID: repo.ProjectID, StartedAt: started, FinishedAt: time.Now().UTC()})
+			s.addLog(domain.SyncLog{
+				ID: fmt.Sprintf("sync-%d", started.UnixNano()), Direction: "pull", Source: "github",
+				Action: "sync_issues", Status: status, Count: n, Message: message,
+				ProjectID: repo.ProjectID, StartedAt: started, FinishedAt: time.Now().UTC(),
+			})
 			syncCount += n
 			if err != nil {
 				lastErr = err
