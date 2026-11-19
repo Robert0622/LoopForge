@@ -103,13 +103,59 @@ func (g *githubClient) request(method, suffix string, input, output any) error {
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("GitHub returned HTTP %d; check the project owner's Git token and repository permissions", res.StatusCode)
+		return githubResponseError(res)
 	}
 	if output == nil {
 		_, err = io.Copy(io.Discard, io.LimitReader(res.Body, 4<<20))
 		return err
 	}
 	return json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(output)
+}
+
+func githubResponseError(res *http.Response) error {
+	status := res.StatusCode
+	hint := http.StatusText(status)
+	switch {
+	case status == http.StatusForbidden || status == http.StatusTooManyRequests:
+		hint = githubRateLimitHint(res)
+		if hint == "" {
+			hint = "check the credentials and repository permissions used for this request"
+		}
+	case status == http.StatusUnauthorized:
+		hint = "check the credentials used for this request"
+	case status == http.StatusNotFound:
+		hint = "check that the resource exists and the account has access to it"
+	case status == http.StatusUnprocessableEntity:
+		hint = "check the submitted parameters"
+	case status >= 500:
+		hint = "GitHub service error, try again later"
+	}
+	if hint == "" {
+		return fmt.Errorf("GitHub returned HTTP %d", status)
+	}
+	return fmt.Errorf("GitHub returned HTTP %d (%s)", status, hint)
+}
+
+// GitHub can return 403 for both insufficient permissions and throttling.
+func githubRateLimitHint(res *http.Response) string {
+	delay := res.Header.Get("Retry-After")
+	exhausted := res.Header.Get("X-RateLimit-Remaining") == "0"
+	if res.StatusCode != http.StatusTooManyRequests && delay == "" && !exhausted {
+		var failure struct {
+			Message string `json:"message"`
+		}
+		if err := json.NewDecoder(io.LimitReader(res.Body, 8192)).Decode(&failure); err != nil ||
+			!strings.Contains(strings.ToLower(failure.Message), "rate limit") {
+			return ""
+		}
+	}
+	if seconds, err := strconv.ParseInt(delay, 10, 64); err == nil && seconds >= 0 {
+		return fmt.Sprintf("rate limit reached, retry after %d seconds", seconds)
+	}
+	if reset, err := strconv.ParseInt(res.Header.Get("X-RateLimit-Reset"), 10, 64); exhausted && err == nil && reset > 0 {
+		return "rate limit reached, retry after " + time.Unix(reset, 0).UTC().Format("2006-01-02 15:04:05 MST")
+	}
+	return "rate limit reached, wait before retrying"
 }
 
 type githubPull struct {
