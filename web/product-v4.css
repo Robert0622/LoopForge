@@ -3410,6 +3410,12 @@ html[data-theme="dark"] #runnersView .runner-runtime-icon:is(.codex,.claude-code
   #agentsView .agent-search{width:180px}
 }
 
+@media(max-width:650px){
+  #agentsView .agent-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+  #agentsView .agent-tabs{max-width:100%;overflow-x:auto}
+  #agentsView .agent-search{width:100%;max-width:none;box-sizing:border-box}
+}
+
 /* --- 角色弹窗：外框、标题、导航、底栏 --- */
 #agentModal .modal-card.agent-studio-v2{
   width:min(max(72vw,880px),1320px,94vw);height:min(max(84vh,640px),1000px,92vh);border:1px solid var(--hu-border);border-radius:var(--hu-r-xl);
@@ -3675,9 +3681,3 @@ html[data-theme="dark"] #runnersView .runner-runtime-icon:is(.codex,.claude-code
 @media(max-width:1100px){#projectsView .project-admin-layout>aside>:is(.project-admin-caption,.project-admin-list){position:static}}
 /* The profile card owns the theme switcher on desktop; the node stays because assistant.js inserts its button before it. */
 @media(min-width:1001px){.topbar #themeToggle{display:none!important}}
-
-@media(max-width:650px){
-  #agentsView .agent-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
-  #agentsView .agent-tabs{max-width:100%;overflow-x:auto}
-  #agentsView .agent-search{width:100%;max-width:none;box-sizing:border-box}
-}
