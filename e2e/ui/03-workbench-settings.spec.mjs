@@ -45,7 +45,10 @@ test('AI workbench: a saved conversation is listed, opened, searched, renamed, a
   await expect(dialog.locator('.search-results button').filter({ hasText: title })).toBeVisible();
   await search.fill(`不存在的会话 ${stamp()}`);
   await expect(dialog.locator('.search-results')).toContainText('没有匹配的会话');
-  await dialog.getByRole('button', { name: '关闭' }).click();
+  await search.fill(title);
+  await search.press('ArrowDown');
+  await expect(dialog.getByRole('button', { name: new RegExp(title) })).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(dialog).toHaveCount(0);
 
   await row(title).locator('.session-link').click({ button: 'right' });
@@ -79,6 +82,39 @@ test('AI workbench: a saved conversation is listed, opened, searched, renamed, a
   await expect.poll(async () => (await api('GET', `/api/assistant/sessions/${id}`, undefined, { expect: [200, 404], raw: true })).status).toBe(404);
   await expect(row(renamed)).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('mobile chat: finding a question and starting the next one leaves the composer usable', async ({ page }) => {
+  const id = `af-e2e-mobile-${stamp()}`;
+  const title = `手机排期 ${stamp()}`;
+  await put(`/api/assistant/sessions/${id}`, {
+    title, projectId: P, messages: [{ role: 'user', content: '周五有哪些安排？' }],
+  });
+  track(`mobile session ${id}`, () => del(`/api/assistant/sessions/${id}`, { expect: [200, 404] }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/chatbot/');
+  const showHistory = page.getByRole('button', { name: '显示会话侧边栏' });
+  await showHistory.click();
+  await page.getByRole('button', { name: '搜索会话', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox').fill(title);
+  await dialog.getByRole('button', { name: new RegExp(title) }).click();
+  await expect(showHistory).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByText('周五有哪些安排？', { exact: true })).toBeVisible();
+  await showHistory.click();
+  await page.getByRole('button', { name: '新对话', exact: true }).click();
+  await expect(showHistory).toHaveAttribute('aria-expanded', 'false');
+
+  await page.getByRole('textbox', { name: '消息', exact: true }).fill('还要准备什么？');
+  const send = page.getByRole('button', { name: '发送消息', exact: true });
+  const model = page.getByRole('button', { name: '选择模型' });
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(send).toBeInViewport({ ratio: 1 });
+    await expect(model).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    await send.click({ trial: true });
+  }
 });
 
 test('personal credentials: the add wizard validates, saves write-only, and the row clears it', async ({ page, identity }) => {

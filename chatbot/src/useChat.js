@@ -158,6 +158,7 @@ export function useChat() {
     session?.executionTarget,
   );
   const currentId = useRef(activeId),
+    navigationRevision = useRef(0),
     sessionRef = useRef(session),
     projectRef = useRef(projectId),
     globalProject = useRef(initialProject),
@@ -206,6 +207,7 @@ export function useChat() {
   const open = useCallback(
     (id) => {
       if (id === currentId.current && sessionRef.current?.id === id) return;
+      navigationRevision.current++;
       setError("");
       setGeneration(null);
       setGenerationKnown(null);
@@ -782,6 +784,7 @@ export function useChat() {
     approvalMode = "confirm",
     messagesOverride = null,
     fromQueue = false,
+    onSessionCreated,
   }) {
     if (!text.trim() && !attachments.length) return false;
     if (currentId.current && sessionRef.current?.id !== currentId.current) {
@@ -812,40 +815,40 @@ export function useChat() {
       setError(executionMachines.machineError || "执行机器仍在加载，请稍后发送。");
       return false;
     }
-    // Without a key (and no sponsored model) the server rejects every message.
-    // Say so before creating an empty conversation that would swallow the
-    // typed question. Re-check first in case the key was saved elsewhere since
-    // this page loaded.
-    if (
-      codeBuddy &&
-      !sponsoredModel &&
-      users.find((u) => u.id === user?.id)?.codeBuddyApiKeyConfigured ===
-        undefined &&
-      user &&
-      !user.isGuest
-    ) {
-      const rows = await api("/api/users").catch(() => null);
-      if (rows) setUsers(rows);
-      const fresh = rows?.find((u) => u.id === user.id);
-      if (fresh && !fresh.codeBuddyApiKeyConfigured) {
-        setError("请先在个人配置中配置自己的 CodeBuddy API Key");
-        return false;
-      }
-    }
+    const startedAt = navigationRevision.current;
+    const sourceProject = projectRef.current;
+    let s = sessionRef.current;
+    const previousGeneration = generation?.id;
     submittingRef.current = true;
     setSubmitting(true);
     setError("");
-    let s = sessionRef.current;
-    const previousGeneration = generation?.id;
-    setGeneration(null);
     try {
+      // Re-check before opening an empty conversation: the key may have been
+      // saved elsewhere since this page loaded.
+      if (
+        codeBuddy &&
+        !sponsoredModel &&
+        users.find((u) => u.id === user?.id)?.codeBuddyApiKeyConfigured ===
+          undefined &&
+        user &&
+        !user.isGuest
+      ) {
+        const rows = await api("/api/users").catch(() => null);
+        if (rows) setUsers(rows);
+        const fresh = rows?.find((u) => u.id === user.id);
+        if (fresh && !fresh.codeBuddyApiKeyConfigured) {
+          setError("请先在个人配置中配置自己的 CodeBuddy API Key");
+          return false;
+        }
+      }
+      if (navigationRevision.current === startedAt) setGeneration(null);
       if (!s) {
         const id = newId();
         s = await write(
           sessionPath(id),
           {
             id,
-            projectId: projectRef.current,
+            projectId: sourceProject,
             issueId: draftIssueId,
             sandboxProfileId,
             executionTarget: {pool: executionMachines.defaultRunnerId ? "runner" : "cloud", runnerId: executionMachines.defaultRunnerId || ""},
@@ -857,10 +860,13 @@ export function useChat() {
           },
           "PUT",
         );
-        setSession(s);
-        currentId.current = id;
-        setActiveId(id);
-        changeURL(id);
+        const selected = navigationRevision.current === startedAt && projectRef.current === sourceProject;
+        onSessionCreated?.(id, selected);
+        if (selected) {
+          currentId.current = id;
+          setActiveId(id);
+          changeURL(id);
+        }
       }
       const content = text.trim() || "请阅读本轮附件并回答。";
       const pending = {
@@ -874,17 +880,19 @@ export function useChat() {
         ...(references.length ? { references } : {}),
       };
       const messages = [...(messagesOverride || s.messages || []), pending];
-      setSession({
-        ...s,
-        messages,
-        participants:
-          user &&
-          !confirmationCaption(pending, messages.at(-2)) &&
-          !s.participants?.some((p) => p.id === user.id)
-            ? [...(s.participants || []), { id: user.id, name: user.loginName }]
-            : s.participants,
-      });
-      setLive({ answer: "", thinking: "", tools: [] });
+      if (currentId.current === s.id) {
+        setSession({
+          ...s,
+          messages,
+          participants:
+            user &&
+            !confirmationCaption(pending, messages.at(-2)) &&
+            !s.participants?.some((p) => p.id === user.id)
+              ? [...(s.participants || []), { id: user.id, name: user.loginName }]
+              : s.participants,
+        });
+        setLive({ answer: "", thinking: "", tools: [] });
+      }
       const executionTarget = executionLocked(s) ? s.executionTarget : {
         pool: executionMachines.defaultRunnerId ? "runner" : "cloud",
         runnerId: executionMachines.defaultRunnerId || "",
@@ -905,7 +913,8 @@ export function useChat() {
           executionTarget: g.executionTarget || executionTarget } : old);
         setGeneration(g);
       }
-      await refreshSessions();
+      // The server accepted this turn even if refreshing the sidebar fails.
+      void refreshSessions().catch(() => {});
       return true;
     } catch (e) {
       if (s) {
