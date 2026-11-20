@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -473,6 +474,73 @@ func TestDaemonRestartImmediatelyRestoresPresence(t *testing.T) {
 	})
 	if restarted.runnerID() != first.runnerID() || restarted.clientSession() != first.clientSession() || len(s.Runners()) != 1 {
 		t.Fatal("restart must retain the runner identity and session")
+	}
+}
+
+func TestDaemonDiscoversCLIsOncePerStart(t *testing.T) {
+	server, store, _ := newDaemonTestServer(t)
+	dir := t.TempDir()
+	probe := filepath.Join(dir, "probe")
+	script := "#!/bin/sh\necho called >> \"$LOOPFORGE_TEST_PROBES\"\necho \"$LOOPFORGE_TEST_VERSION\"\n"
+	if goruntime.GOOS == "windows" {
+		probe += ".cmd"
+		script = "@echo off\r\necho called>>\"%LOOPFORGE_TEST_PROBES%\"\r\necho %LOOPFORGE_TEST_VERSION%\r\n"
+	}
+	if err := os.WriteFile(probe, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	binaries := make(map[string]string)
+	for _, provider := range defaultProviders {
+		binaries[provider.Kind] = filepath.Join(dir, "absent")
+	}
+	binaries["codebuddy"] = probe
+	cfg := Config{
+		ServerURL: server.URL, BootstrapToken: "boot-secret", StatePath: filepath.Join(dir, "state.json"),
+		Name: "discovery-runner", DefaultWorkspaceRoot: dir, ExtraBinaries: binaries,
+	}
+	var id string
+	for _, version := range []string{"1.0", "2.0"} {
+		t.Run(version, func(t *testing.T) {
+			logPath := filepath.Join(t.TempDir(), "probes")
+			t.Setenv("LOOPFORGE_TEST_PROBES", logPath)
+			t.Setenv("LOOPFORGE_TEST_VERSION", version)
+			d, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan error, 1)
+			go func() { done <- d.Run(ctx) }()
+			t.Cleanup(func() {
+				cancel()
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					t.Error("runner did not stop")
+				}
+			})
+			waitFor(t, 10*time.Second, "connected runner reporting the installed version", func() bool {
+				row, ok := store.Runner(d.runnerID())
+				if !ok || !d.wsOnline.Load() {
+					return false
+				}
+				for _, rt := range row.Runtimes {
+					if rt.Provider == "codebuddy" && rt.Version == version {
+						return true
+					}
+				}
+				return false
+			})
+			if id != "" && d.runnerID() != id {
+				t.Fatal("restarting with a saved session changed the runner identity")
+			}
+			id = d.runnerID()
+			cfg.BootstrapToken = "already-used"
+			calls, err := os.ReadFile(logPath)
+			if err != nil || len(strings.Fields(string(calls))) != 1 {
+				t.Errorf("expected one version probe, got %q (read error %v)", calls, err)
+			}
+		})
 	}
 }
 
