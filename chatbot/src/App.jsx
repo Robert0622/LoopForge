@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { useChat } from "./useChat";
+import { useComposerDraft } from "./useComposerDraft.js";
 import NativeApprovalPanel from "./NativeApprovalPanel";
 import { AgentBrowserLinks } from "./agent-browser-links.js";
 import ActivityTrace, { ReplyTimeline } from "./ActivityTrace";
@@ -107,6 +108,25 @@ function sidebarViewport() {
   } catch {
     return window;
   }
+}
+function navigateHistorySearch(event) {
+  if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+  const { key, target, currentTarget } = event;
+  if (!["Enter", "ArrowDown", "ArrowUp"].includes(key)) return;
+  const search = currentTarget.querySelector("input");
+  const results = Array.from(currentTarget.querySelectorAll(".search-results button"));
+  if (!results.length) return;
+  if (key === "Enter") {
+    if (target === search) {
+      event.preventDefault();
+      results[0].click();
+    }
+    return;
+  }
+  event.preventDefault();
+  const index = results.indexOf(target);
+  if (key === "ArrowDown") results[Math.min(index + 1, results.length - 1)].focus();
+  else (index < 1 ? search : results[index - 1]).focus();
 }
 function readSidebarWidth() {
   // Also migrate standalone workbench loads, before the first React render.
@@ -331,11 +351,8 @@ export default function App() {
     [expandedProjects, setExpandedProjects] = useState({}),
     [pinnedOpen, setPinnedOpen] = useState(true),
     [pins, setPins] = useState({}),
-    [text, setText] = useState(""),
-    [attachments, setAttachments] = useState([]),
     [pendingAttachments, setPendingAttachments] = useState([]),
     [imagePreview, setImagePreview] = useState(null),
-    [references, setReferences] = useState([]),
     [issueMention, setIssueMention] = useState(readIssueMention),
     [issueDraft, setIssueDraft] = useState(readIssueMention),
     [mention, setMention] = useState(null),
@@ -363,6 +380,16 @@ export default function App() {
     setIssueDraft(null);
     setIssueMention(null);
     chat.newChat();
+    closeNarrowSidebar();
+  }
+  function closeNarrowSidebar() {
+    if (window.innerWidth <= 850) setSidebar(false);
+  }
+  function openHistorySession(id) {
+    setSessionContext(null);
+    chat.open(id);
+    setQuery("");
+    closeNarrowSidebar();
   }
   const input = useRef(),
     sessionPress = useRef(null),
@@ -373,14 +400,16 @@ export default function App() {
     fileInput = useRef(),
     scroll = useRef(),
     follow = useRef(true),
-    draftReady = useRef(null),
     previousArtifacts = useRef({ id: null, ids: new Set(), baselined: false }),
     dialogInput = useRef(),
     composerPreviews = useRef(new Map());
   // A requirement handed over by the workbench drafts in its own slot so the
   // project's unsent new-conversation draft and attachments stay untouched.
   const newDraftSlot = issueDraft && issueDraft.projectId === chat.projectId ? "issue:" + issueDraft.issueId : "new:" + chat.projectId;
-  const draftKey = `agentflow.native-chat.draft.${chat.user?.id || "guest"}.${chat.activeId || newDraftSlot}`;
+  const draftPrefix = `agentflow.native-chat.draft.${chat.user?.id}.`;
+  const draftKey = chat.user ? draftPrefix + (chat.activeId || newDraftSlot) : null;
+  const { text, setText, attachments, setAttachments, references, setReferences, begin } =
+    useComposerDraft(draftKey, chat.setError);
   useEffect(() => {
     if (!chat.activeId) return;
     setIssueDraft(null);
@@ -557,25 +586,6 @@ export default function App() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-  useEffect(() => {
-    if (!chat.user) return;
-    const value = readJSON(draftKey, {});
-    setText(value.text || "");
-    setAttachments(value.attachments || []);
-    setReferences(value.references || []);
-    draftReady.current = draftKey;
-  }, [draftKey, chat.user?.id]);
-  useEffect(() => {
-    if (!chat.user || draftReady.current !== draftKey) return;
-    try {
-      localStorage.setItem(
-        draftKey,
-        JSON.stringify({ text, attachments, references }),
-      );
-    } catch {
-      chat.setError("浏览器存储空间不足，草稿仍保留在当前页面。请移除较大的附件后重试。");
-    }
-  }, [text, attachments, references, draftKey, chat.user?.id]);
   // A requirement handed over by the workbench ("创建并去对话澄清") opens a
   // new conversation with the requirement already @-mentioned. It waits for
   // the new conversation's draft to load so the draft does not overwrite it.
@@ -602,8 +612,7 @@ export default function App() {
       !chat.user ||
       chat.activeId ||
       chat.projectId !== issueMention.projectId ||
-      newDraftSlot !== "issue:" + issueMention.issueId ||
-      draftReady.current !== draftKey
+      newDraftSlot !== "issue:" + issueMention.issueId
     ) return;
     let current = true;
     api(`/api/issues/${encodeURIComponent(issueMention.issueId)}`)
@@ -765,26 +774,23 @@ export default function App() {
     closeMenu();
   }
   async function submit() {
-    if (uploading) return;
+    if (uploading || chat.submitting || !chat.ready || chat.machineSaving ||
+      (chat.activeId && chat.session?.id !== chat.activeId)) return;
+    const submission = begin();
+    if (!submission) return;
     follow.current = true;
-    const ok = await chat.send({
-      text,
-      attachments,
-      references,
-      approvalMode: approval,
-    });
-    if (ok) {
-      setMention(null);
-      setText("");
-      setAttachments([]);
-      for (const a of attachments) releaseComposerPreview(a.id);
-      setReferences([]);
-      localStorage.removeItem(draftKey);
-      if (input.current) input.current.style.height = "";
-    } else {
-      // A failed first message may already have opened a new conversation,
-      // which loads that conversation's (empty) draft. Keep what was typed.
-      setText((current) => current || text);
+    setMention(null);
+    if (input.current) input.current.style.height = "";
+    let accepted = false;
+    try {
+      accepted = await chat.send({
+        ...submission.sent,
+        approvalMode: approval,
+        onSessionCreated: (id, selected) => submission.bind(draftPrefix + id, selected),
+      });
+    } finally {
+      submission.finish(accepted);
+      if (accepted) for (const a of submission.sent.attachments) releaseComposerPreview(a.id);
     }
   }
   function editQueued(item) {
@@ -1055,10 +1061,7 @@ export default function App() {
             event.preventDefault();
             return;
           }
-          setSessionContext(null);
-          chat.open(s.id);
-          setQuery("");
-          if (innerWidth < 850) setSidebar(false);
+          openHistorySession(s.id);
         }}
       >
         <span>{s.displayTitle || s.title || "新对话"}</span>
@@ -2062,12 +2065,9 @@ export default function App() {
                       }
                     }}
                     onKeyDown={(e) => {
+                      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                       if (mention && mentionPicker.current?.keyDown(e)) return;
-                      if (
-                        e.key === "Enter" &&
-                        !e.shiftKey &&
-                        !e.nativeEvent.isComposing
-                      ) {
+                      if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         void submit();
                       }
@@ -2350,11 +2350,10 @@ export default function App() {
           }
         >
           {dialog.type === "search" ? (
-            <>
+            <div onKeyDown={navigateHistorySearch}>
               <label className="dialog-search">
                 <HarnessIcon name="search" size={17} />
                 <input
-                  autoFocus
                   aria-label="搜索会话名称"
                   placeholder="搜索会话名称或项目"
                   value={query}
@@ -2372,9 +2371,8 @@ export default function App() {
                       <button
                         key={s.id}
                         onClick={() => {
-                          chat.open(s.id);
+                          openHistorySession(s.id);
                           closeDialog();
-                          setQuery("");
                         }}
                       >
                         <HarnessIcon name="new-request" size={16} />
@@ -2390,10 +2388,12 @@ export default function App() {
                   </section>
                 ))}
                 {!searchGroups.length ? (
-                  <p className="end-label">没有匹配的会话</p>
+                  <p className="end-label" role="status">
+                    {query.trim() ? "没有匹配的会话，试试其他会话名称或项目名称。" : "还没有会话"}
+                  </p>
                 ) : null}
               </div>
-            </>
+            </div>
           ) : dialog.type === "rename" ? (
             <label className="field">
               会话名称

@@ -2022,8 +2022,12 @@ small {
   font-size: 13px;
 }
 .search-results > button:hover,
-.search-results > section > button:hover {
+.search-results > section > button:hover,
+.search-results button:focus-visible {
   background: var(--subtle);
+}
+.search-results button:focus-visible {
+  outline-offset: -2px;
 }
 .search-results > button > span,
 .search-results > section > button > span {
@@ -3885,10 +3889,15 @@ a.draft-title {
   flex: 1;
 }
 
-/* Narrow conversations (side panel open): keep send/stop reachable and let
-   the model and approval labels shrink first. */
+/* The CLI, model and approval labels vary in width. Keep every control
+   reachable when their combined width exceeds the composer. */
 .composer-toolbar {
   min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.composer-toolbar > .send-button:first-of-type {
+  margin-inline-start: auto;
 }
 .composer-toolbar > * {
   flex-shrink: 0;
@@ -3909,7 +3918,6 @@ a.draft-title {
 @container (max-width: 360px) {
   .composer-toolbar {
     gap: 1px;
-    flex-wrap: wrap;
     row-gap: 4px;
   }
   .chat-shell button.permission-selector {

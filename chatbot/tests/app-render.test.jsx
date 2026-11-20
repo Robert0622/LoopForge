@@ -70,6 +70,56 @@ vi.mock("mermaid", () => ({
 import App from "../src/App.jsx";
 
 describe("App", () => {
+  test("finds a conversation with the keyboard and keeps IME confirmation in the search field", async () => {
+    const previous = chat.sessions;
+    chat.sessions = [
+      { id: "mon", title: "周一排期", updatedAt: "2026-01-02" },
+      { id: "fri", title: "周五排期", updatedAt: "2026-01-01" },
+    ];
+    const view = render(<App />);
+    try {
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+      const dialog = screen.getByRole("dialog");
+      const search = within(dialog).getByRole("textbox");
+      fireEvent.change(search, { target: { value: "排期" } });
+      fireEvent.keyDown(search, { key: "Enter", isComposing: true });
+      fireEvent.keyDown(search, { key: "Enter", keyCode: 229 });
+      expect(dialog).toBeInTheDocument();
+      fireEvent.keyDown(search, { key: "ArrowDown" });
+      expect(document.activeElement).toHaveTextContent("周一排期");
+      fireEvent.keyDown(document.activeElement, { key: "ArrowDown" });
+      expect(document.activeElement).toHaveTextContent("周五排期");
+      await userEvent.setup().keyboard("{Enter}");
+      expect(chat.open).toHaveBeenLastCalledWith("fri");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+      const next = screen.getByLabelText("搜索会话名称");
+      fireEvent.change(next, { target: { value: "没有的名称" } });
+      fireEvent.keyDown(next, { key: "Enter" });
+      expect(screen.getByRole("status")).toHaveTextContent("试试其他会话名称");
+      fireEvent.change(next, { target: { value: "周一" } });
+      fireEvent.keyDown(next, { key: "Enter" });
+      expect(chat.open).toHaveBeenLastCalledWith("mon");
+    } finally {
+      view.unmount();
+      chat.sessions = previous;
+    }
+  });
+  test("Escape returns to the draft and confirming Chinese input does not send it", async () => {
+    render(<App />);
+    const box = screen.getByRole("textbox", { name: "消息" });
+    await userEvent.setup().click(box);
+    fireEvent.change(box, { target: { value: "还要准备什么" } });
+    fireEvent.keyDown(box, { key: "k", ctrlKey: true });
+    const search = screen.getByLabelText("搜索会话名称");
+    expect(search).toHaveFocus();
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(box).toHaveFocus();
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(chat.send).not.toHaveBeenCalled();
+    expect(box).toHaveValue("还要准备什么");
+  });
   test("pauses without showing an intermediate stopping state", () => {
     const previous = { ...chat };
     Object.assign(chat, { activeId: "stopping-chat", busy: true, stopping: true,
