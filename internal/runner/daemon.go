@@ -150,10 +150,15 @@ func trimTrailingSlash(s string) string {
 func (d *Daemon) Run(ctx context.Context) error {
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
+	hadSession := d.clientSession() != ""
 	if err := d.ensureRegistered(ctx); err != nil {
 		return err
 	}
-	d.refreshRuntimes(ctx)
+	// Fresh registration already probed the CLIs for its request. A restart
+	// must discover them again, as must a registration whose discovery failed.
+	if hadSession || len(d.currentRuntimes()) == 0 {
+		d.refreshRuntimes(ctx)
+	}
 	claimCtx, cancelClaim := context.WithCancel(ctx)
 	defer cancelClaim()
 	d.cancelClaimLoop = cancelClaim
