@@ -1,0 +1,12 @@
+{
+  "total": 8,
+  "passed": 1,
+  "failed": 7,
+  "httpFailures": [
+    {
+      "status": 400,
+      "count": 7
+    }
+  ],
+  "mysqlError": 1213
+}
