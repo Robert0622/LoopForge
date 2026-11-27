@@ -97,7 +97,10 @@
   const fragments = Object.keys(dict).filter(k => k.length > 1).sort((a, b) => b.length - a.length);
   const fragmentRE = fragments.length ? new RegExp('(?<![\\u3400-\\u9fff])(?:' + fragments.map(escape).join('|') + ')(?![\\u3400-\\u9fff])', 'g') : null;
   const sentences = fragments.filter(k => k.length >= 6 && HAN.test(k));
-  const sentenceRE = sentences.length ? new RegExp(sentences.map(escape).join('|'), 'g') : null;
+  // The second pass picks up sentences the fragment pass freed from adjacent
+  // Chinese. It keeps the same word boundary: 「设为项目默认仓库」 must not become
+  // "Set as project default仓库".
+  const sentenceRE = sentences.length ? new RegExp('(?<![\\u3400-\\u9fff])(?:' + sentences.map(escape).join('|') + ')(?![\\u3400-\\u9fff])', 'g') : null;
   const punct = [[/，/g, ', '], [/。/g, '. '], [/：/g, ': '], [/；/g, '; '], [/、/g, ', '], [/！/g, '! '], [/？/g, '? '], [/（/g, ' ('], [/）/g, ') '], [/「|」/g, '"'], [/『|』/g, '"']];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const UNITS = {次: ['time', 'times'], 步: ['step', 'steps'], 个: ['', ''], 台: ['', ''], 条: ['', ''], 篇: ['doc', 'docs']};

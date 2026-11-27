@@ -113,3 +113,37 @@ test('English mode translates how a requirement that never ran will be handled',
   for (const text of copy) assert.doesNotMatch(window.lfTranslate(text), HAN, text);
   window.close();
 });
+
+test('English mode never rewrites a sentence key in the middle of a Chinese word', async (t) => {
+  const window = await englishPage('<html><body></body></html>');
+  t.after(() => window.close());
+  // Each of these used to come out half translated, e.g. "Set as project default仓库".
+  for (const text of ['单用户保留最近 30 天内最多 2000 条', '设为项目默认仓库']) {
+    const out = window.lfTranslate(text);
+    assert.doesNotMatch(out, /[A-Za-z][㐀-鿿]|[㐀-鿿][A-Za-z]/, `${text} => ${out}`);
+  }
+  assert.equal(window.lfTranslate('设为项目默认仓库'), 'Set as the project default repository');
+  // A sentence key with no Chinese around it is still translated.
+  assert.equal(window.lfTranslate('暂时无法打开回写后的 LOOP，请刷新后再试。'),
+    'Could not open the updated LOOP. Refresh and try again.');
+});
+
+test('English mode translates the personal knowledge connector pages', async (t) => {
+  const window = await englishPage('<html><body></body></html>');
+  t.after(() => window.close());
+  const left = [];
+  for (const file of ['app/knowledge.js', 'app/knowledge-refs.js']) {
+    const source = (await readFile(path.join(WEB_ROOT, file), 'utf8')).split('\n')
+      .filter(line => !/^\s*(\/\/|\/?\*)/.test(line)).join('\n');
+    // Quotes, markup and interpolations bound the text nodes the page renders.
+    for (const part of source.split(/\$\{|[`'"<>{}\n]/).map(s => s.trim())) {
+      if (HAN.test(part) && HAN.test(window.lfTranslate(part))) left.push(`${file}: ${part}`);
+    }
+  }
+  assert.deepEqual(left, []);
+  assert.equal(window.lfTranslate('已显示 5 / 共 10 条（单用户保留最近 30 天内最多 2000 条）'),
+    'Showing 5 of 10 (up to 2000 per user from the last 30 days are kept)');
+  assert.equal(window.lfTranslate('请为「Wiki」选择至少一个子知识库'), 'Select at least one sub-knowledge base for "Wiki"');
+  // Connector errors come from the server and are shown after 连接失败：.
+  assert.equal(window.lfTranslate('连接失败：知识库 MCP 服务拒绝访问'), 'Connection failed: Knowledge MCP service denied access');
+});
