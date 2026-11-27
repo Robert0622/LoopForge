@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -96,7 +97,7 @@ type catalogVariantConnector struct {
 	err     error
 }
 
-func (c *catalogVariantConnector) Type() string                 { return c.typ }
+func (c *catalogVariantConnector) Type() string                      { return c.typ }
 func (c *catalogVariantConnector) Check(context.Context) CheckResult { return CheckResult{OK: true} }
 func (c *catalogVariantConnector) ListSources(context.Context) ([]Source, error) {
 	return c.sources, c.err
@@ -514,5 +515,25 @@ func TestSiYuanAndObsidianRemainingBranches(t *testing.T) {
 	plainRead, err := obConn.CallTool(ctx, WeKnoraToolReadDocument, map[string]any{"knowledge_id": "README.md"}, SourceScope{Mode: "all"})
 	if err != nil || !strings.Contains(plainRead.Text, "Plain markdown response.") {
 		t.Fatalf("expected plain markdown read_document, got %+v err=%v", plainRead, err)
+	}
+}
+
+// A rejected token often comes back as a bare 401/403 without a body; the
+// connector must still say access was denied rather than report an outage.
+func TestMCPSafeErrorReportsDeniedAccessWithoutBody(t *testing.T) {
+	mc := &mcpConnector{spec: ConnectorSpec{Secret: domain.KnowledgeConnectorSecret{Token: "secret-abc"}}}
+	for _, err := range []error{
+		&mcpclient.HTTPError{StatusCode: http.StatusUnauthorized},
+		&mcpclient.HTTPError{StatusCode: http.StatusForbidden},
+		&mcpclient.HTTPError{StatusCode: http.StatusUnauthorized, Body: `{"error":"bad token secret-abc"}`},
+		fmt.Errorf("initialize: %w", &mcpclient.HTTPError{StatusCode: http.StatusForbidden}),
+	} {
+		got := mc.safeError(err)
+		if !isAppErrKind(got, apperr.Upstream) || !strings.Contains(got.Error(), "拒绝访问") || strings.Contains(got.Error(), "secret-abc") {
+			t.Errorf("%v => %v, want 知识库 MCP 服务拒绝访问", err, got)
+		}
+	}
+	if got := mc.safeError(&mcpclient.HTTPError{StatusCode: http.StatusBadGateway}); strings.Contains(got.Error(), "拒绝访问") {
+		t.Fatalf("502 reported as denied access: %v", got)
 	}
 }

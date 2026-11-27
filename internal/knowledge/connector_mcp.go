@@ -970,7 +970,10 @@ func (c *mcpConnector) safeError(err error) error {
 		return apperr.New(apperr.Upstream, "知识库 MCP 服务超时")
 	case errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusTooManyRequests:
 		return apperr.New(apperr.Upstream, "上游知识库接口触发频率限制，请稍后重试")
-	case strings.Contains(msg, "gateway HTTP 403:") || strings.Contains(msg, "gateway HTTP 401:"):
+	// Match the status, not the text: an empty 401/403 body renders without
+	// the "gateway HTTP 401:" colon and would read as an outage.
+	case errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusUnauthorized || httpErr.StatusCode == http.StatusForbidden),
+		strings.Contains(msg, "gateway HTTP 403:") || strings.Contains(msg, "gateway HTTP 401:"):
 		return apperr.New(apperr.Upstream, "知识库 MCP 服务拒绝访问")
 	case errors.As(err, &rpcErr) && rpcErr.Code == -32602:
 		detail := RedactSecrets(strings.TrimSpace(rpcErr.Message), c.spec.Secret)
