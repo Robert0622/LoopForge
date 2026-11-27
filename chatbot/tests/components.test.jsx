@@ -673,6 +673,50 @@ describe("content and panels", () => {
     expect(screen.getByText("导入前请检查")).toBeInTheDocument();
   });
 
+  test("a proposal card names the repository and LOOP its draft carries by id", async () => {
+    const original = apiMock.getMockImplementation();
+    apiMock.mockClear();
+    apiMock.mockImplementation(async (path) => {
+      const type = new URLSearchParams(path.split("?")[1]).get("type");
+      if (path.startsWith("/api/assistant/references?") && type === "repository")
+        return [{ type: "repository", id: "repo-9", name: "商城后端", projectId: "p1" }];
+      if (path.startsWith("/api/assistant/references?") && type === "sop")
+        return [{ type: "sop", id: "sop-shop", name: "商城交付 LOOP", projectId: "p1" }];
+      return [];
+    });
+    try {
+      render(
+        <DraftCard
+          artifact={{
+            id: "named1",
+            messageIndex: 2,
+            draftIndex: 0,
+            name: "截断长度修复",
+            kind: "operation",
+            draft: {
+              tool: "issues_save",
+              body: { projectId: "p1", title: "截断长度修复", repositoryIds: ["repo-9"], workflowId: "sop-shop" },
+              proposal: { reason: "需要建需求跟进", timing: "end" },
+            },
+          }}
+          onApply={vi.fn()}
+          onDecide={vi.fn()}
+          onPreview={vi.fn()}
+          context={{ projectId: "p1", projects: chat.projects, references: [] }}
+        />,
+      );
+      expect(await screen.findByText("商城后端")).toBeInTheDocument();
+      expect(await screen.findByText("商城交付 LOOP")).toBeInTheDocument();
+      expect(screen.queryByText("repo-9")).not.toBeInTheDocument();
+      expect(screen.queryByText("sop-shop")).not.toBeInTheDocument();
+      const lookups = apiMock.mock.calls.map(([path]) => path).filter((path) => path.startsWith("/api/assistant/references?"));
+      expect(lookups).toHaveLength(2);
+      expect(lookups.every((path) => path.includes("projectId=p1"))).toBe(true);
+    } finally {
+      apiMock.mockImplementation(original);
+    }
+  });
+
   test("a LOOP proposal is declined or muted from its card", async () => {
     const user = userEvent.setup();
     const decide = vi.fn(async () => ({}));

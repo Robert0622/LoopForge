@@ -78,14 +78,49 @@ const GLOBAL_SAVE_TOOLS = new Set([
 ]);
 // repo.GenericBackendDeliveryWorkflowID, bound to new projects by default.
 const DEFAULT_PROJECT_WORKFLOW = "generic-backend-delivery";
+function operationProject(draft, projectId) {
+  return GLOBAL_SAVE_TOOLS.has(draft.tool)
+    ? ""
+    : draft.body?.projectId || projectId;
+}
+// A requirement that opts out of LOOP drops its workflowId on save.
+function operationWithoutSOP(draft) {
+  return (
+    draft.tool === "issues_save" &&
+    String(draft.body?.sopMode ?? "")
+      .trim()
+      .toLowerCase() === "none"
+  );
+}
+// operationReferenceLookup names the reference types whose ids the summary
+// would show raw, because the AI's draft carries ids the chat never mentioned.
+// The card loads their names from the draft's project.
+export function operationReferenceLookup(
+  draft,
+  { references = [], projectId = "" } = {},
+) {
+  const body = draft.body || {};
+  const project = operationProject(draft, projectId);
+  if (!project) return null;
+  const known = (type, id) =>
+    references.some((r) => r.type === type && r.id === id);
+  const types = [];
+  if (repositoryIds(body).some((id) => !known("repository", id)))
+    types.push("repository");
+  if (
+    body.workflowId &&
+    !operationWithoutSOP(draft) &&
+    !known("sop", body.workflowId)
+  )
+    types.push("sop");
+  return types.length ? { projectId: project, types } : null;
+}
 export function operationSummary(
   draft,
   { projects = [], references = [], projectId = "" } = {},
 ) {
   const body = draft.body || {};
-  const project = GLOBAL_SAVE_TOOLS.has(draft.tool)
-    ? ""
-    : body.projectId || projectId;
+  const project = operationProject(draft, projectId);
   const named = (type, id) =>
     references.find((r) => r.type === type && r.id === id)?.name || id;
   const target = draft.path?.id || body.id;
@@ -93,12 +128,7 @@ export function operationSummary(
     draft.tool === "projects_save" && projects.some((p) => p.id === target);
   // Mirrors saveProject: a new project without a workflowId is bound to the
   // generic backend LOOP, so the card says so instead of showing nothing.
-  // A requirement that opts out of LOOP drops its workflowId on save.
-  const withoutSOP =
-    draft.tool === "issues_save" &&
-    String(body.sopMode ?? "")
-      .trim()
-      .toLowerCase() === "none";
+  const withoutSOP = operationWithoutSOP(draft);
   const sop = withoutSOP
     ? "不使用 LOOP"
     : body.workflowId

@@ -11,6 +11,7 @@ import {
   projectEntryTarget,
 } from "./platform.js";
 import {
+  operationReferenceLookup,
   operationSummary,
   operationValidation,
   repositoryIds,
@@ -115,6 +116,47 @@ export function DraftCard({
       current = false;
     };
   }, [artifact.id, isImport, projectId]);
+  // The AI's draft may carry repository or LOOP ids the chat never mentioned;
+  // load their names so the card does not ask the user to confirm raw ids.
+  const lookup = operationReferenceLookup(draft, {
+    projectId: context.projectId,
+    references: isImport
+      ? [
+          ...repositoryIds(draft.body).map((id) => ({
+            type: "repository",
+            id,
+          })),
+          ...(context.references || []),
+        ]
+      : context.references,
+  });
+  const lookupKey = lookup
+    ? `${lookup.projectId}|${lookup.types.join(",")}`
+    : "";
+  const [lookedUp, setLookedUp] = useState([]);
+  useEffect(() => {
+    let current = true;
+    setLookedUp([]);
+    if (lookupKey) {
+      const [lookupProject, types] = lookupKey.split("|");
+      Promise.all(
+        types.split(",").map((type) =>
+          api(
+            "/api/assistant/references?" +
+              new URLSearchParams({ projectId: lookupProject, type }),
+          )
+            .then((rows) => (Array.isArray(rows) ? rows : rows?.items || []))
+            // A name is a nicety: the id stays readable when it fails.
+            .catch(() => []),
+        ),
+      ).then((groups) => {
+        if (current) setLookedUp(groups.flat());
+      });
+    }
+    return () => {
+      current = false;
+    };
+  }, [artifact.id, lookupKey]);
   const sharedSelection = context.repositorySelections?.[artifact.id];
   const selection = isImport
     ? sharedSelection?.projectId === projectId
@@ -129,7 +171,7 @@ export function DraftCard({
     : draft;
   const summary = operationSummary(reviewed, {
     ...context,
-    references: [...repositories, ...(context.references || [])],
+    references: [...repositories, ...lookedUp, ...(context.references || [])],
   });
   const validation = operationValidation(reviewed);
   const savedIssue =

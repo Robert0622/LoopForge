@@ -7,6 +7,7 @@ import {
   operationValidation,
   reviewedOperation,
   operationSummary,
+  operationReferenceLookup,
   operationError,
   repositoryIds,
 } from "../src/operations.js";
@@ -190,4 +191,45 @@ test("a requirement saved without a LOOP says so instead of naming the LOOP it d
   assert.equal(sopOf({ sopMode: "none", workflowId: "wf" }), "不使用 LOOP");
   assert.equal(sopOf({ workflowId: "wf" }), "后端交付 LOOP");
   assert.equal(sopOf({}), undefined);
+});
+
+test("operation cards look up repository and LOOP names the chat never mentioned", () => {
+  const draft = (body, tool = "issues_save") => ({ tool, body });
+  const body = { title: "需求", repositoryIds: ["repo-1"], workflowId: "sop-a" };
+  assert.deepEqual(operationReferenceLookup(draft(body), { projectId: "p1" }), {
+    projectId: "p1",
+    types: ["repository", "sop"],
+  });
+  // The draft's own project wins over the chat's.
+  assert.equal(
+    operationReferenceLookup(draft({ ...body, projectId: "p2" }), { projectId: "p1" }).projectId,
+    "p2",
+  );
+  // Names already referenced in the chat need no request.
+  assert.deepEqual(
+    operationReferenceLookup(draft(body), {
+      projectId: "p1",
+      references: [{ type: "repository", id: "repo-1", name: "仓库" }],
+    }),
+    { projectId: "p1", types: ["sop"] },
+  );
+  assert.equal(
+    operationReferenceLookup(draft(body), {
+      projectId: "p1",
+      references: [
+        { type: "repository", id: "repo-1", name: "仓库" },
+        { type: "sop", id: "sop-a", name: "LOOP" },
+      ],
+    }),
+    null,
+  );
+  // An opted-out LOOP is not shown, a draft without ids has nothing to name,
+  // and platform-level saves belong to no project.
+  assert.deepEqual(
+    operationReferenceLookup(draft({ ...body, sopMode: "none" }), { projectId: "p1" }).types,
+    ["repository"],
+  );
+  assert.equal(operationReferenceLookup(draft({ title: "需求" }), { projectId: "p1" }), null);
+  assert.equal(operationReferenceLookup(draft(body), {}), null);
+  assert.equal(operationReferenceLookup(draft(body, "projects_save"), { projectId: "p1" }), null);
 });
