@@ -151,3 +151,30 @@ func TestScheduleAssistantTitleWritesSummary(t *testing.T) {
 		t.Fatalf("summary not stored: %+v", got)
 	}
 }
+
+// Catalogs list no credits, so the cheapest pick finds nothing. The title must
+// then stay on the session's own model instead of an unpinned CLI default.
+func TestAssistantTitleModelKeepsSessionModelWithoutPrices(t *testing.T) {
+	t.Setenv("AGENTFLOW_ASSISTANT_MODEL", "")
+	t.Setenv("AGENTFLOW_ASSISTANT_MODELS", "deepseek-v4.1-flash,claude-opus-5")
+	ctx := context.Background()
+	for _, tc := range []struct {
+		model  string
+		shared []string
+		want   string
+	}{
+		{"deepseek-v4.1-flash", nil, "deepseek-v4.1-flash"},
+		{"codebuddy:deepseek-v4.1-flash", nil, "deepseek-v4.1-flash"},
+		{"claude-opus-5", nil, "claude-opus-5"},
+		{"default", nil, assistantDefaultModel},
+		{"", nil, assistantDefaultModel},
+		{"unlisted-model", nil, assistantDefaultModel},
+		{"claude-opus-5", []string{"deepseek-v4.1-flash"}, "deepseek-v4.1-flash"},
+		{"deepseek-v4.1-flash", []string{"claude-opus-5", "deepseek-v4.1-flash"}, "deepseek-v4.1-flash"},
+	} {
+		model, effort := assistantTitleModel(ctx, domain.User{}, tc.model, tc.shared)
+		if model != tc.want || effort != "" {
+			t.Errorf("%q shared=%v: got %q/%q, want %q", tc.model, tc.shared, model, effort, tc.want)
+		}
+	}
+}

@@ -118,7 +118,9 @@ func (h *assistantHandlers) scheduleAssistantTitle(ctx context.Context, ownerID 
 
 // assistantTitleModel picks the model and effort that name a session.
 // CodeBuddy uses its cheapest model, limited to shared when the turn borrows
-// the platform key. Other CLIs and custom gateways reuse the session's model at its weakest
+// the platform key. A catalog without prices (as some environments list it)
+// keeps the session's own model rather than the CLI's unpinned default.
+// Other CLIs and custom gateways reuse the session's model at its weakest
 // effort; the gateway behind a Base URL may serve nothing else.
 func assistantTitleModel(ctx context.Context, user domain.User, model string, shared []string) (string, string) {
 	if engine, _ := assistantModelEngine(model); engine != assistantEngineCodeBuddy || user.CodeBuddyBaseURL != "" {
@@ -133,6 +135,9 @@ func assistantTitleModel(ctx context.Context, user domain.User, model string, sh
 	}
 	if chosen := assistantApprovalReviewModel(catalog); chosen != "" {
 		return chosen, ""
+	}
+	if _, id := assistantModelEngine(model); id != "" && !codeBuddyIsDefaultModel(id) && assistantAllowedModel(id, catalog) == id {
+		return id, ""
 	}
 	if len(shared) > 0 {
 		return shared[0], ""
